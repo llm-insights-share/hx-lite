@@ -1,7 +1,7 @@
 id,milestone,priority,title,description,covers,depends_on,status
-T-000,M0-脚手架,P0,"Monorepo 工程脚手架","初始化 packages/(cli|core|sensors|adapters|bundles) 结构；TypeScript + Vitest + Zod + Commander.js；CI 基础流水线；插件 API SemVer 策略","NFR-008",,todo
-T-001,M0-脚手架,P0,"制品 Schema 定义","用 Zod 定义并校验 meta.yaml / harness.yaml / config.yaml / asset.yaml / traceability.yaml / harness.lock 的 schema；含 kind+execution 双维度字段","FR-024(schema),NFR-008","T-000",todo
-T-002,M0-脚手架,P1,"运行遥测写入器","Gate/Sensor 执行日志以 JSON Lines 持久化至 harnessX/runs/ 与 changes/*/runs/；日志哈希计算","NFR-005","T-000",todo
+T-000,M0-脚手架,P0,"Monorepo 工程脚手架","初始化 packages/(cli|core|sensors|adapters|bundles) 结构；TypeScript + Vitest + Zod + Commander.js；CI 基础流水线；插件 API SemVer 策略","NFR-008",,done
+T-001,M0-脚手架,P0,"制品 Schema 定义","用 Zod 定义并校验 meta.yaml / harness.yaml / config.yaml / asset.yaml / traceability.yaml / harness.lock 的 schema；含 kind+execution 双维度字段","FR-024(schema),NFR-008","T-000",done
+T-002,M0-脚手架,P1,"运行遥测写入器","Gate/Sensor 执行日志以 JSON Lines 持久化至 harnessX/runs/ 与 changes/*/runs/；日志哈希计算","NFR-005","T-000",done
 T-100,M1-Foundation,P0,"hx init 命令","生成 harnessX/ 目录（constitution.md 初始化、config.yaml、harness.yaml、assets/ 骨架）；--bundle 选项；5 分钟内完成首次 propose 的引导输出","FR-034(init),NFR-007","T-001",todo
 T-101,M1-Foundation,P0,"Artifact Store 核心","制品读写；delta spec 解析（ADDED/MODIFIED/REMOVED）；合并引擎（golden files 测试）；archive 移动","FR-001,FR-009(merge)","T-001",todo
 T-102,M1-Foundation,P0,"hx change create","创建 change 工作区（proposal/design/tasks/specs/meta/traces/runs）；要求声明 touched domains 并检测与进行中 change 的重叠告警","FR-001,FR-011(声明+告警)","T-101",todo
