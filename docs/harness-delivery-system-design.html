@@ -1188,8 +1188,7 @@ sensors:
 
 # asset.yaml
 id: proposal-template
-kind: guide.template          # guide.template | guide.skill | guide.context
-                              # sensor.rule | sensor.script | sensor.rubric
+kind: guide.template          # guide.* | sensor.* | orch.*（完整分类见下方全景表）
 category: behaviour           # maintainability | architecture | behaviour
 phase: [propose]
 version: 1.3.0
@@ -1207,6 +1206,159 @@ metrics:                      # 效果数据（自动回填）
         <strong>为什么同构？</strong>前馈和反馈资产共享同一套版本号、来源追溯、效果指标与发布流程，
         才能实现「一条 Review 规则总是与对应的模板/Skill 成对演进」——
         例如 layering Skill（前馈）与 arch-boundary Sensor（反馈）绑定为同一 bundle，避免指令与检查相互矛盾。
+      </div>
+
+      <h4>控制资产全景分类</h4>
+      <p>
+        判定标准：<strong>任何能「改变 Agent 行为的概率分布」（前馈）或「产生 Agent 可消费的校正信号」（反馈）
+        的可版本化内容，都应纳入控制资产管理</strong>。模板与 Review 规则只是最典型的两类，完整分类如下：
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Kind</th><th>方向</th><th>资产类型</th><th>说明与示例</th><th>执行类型</th></tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="5" style="background:var(--surface);font-weight:600;">前馈（Guide）资产</td></tr>
+            <tr>
+              <td><code>guide.template</code></td><td>前馈</td>
+              <td>制品模板</td>
+              <td>proposal / design / spec / tasks 骨架，含填写指引</td>
+              <td>Computational</td>
+            </tr>
+            <tr>
+              <td><code>guide.skill</code></td><td>前馈</td>
+              <td>Skill / 知识条目</td>
+              <td>编码约定、API 设计规范、领域知识、调试指南</td>
+              <td>Inferential</td>
+            </tr>
+            <tr>
+              <td><code>guide.exemplar</code></td><td>前馈</td>
+              <td>示例库（Few-shot）</td>
+              <td>「金标准」代码片段、优秀 PR、规范 Spec 的正反例；比抽象规则更能校准 Agent 输出</td>
+              <td>Inferential</td>
+            </tr>
+            <tr>
+              <td><code>guide.scaffold</code></td><td>前馈</td>
+              <td>脚手架 / Bootstrap 脚本</td>
+              <td>确定性生成项目骨架、模块、测试桩；Agent 不用「猜」结构，直接调用脚本</td>
+              <td>Computational</td>
+            </tr>
+            <tr>
+              <td><code>guide.codemod</code></td><td>前馈</td>
+              <td>Codemod / 重写配方</td>
+              <td>OpenRewrite recipes、jscodeshift 脚本；把机械性改造从推理任务变为确定性执行</td>
+              <td>Computational</td>
+            </tr>
+            <tr>
+              <td><code>guide.constraint</code></td><td>前馈</td>
+              <td>架构约束声明 / ADR</td>
+              <td>机器可读的模块边界、依赖方向、技术选型决策；同时作为结构测试的规则来源</td>
+              <td>Both</td>
+            </tr>
+            <tr>
+              <td><code>guide.glossary</code></td><td>前馈</td>
+              <td>领域词汇表</td>
+              <td>统一语言（Ubiquitous Language）：术语、命名约定、领域概念映射，防止 Agent 发明不一致命名</td>
+              <td>Inferential</td>
+            </tr>
+            <tr>
+              <td><code>guide.capability</code></td><td>前馈</td>
+              <td>工具与权限配置</td>
+              <td>MCP server 配置、允许/禁用的工具清单、命令白名单 —— 从能力边界上约束 Agent 行为空间</td>
+              <td>Computational</td>
+            </tr>
+            <tr>
+              <td><code>guide.command</code></td><td>前馈</td>
+              <td>命令 / 提示词定义</td>
+              <td>Slash command 正文、系统提示片段、阶段性 Agent 指令 —— 本身就是需要版本化迭代的资产</td>
+              <td>Inferential</td>
+            </tr>
+            <tr>
+              <td><code>guide.env</code></td><td>前馈</td>
+              <td>环境资产</td>
+              <td>devcontainer / sandbox 配置、seed 数据、本地服务编排 —— 可复现环境提高 Agent 自测成功率</td>
+              <td>Computational</td>
+            </tr>
+            <tr><td colspan="5" style="background:var(--surface);font-weight:600;">反馈（Sensor）资产</td></tr>
+            <tr>
+              <td><code>sensor.rule</code></td><td>反馈</td>
+              <td>Lint / 静态规则</td>
+              <td>ESLint 配置、自定义 linter、复杂度阈值；报错信息须含 fix_hint</td>
+              <td>Computational</td>
+            </tr>
+            <tr>
+              <td><code>sensor.arch</code></td><td>反馈</td>
+              <td>结构测试规则包</td>
+              <td>ArchUnit / dependency-cruiser 规则，与 <code>guide.constraint</code> 成对</td>
+              <td>Computational</td>
+            </tr>
+            <tr>
+              <td><code>sensor.rubric</code></td><td>反馈</td>
+              <td>AI Review 规则</td>
+              <td>结构化 Rubric（见 §11.3），LLM Judge 逐条评估</td>
+              <td>Inferential</td>
+            </tr>
+            <tr>
+              <td><code>sensor.fixture</code></td><td>反馈</td>
+              <td>测试资产</td>
+              <td>Approved Fixtures、golden files、契约测试、property-based 生成器 —— 人类批准的行为期望，Agent 不可篡改</td>
+              <td>Computational</td>
+            </tr>
+            <tr>
+              <td><code>sensor.budget</code></td><td>反馈</td>
+              <td>性能预算 / SLO 探针</td>
+              <td>响应时间预算、bundle 体积上限、内存阈值 —— Architecture Fitness 的量化基准</td>
+              <td>Computational</td>
+            </tr>
+            <tr>
+              <td><code>sensor.drift</code></td><td>反馈</td>
+              <td>漂移探测器</td>
+              <td>死代码检测、依赖扫描、spec-code 同步检查、测试质量分析 —— 变更生命周期之外持续运行</td>
+              <td>Both</td>
+            </tr>
+            <tr>
+              <td><code>sensor.mutation</code></td><td>反馈</td>
+              <td>Mutation 测试配置</td>
+              <td>验证「测试的测试」：AI 生成的测试是否真能捕获缺陷</td>
+              <td>Computational</td>
+            </tr>
+            <tr>
+              <td><code>sensor.eval</code></td><td>反馈</td>
+              <td>Judge 验证集</td>
+              <td>Inferential Sensor 自身的评估数据集 —— 度量 Rubric 的一致性与误报率，是「传感器的传感器」</td>
+              <td>Computational</td>
+            </tr>
+            <tr><td colspan="5" style="background:var(--surface);font-weight:600;">编排（Orchestration）资产 —— 既非纯前馈也非纯反馈</td></tr>
+            <tr>
+              <td><code>orch.profile</code></td><td>编排</td>
+              <td>Profile / Gate 定义</td>
+              <td>lite / standard / strict 的阶段与 Sensor 组合策略 —— 编排策略本身需要版本化与共享</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><code>orch.waiver</code></td><td>编排</td>
+              <td>豁免策略</td>
+              <td>什么条件下允许跳过哪些 Gate、豁免的审批与过期机制 —— 防止豁免变成后门</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><code>orch.pattern</code></td><td>编排</td>
+              <td>失败模式条目</td>
+              <td>Failure Catalog 中已确认的模式定义 —— 跨仓库共享后，其他团队可预防性引入对应控制</td>
+              <td>—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout callout-warn">
+        <strong>两个容易被忽视的类别：</strong>
+        ① <strong>确定性前馈</strong>（scaffold / codemod / capability）—— 把任务从「Agent 推理」降级为「脚本执行」，
+        是最便宜也最可靠的控制手段，应优先于写更多自然语言指令；
+        ② <strong>编排资产</strong> —— Gate 组合与豁免策略决定了所有 Guides/Sensors 如何生效，
+        不纳入版本管理会导致「同一套规则在不同仓库执行强度不一致」的隐性漂移。
       </div>
 
       <h3>11.2 前馈资产：模板的管理</h3>
