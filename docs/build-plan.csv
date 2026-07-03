@@ -2,15 +2,15 @@ id,milestone,priority,title,description,covers,depends_on,status
 T-000,M0-脚手架,P0,"Monorepo 工程脚手架","初始化 packages/(cli|core|sensors|adapters|bundles) 结构；TypeScript + Vitest + Zod + Commander.js；CI 基础流水线；插件 API SemVer 策略","NFR-008",,done
 T-001,M0-脚手架,P0,"制品 Schema 定义","用 Zod 定义并校验 meta.yaml / harness.yaml / config.yaml / asset.yaml / traceability.yaml / harness.lock 的 schema；含 kind+execution 双维度字段","FR-024(schema),NFR-008","T-000",done
 T-002,M0-脚手架,P1,"运行遥测写入器","Gate/Sensor 执行日志以 JSON Lines 持久化至 harnessX/runs/ 与 changes/*/runs/；日志哈希计算","NFR-005","T-000",done
-T-100,M1-Foundation,P0,"hx init 命令","生成 harnessX/ 目录（constitution.md 初始化、config.yaml、harness.yaml、assets/ 骨架）；--bundle 选项；5 分钟内完成首次 propose 的引导输出","FR-034(init),NFR-007","T-001",todo
-T-101,M1-Foundation,P0,"Artifact Store 核心","制品读写；delta spec 解析（ADDED/MODIFIED/REMOVED）；合并引擎（golden files 测试）；archive 移动","FR-001,FR-009(merge)","T-001",todo
-T-102,M1-Foundation,P0,"hx change create","创建 change 工作区（proposal/design/tasks/specs/meta/traces/runs）；要求声明 touched domains 并检测与进行中 change 的重叠告警","FR-001,FR-011(声明+告警)","T-101",todo
-T-103,M1-Foundation,P0,"/hx:propose 命令与模板资产","proposal.md 生成流程；guide.template 资产 proposal-template（含填写指引注释与 examples/）；初始 delta specs 草稿","FR-003","T-102",todo
-T-104,M1-Foundation,P0,"/hx:explore 命令","只读探索模式；输出 explore.md；只读 Sensor 确认未修改代码","FR-002","T-102",todo
-T-105,M1-Foundation,P0,"spec-validate Sensor","OpenSpec 兼容 delta 格式校验；每 Requirement ≥1 Scenario；EARS 五种句式完整性校验（触发/响应齐备、可测性）；LLM-Optimized 报告输出","FR-022","T-101",todo
-T-106,M1-Foundation,P0,"/hx:archive 命令","delta 合并入主 specs/；change 移入 archive/；Retro 摘要生成（Steering 输入桩）","FR-009","T-101,T-105",todo
-T-107,M1-Foundation,P1,"OpenSpec 互操作","hx openspec import（openspec/ 映射为 harnessX/ 保留 git 历史）；compat_mode: openspec 直接使用 openspec/ 路径","NFR-004","T-101",todo
-T-108,M1-Foundation,P0,"M1 验收","E2E：一个示例 change 从 propose 到 archive 全程通过；spec-validate 拦截坏格式","M1 验收标准","T-100..T-107",todo
+T-100,M1-Foundation,P0,"hx init 命令","生成 harnessX/ 目录（constitution.md 初始化、config.yaml、harness.yaml、assets/ 骨架）；--bundle 选项；5 分钟内完成首次 propose 的引导输出","FR-034(init),NFR-007","T-001",done
+T-101,M1-Foundation,P0,"Artifact Store 核心","制品读写；delta spec 解析（ADDED/MODIFIED/REMOVED）；合并引擎（golden files 测试）；archive 移动","FR-001,FR-009(merge)","T-001",done
+T-102,M1-Foundation,P0,"hx change create","创建 change 工作区（proposal/design/tasks/specs/meta/traces/runs）；要求声明 touched domains 并检测与进行中 change 的重叠告警","FR-001,FR-011(声明+告警)","T-101",done
+T-103,M1-Foundation,P0,"/hx:propose 命令与模板资产","proposal.md 生成流程；guide.template 资产 proposal-template（含填写指引注释与 examples/）；初始 delta specs 草稿","FR-003","T-102",done
+T-104,M1-Foundation,P0,"/hx:explore 命令","只读探索模式；输出 explore.md；只读 Sensor 确认未修改代码","FR-002","T-102",done
+T-105,M1-Foundation,P0,"spec-validate Sensor","OpenSpec 兼容 delta 格式校验；每 Requirement ≥1 Scenario；EARS 五种句式完整性校验（触发/响应齐备、可测性）；LLM-Optimized 报告输出","FR-022","T-101",done
+T-106,M1-Foundation,P0,"/hx:archive 命令","delta 合并入主 specs/；change 移入 archive/；Retro 摘要生成（Steering 输入桩）","FR-009","T-101,T-105",done
+T-107,M1-Foundation,P1,"OpenSpec 互操作","hx openspec import（openspec/ 映射为 harnessX/ 保留 git 历史）；compat_mode: openspec 直接使用 openspec/ 路径","NFR-004","T-101",done
+T-108,M1-Foundation,P0,"M1 验收","E2E：一个示例 change 从 propose 到 archive 全程通过；spec-validate 拦截坏格式","M1 验收标准","T-100..T-107",done
 T-200,M2-Gates,P0,"Gate Orchestrator 状态机","8 阶段状态机（含 phase/state/command 三名映射）；advance 仅当 blockers 为空；fail-closed：异常/超时/不可解析一律阻断","FR-020,FR-053","T-001,T-002",todo
 T-201,M2-Gates,P0,"Sensor Runner 与 Suite","Sensor Suite 定义与执行（并行/串行）；结构化报告（fix_hint/agent_instruction/fix_command 字段）；shell 型自定义 Sensor（run: 命令）；fail-closed 处理","FR-021,FR-024(shell),FR-053","T-200",todo
 T-202,M2-Gates,P0,"Guide Engine Context Pack","按阶段组装 Context Pack（含排除规则、persona+权限声明）；组装时间 <2s；hx guide pack CLI","FR-030,NFR-002","T-001",todo
