@@ -30,11 +30,17 @@ export function appendRun(ws: Workspace, record: Omit<RunRecord, "at">): RunReco
   return full;
 }
 
-/** Hash of a change's run log — bound to gate results in meta.yaml (FR-050). */
-export function runsLogHash(ws: Workspace, change: string): string {
+/**
+ * Prefix hash of a change's run log — bound to gate results in meta.yaml (FR-050).
+ * Hashing the first `lines` lines lets later legitimate runs append without
+ * invalidating earlier gate records, while edits to recorded lines are detected.
+ */
+export function runsLogHash(ws: Workspace, change: string, lines?: number): { hash: string; lines: number } {
   const file = path.join(ws.changeRunsDir(change), "telemetry.jsonl");
-  if (!fs.existsSync(file)) return sha256("");
-  return sha256(fs.readFileSync(file));
+  if (!fs.existsSync(file)) return { hash: sha256(""), lines: 0 };
+  const all = fs.readFileSync(file, "utf8").split("\n").filter(Boolean);
+  const n = lines ?? all.length;
+  return { hash: sha256(all.slice(0, n).join("\n")), lines: n };
 }
 
 export function readRuns(ws: Workspace, change?: string): RunRecord[] {

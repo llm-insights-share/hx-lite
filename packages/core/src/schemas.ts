@@ -172,7 +172,9 @@ export const GateHistoryEntry = z.object({
   suite: z.string().optional(),
   at: z.string(),
   passed: z.boolean(),
-  logHash: z.string().optional()
+  logHash: z.string().optional(),
+  /** number of telemetry lines the hash covers (prefix hash — later runs append) */
+  logLines: z.number().int().optional()
 });
 export type GateHistoryEntry = z.infer<typeof GateHistoryEntry>;
 

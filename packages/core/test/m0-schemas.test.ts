@@ -66,9 +66,12 @@ describe("T-002 telemetry", () => {
     expect(readRuns(ws, "add-auth")).toHaveLength(2);
 
     const h1 = runsLogHash(ws, "add-auth");
-    expect(h1).toHaveLength(64);
+    expect(h1.hash).toHaveLength(64);
+    expect(h1.lines).toBe(2);
     appendRun(ws, { kind: "sensor", change: "add-auth", name: "lint", status: "pass" });
-    expect(runsLogHash(ws, "add-auth")).not.toBe(h1);
+    expect(runsLogHash(ws, "add-auth").hash).not.toBe(h1.hash);
+    // prefix hash over the original line count is stable across appends
+    expect(runsLogHash(ws, "add-auth", 2).hash).toBe(h1.hash);
     expect(sha256("a")).not.toBe(sha256("b"));
   });
 });

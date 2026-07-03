@@ -11,9 +11,21 @@ import path from "node:path";
  * checks that recorded gate results are bound to the actual sensor log.
  */
 
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`);
+    return `{${entries.join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
 function canonical(meta: MetaYaml): string {
   const { contentHash: _omit, ...rest } = meta;
-  return JSON.stringify(rest);
+  return stableStringify(rest);
 }
 
 export function writeMeta(ws: Workspace, meta: MetaYaml): void {
@@ -44,8 +56,8 @@ export function verifyMeta(ws: Workspace, change: string): MetaVerifyResult {
 
   const lastGate = meta.gateHistory.at(-1);
   if (lastGate?.logHash) {
-    const actual = runsLogHash(ws, change);
-    if (actual !== lastGate.logHash)
+    const actual = runsLogHash(ws, change, lastGate.logLines);
+    if (actual.hash !== lastGate.logHash)
       problems.push("gate result logHash does not match sensor run log — logs or meta were tampered with");
   }
   return { ok: problems.length === 0, problems };
@@ -70,12 +82,14 @@ export function setStatus(ws: Workspace, change: string, status: PhaseState): Me
   return meta;
 }
 
-export function recordGate(ws: Workspace, change: string, entry: Omit<GateHistoryEntry, "at" | "logHash">): MetaYaml {
+export function recordGate(ws: Workspace, change: string, entry: Omit<GateHistoryEntry, "at" | "logHash" | "logLines">): MetaYaml {
   const meta = readMeta(ws, change);
+  const { hash, lines } = runsLogHash(ws, change);
   meta.gateHistory.push({
     ...entry,
     at: new Date().toISOString(),
-    logHash: runsLogHash(ws, change)
+    logHash: hash,
+    logLines: lines
   });
   writeMeta(ws, meta);
   return meta;
