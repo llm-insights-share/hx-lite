@@ -38,14 +38,14 @@ T-403,M4-Bundles,P0,"Constitution 优先级链与 harness lint","constitution > 
 T-404,M4-Bundles,P1,"并发 change 冲突完整实现","archive 前 delta rebase 检查；冲突报告与解决指引","FR-011(rebase)","T-102,T-106",done
 T-405,M4-Bundles,P1,"Scale-Adaptive Profile 推荐","按 touched domains/预估 diff/核心域自动推荐 profile；人工降级记录理由入 meta.yaml","FR-013","T-102,T-403",done
 T-406,M4-Bundles,P1,"M4 验收","Bundle 初始化的项目可运行 architecture sensors；harness lint 检出植入的矛盾资产","M4 验收标准","T-400..T-405",done
-T-500,M5-Steering,P1,"Failure Catalog","Sensor 失败与人工干预记录聚合；模式条目（orch.pattern）结构；≥3 次模式识别","FR-040","T-002,T-201",todo
-T-501,M5-Steering,P1,"hx steer report/distill","Failure Catalog 报告；三源信号蒸馏为 draft 资产（Agent 辅助生成 Skill 条目/Rubric 规则/lint 脚手架）；provenance 证据链","FR-041","T-500",todo
-T-502,M5-Steering,P1,"hx steer harvest-pr","收集 PR 人工 Review 意见；聚类转化为 Rubric 规则草稿","FR-041(来源)","T-501",todo
-T-503,M5-Steering,P2,"Harness Coverage 报告","已注册 Controls vs 历史 Failure Mode 覆盖矩阵；§18 度量指标采集（首次通过率/返工次数/复发率）","FR-042","T-500",todo
-T-504,M5-Steering,P1,"AI Review Sensor（Rubric Runner）","sensor.rubric 执行器；逐条评估输出结构化 findings；budget_tokens；Redaction 中间件与本地 Judge 选项","FR-024(inferential),NFR-006","T-201",todo
-T-505,M5-Steering,P1,"hx rubric add 自然语言入口","口语化检查项生成 draft 规则；进入 trial 生命周期；误报率统计钩子","规则沉淀支撑","T-504",todo
-T-506,M5-Steering,P1,"hx janitor run","定时巡检：死代码/spec-code 漂移/过期 waiver；自动开清理 PR；CI cron 集成","FR-027(schedule)","T-304,T-306",todo
-T-507,M5-Steering,P1,"M5 验收","重复失败模式可生成 harness 补丁 PR；蒸馏资产带证据链且可追溯","M5 验收标准","T-500..T-506",todo
+T-500,M5-Steering,P1,"Failure Catalog","Sensor 失败与人工干预记录聚合；模式条目（orch.pattern）结构；≥3 次模式识别","FR-040","T-002,T-201",done
+T-501,M5-Steering,P1,"hx steer report/distill","Failure Catalog 报告；三源信号蒸馏为 draft 资产（Agent 辅助生成 Skill 条目/Rubric 规则/lint 脚手架）；provenance 证据链","FR-041","T-500",done
+T-502,M5-Steering,P1,"hx steer harvest-pr","收集 PR 人工 Review 意见；聚类转化为 Rubric 规则草稿","FR-041(来源)","T-501",done
+T-503,M5-Steering,P2,"Harness Coverage 报告","已注册 Controls vs 历史 Failure Mode 覆盖矩阵；§18 度量指标采集（首次通过率/返工次数/复发率）","FR-042","T-500",done
+T-504,M5-Steering,P1,"AI Review Sensor（Rubric Runner）","sensor.rubric 执行器；逐条评估输出结构化 findings；budget_tokens；Redaction 中间件与本地 Judge 选项","FR-024(inferential),NFR-006","T-201",done
+T-505,M5-Steering,P1,"hx rubric add 自然语言入口","口语化检查项生成 draft 规则；进入 trial 生命周期；误报率统计钩子","规则沉淀支撑","T-504",done
+T-506,M5-Steering,P1,"hx janitor run","定时巡检：死代码/spec-code 漂移/过期 waiver；自动开清理 PR；CI cron 集成","FR-027(schedule)","T-304,T-306",done
+T-507,M5-Steering,P1,"M5 验收","重复失败模式可生成 harness 补丁 PR；蒸馏资产带证据链且可追溯","M5 验收标准","T-500..T-506",done
 T-600,M6-Assets,P1,"控制资产模型完整实现","asset.yaml manifest（kind/execution/status/provenance/metrics）；生命周期 draft→trial→enforced→deprecated；metrics 自动回填","§11 资产模型","T-001",todo
 T-601,M6-Assets,P1,"分层解析与 harness.lock","change>本地>团队>Hub>内置 五层解析；overrides 显式声明+原因；lock 锁定精确版本与内容哈希","§11.2","T-600",todo
 T-602,M6-Assets,P1,"hx hub 命令族","hub add/sync/promote；三方合并（上游 vs 本地 override vs 基线）；Hub 仓库结构与 CI 模板（golden repos/rubric eval sets）","§11.5","T-601",todo

@@ -25,3 +25,6 @@ export * from "./view.js";
 export * from "./harnessLint.js";
 export * from "./profileRecommend.js";
 export * from "./rebase.js";
+export * from "./steering.js";
+export * from "./rubric.js";
+export * from "./janitor.js";
