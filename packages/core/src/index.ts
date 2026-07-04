@@ -17,3 +17,8 @@ export * from "./relevance.js";
 export * from "./enforcement.js";
 export * from "./failureCatalog.js";
 export * from "./pluginApi.js";
+export * from "./fixtures.js";
+export * from "./verify.js";
+export * from "./testFirst.js";
+export * from "./sync.js";
+export * from "./view.js";
