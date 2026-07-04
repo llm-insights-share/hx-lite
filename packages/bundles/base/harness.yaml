@@ -9,11 +9,13 @@ profiles:
   standard:
     phases: [propose, design, spec, plan, apply, verify, archive]
     suites:
+      spec: fast
       apply: fast
       verify: verification
   strict:
     phases: [explore, propose, design, spec, plan, apply, verify, archive]
     suites:
+      spec: fast
       apply: fast
       verify: verification-strict
 
