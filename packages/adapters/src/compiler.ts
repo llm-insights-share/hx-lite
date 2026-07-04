@@ -16,6 +16,8 @@ export interface CommandDef {
   name: string;
   description: string;
   run: string;
+  /** Full phase workflow prompt (from guide.command assets); the agent-facing body of the slash command. */
+  prompt?: string;
 }
 
 /** The standard hx command set, derived from the phase model (single source). */
@@ -35,6 +37,34 @@ export function standardCommands(): CommandDef[] {
     description: map[p.command] ?? p.display,
     run: `hx ${p.command === "explore" || p.command === "propose" ? `${p.command} <change>` : p.command === "archive" ? "archive <change>" : `${p.command} <change>`}`
   }));
+}
+
+/**
+ * Standard commands enriched with the workspace's guide.command assets: for each
+ * phase command, the matching guide.command source (harnessX/assets/commands/*)
+ * becomes the slash-command prompt body. Missing assets fall back to the thin
+ * description so compilation never breaks on a partial workspace.
+ */
+export function collectCommands(ws: Workspace): CommandDef[] {
+  const harness = ws.readHarness();
+  const commands = standardCommands();
+  for (const g of harness.guides) {
+    if (g.kind !== "guide.command") continue;
+    const f = path.join(ws.base, g.source);
+    if (!fs.existsSync(f)) continue;
+    const content = fs.readFileSync(f, "utf8");
+    for (const phase of g.phase) {
+      const cmd = commands.find((c) => c.name === `hx-${phase}`);
+      if (cmd) cmd.prompt = content;
+    }
+  }
+  return commands;
+}
+
+/** Slash-command body: full workflow prompt when available, thin bridge otherwise. */
+export function commandBody(c: CommandDef): string {
+  if (c.prompt) return `${c.prompt.trimEnd()}\n\nCLI entry point: \`${c.run}\`\n`;
+  return `# ${c.name}\n\n${c.description}\n\nRun:\n\n\`\`\`bash\n${c.run}\n\`\`\`\n`;
 }
 
 export interface SkillSource {
@@ -106,7 +136,7 @@ export interface EmitContext {
 }
 
 export function makeEmitContext(ws: Workspace): Omit<EmitContext, "write"> {
-  return { commands: standardCommands(), skills: collectSkills(ws), rules: rulesDigest(ws) };
+  return { commands: collectCommands(ws), skills: collectSkills(ws), rules: rulesDigest(ws) };
 }
 
 export function compileTarget(ws: Workspace, target: string, emitter: TargetEmitter): CompileResult {

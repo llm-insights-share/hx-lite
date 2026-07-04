@@ -36,6 +36,51 @@ guides:
     execution: inferential
     phase: [apply]
     source: assets/guides/coding-conventions/SKILL.md
+  - id: spec-writing
+    kind: guide.skill
+    execution: inferential
+    phase: [propose, spec]
+    source: assets/guides/spec-writing/SKILL.md
+  - id: cmd-explore
+    kind: guide.command
+    execution: inferential
+    phase: [explore]
+    source: assets/commands/explore.md
+  - id: cmd-propose
+    kind: guide.command
+    execution: inferential
+    phase: [propose]
+    source: assets/commands/propose.md
+  - id: cmd-design
+    kind: guide.command
+    execution: inferential
+    phase: [design]
+    source: assets/commands/design.md
+  - id: cmd-spec
+    kind: guide.command
+    execution: inferential
+    phase: [spec]
+    source: assets/commands/spec.md
+  - id: cmd-plan
+    kind: guide.command
+    execution: inferential
+    phase: [plan]
+    source: assets/commands/plan.md
+  - id: cmd-apply
+    kind: guide.command
+    execution: inferential
+    phase: [apply]
+    source: assets/commands/apply.md
+  - id: cmd-verify
+    kind: guide.command
+    execution: inferential
+    phase: [verify]
+    source: assets/commands/verify.md
+  - id: cmd-archive
+    kind: guide.command
+    execution: inferential
+    phase: [archive]
+    source: assets/commands/archive.md
 
 sensors:
   - id: spec-validate

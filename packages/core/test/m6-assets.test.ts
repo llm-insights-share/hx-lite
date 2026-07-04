@@ -28,6 +28,7 @@ import {
   runScheduled,
   runSensor,
   buildFixPack,
+  buildContextPack,
   apiCompatible,
   runPluginSensor,
   AssetManifest,
@@ -241,6 +242,30 @@ describe("T-605..T-608 target emitters", () => {
       expect(text).toContain("hx apply");
       expect(text).toContain("hx verify");
     }
+  });
+
+  it("compiles guide.command workflow prompts into slash-command bodies (cursor/claude/qoder)", () => {
+    const ws = initWorkspace(tmp()).ws;
+    compileAdapters(ws, ["cursor", "claude", "qoder"]);
+
+    // the propose command carries the full phase workflow, not a thin bridge
+    for (const dir of [".cursor/commands", ".claude/commands", ".qoder/commands"]) {
+      const propose = fs.readFileSync(path.join(ws.root, dir, "hx-propose.md"), "utf8");
+      expect(propose).toContain("EARS");
+      expect(propose).toContain("hx gate check");
+      expect(propose).toContain("Guardrails");
+      const apply = fs.readFileSync(path.join(ws.root, dir, "hx-apply.md"), "utf8");
+      expect(apply).toContain("hx guide pack");
+      expect(apply).toContain("Never weaken a test");
+    }
+
+    // the spec-writing skill ships to tools alongside commands
+    expect(fs.readFileSync(path.join(ws.root, ".cursor/skills/spec-writing/SKILL.md"), "utf8")).toContain("Scenario names are contract identifiers");
+
+    // command prompts also flow into the phase context pack (single source, two consumers)
+    createChange(ws, "cp1", ["auth"]);
+    const pack = buildContextPack(ws, "cp1", "apply");
+    expect(pack.sections.some((s) => s.title.includes("cmd-apply"))).toBe(true);
   });
 
   it("exports a Qoder quest from delta specs + tasks", () => {

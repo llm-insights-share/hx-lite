@@ -48,7 +48,12 @@ export function loadAssetDir(dir: string, layer: AssetLayer): LoadedAsset | null
 export function layerRoots(ws: Workspace, opts: { changeId?: string; hubCache?: string } = {}): Record<AssetLayer, string[]> {
   return {
     change: opts.changeId ? [path.join(ws.changeDir(opts.changeId), "assets")] : [],
-    local: [path.join(ws.assetsDir, "guides"), path.join(ws.assetsDir, "rubrics"), path.join(ws.assetsDir, "sensors")],
+    local: [
+      path.join(ws.assetsDir, "guides"),
+      path.join(ws.assetsDir, "commands"),
+      path.join(ws.assetsDir, "rubrics"),
+      path.join(ws.assetsDir, "sensors")
+    ],
     team: [path.join(ws.assetsDir, "team")],
     hub: [opts.hubCache ?? path.join(ws.base, ".hub-cache")],
     builtin: [path.join(ws.bundlesDir)]

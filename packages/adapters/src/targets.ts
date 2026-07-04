@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import { Workspace, readTasks, listDeltaFiles } from "@harnessx/core";
-import type { TargetEmitter } from "./compiler.js";
+import { commandBody, type TargetEmitter } from "./compiler.js";
 
 /**
  * T-605..T-608: target emitters. All content comes from the shared EmitContext
@@ -14,7 +14,7 @@ import type { TargetEmitter } from "./compiler.js";
 export const cursorEmitter: TargetEmitter = (_ws, ctx) => {
   const files: string[] = [];
   for (const c of ctx.commands) {
-    files.push(ctx.write(`.cursor/commands/${c.name}.md`, `# ${c.name}\n\n${c.description}\n\nRun:\n\n\`\`\`bash\n${c.run}\n\`\`\`\n`));
+    files.push(ctx.write(`.cursor/commands/${c.name}.md`, commandBody(c)));
   }
   for (const s of ctx.skills) {
     files.push(ctx.write(`.cursor/skills/${s.id}/SKILL.md`, s.content));
@@ -73,6 +73,7 @@ export const traeEmitter: TargetEmitter = (_ws, ctx) => {
 export const qoderEmitter: TargetEmitter = (_ws, ctx) => {
   ctx.write(`.qoder/rules/harnessx.md`, ctx.rules);
   for (const s of ctx.skills) ctx.write(`.qoder/skills/${s.id}.md`, s.content);
+  for (const c of ctx.commands) ctx.write(`.qoder/commands/${c.name}.md`, commandBody(c));
   ctx.write(
     `.qoder/mcp.json`,
     JSON.stringify({ mcpServers: { harnessx: { command: "hx", args: ["mcp"] } } }, null, 2)
@@ -114,7 +115,7 @@ export function exportQoderQuest(ws: Workspace, change: string): string {
 export const claudeEmitter: TargetEmitter = (_ws, ctx) => {
   ctx.write(`CLAUDE.md`, `${ctx.rules}\n\n## Commands\n\n${ctx.commands.map((c) => `- \`/${c.name}\` → \`${c.run}\``).join("\n")}\n`);
   for (const c of ctx.commands) {
-    ctx.write(`.claude/commands/${c.name}.md`, `${c.description}\n\nRun: \`${c.run}\`\n`);
+    ctx.write(`.claude/commands/${c.name}.md`, commandBody(c));
   }
   ctx.write(
     `.claude/settings.json`,
