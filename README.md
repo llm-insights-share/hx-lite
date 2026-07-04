@@ -9,60 +9,60 @@ Design document: [`docs/harness-delivery-system-design.html`](docs/harness-deliv
 · Build plan & status: [`docs/build-plan.csv`](docs/build-plan.csv)
 · **Usage scenario examples**: [`docs/examples/en/`](docs/examples/en/README.md) (English) · [`docs/examples/`](docs/examples/README.md) (中文) — 10 end-to-end scenarios (new project onboarding, standard development flow, strict test-first, concurrent conflicts, emergency hotfix, legacy migration, Steering governance, Hub sharing, multi-tool collaboration, custom sensors)
 
-## 先进特性与差异化
+## Advanced Features & Differentiation
 
-HarnessX 将 AI 软件交付视为 **控制工程问题**，而非简单的「给 Agent 加几条规则」。以下特性使其区别于常见的测试框架、CI 流水线、静态规则集或单纯的 OpenSpec 工作流：
+HarnessX treats AI software delivery as a **control engineering problem**, not simply "adding a few rules for the agent." The following capabilities set it apart from typical test frameworks, CI pipelines, static rule sets, or OpenSpec workflows alone:
 
-### 控制论式的 Guides + Sensors 双环模型
+### Cybernetic Guides + Sensors dual-loop model
 
-大多数类似产品只提供单向约束：要么是静态 Prompt / Rules（前馈），要么是 CI 跑完才知道结果（反馈）。HarnessX 同时构建两条闭环：
+Most similar products offer only one-way constraints: either static prompts/rules (feedforward) or post-hoc CI results (feedback). HarnessX builds both closed loops:
 
-- **Guides（前馈控制）**：按阶段注入 Skills、规格、模板等 Context Pack，在 Agent 行动前给出精确指引
-- **Sensors（反馈控制）**：在 Agent 行动后运行 lint、测试、规格校验、AI 审查等检查，输出带 `fix_hint` 的结构化报告，驱动 Agent 自校正
+- **Guides (feedforward control)**: Inject Skills, specs, templates, and other Context Packs by phase, giving precise guidance before the agent acts
+- **Sensors (feedback control)**: Run lint, tests, spec validation, AI review, and other checks after the agent acts, emitting structured reports with `fix_hint` fields to drive self-correction
 
-Computational Sensor（确定性、毫秒级）与 Inferential Sensor（语义级、较慢）分层部署：便宜检查前置到每次迭代，昂贵检查后置到 PR/CI，实现 **Shift Quality Left**。
+Computational Sensors (deterministic, millisecond-scale) and Inferential Sensors (semantic, slower) are deployed in layers: cheap checks run on every iteration; expensive checks are deferred to PR/CI — **shift quality left**.
 
-### 三大 Harness 域，而非只做代码质量
+### Three harness domains — not just code quality
 
-| 域 | 约束对象 | 典型 Guides | 典型 Sensors |
-|----|----------|-------------|--------------|
-| **Maintainability** | 代码质量、风格 | AGENTS.md、编码 Skills | ESLint、类型检查、复杂度 |
-| **Architecture Fitness** | 模块边界、性能、可观测性 | 性能预算、拓扑模板 | 结构测试、性能探针 |
-| **Behaviour** | 功能正确性 vs 需求 | Delta Specs、场景、Approved Fixtures | 规格校验、追溯映射、E2E、变异测试 |
+| Domain | What it constrains | Typical Guides | Typical Sensors |
+|--------|-------------------|----------------|-----------------|
+| **Maintainability** | Code quality, style | AGENTS.md, coding Skills | ESLint, typecheck, complexity |
+| **Architecture Fitness** | Module boundaries, performance, observability | Performance budgets, topology templates | Structural tests, performance probes |
+| **Behaviour** | Functional correctness vs requirements | Delta Specs, scenarios, Approved Fixtures | Spec validation, traceability mapping, E2E, mutation testing |
 
-测试框架和 CI 通常只覆盖 Maintainability。HarnessX 将 **Behaviour Harness** 作为一等公民——通过规格真值源、Spec-to-Test 追溯与人工批准的 Fixtures，而非依赖 Agent 自行生成的测试质量。
+Test frameworks and CI typically cover Maintainability only. HarnessX treats the **Behaviour Harness** as a first-class concern — through spec truth sources, Spec-to-Test traceability, and human-approved fixtures — rather than relying on test quality the agent generates on its own.
 
-### Steering Loop：Harness 自我进化
+### Steering Loop: harness self-evolution
 
-当同类失败重复出现（如 Agent 反复违反架构边界），HarnessX 的 Steering Loop 会：
+When the same failure recurs (e.g., the agent repeatedly violates architecture boundaries), HarnessX's Steering Loop:
 
-1. 记录到 **Failure Catalog**
-2. 识别模式并生成 **Harness Patch 提案**（新 Skill 条目、ArchUnit 规则、模板更新）
-3. 版本化 **Harness Template**（按 API 服务、事件消费者等拓扑预置 Guides + Sensors）
+1. Records it in the **Failure Catalog**
+2. Identifies patterns and generates **Harness Patch proposals** (new Skill entries, ArchUnit rules, template updates)
+3. Versions **Harness Templates** (pre-bundled Guides + Sensors by topology: API service, event consumer, etc.)
 
-这是元循环：系统改进的是 **如何约束 Agent**，而不只是 Agent 写出的代码。
+This is a meta-loop: the system improves **how it constrains the agent**, not just the code the agent writes.
 
-### 规格与测试分离，追溯可审计
+### Specs and tests separated, traceability auditable
 
-HarnessX 继承 OpenSpec 的 Delta Spec 格式（ADDED/MODIFIED/REMOVED + GIVEN/WHEN/THEN），并扩展 `traceability.yaml` 将每个场景映射到测试用例与源文件。P0 场景缺少测试映射时，Verify/Archive 阶段会被 Sensor 阻断。关键场景使用 **Approved Fixtures**——预期输出由人工批准，Agent 不可修改，避免「AI 写测试、AI 验测试」的自嗨循环。
+HarnessX inherits OpenSpec's Delta Spec format (ADDED/MODIFIED/REMOVED + GIVEN/WHEN/THEN) and extends it with `traceability.yaml` to map each scenario to test cases and source files. P0 scenarios without test mapping are blocked by Sensors at the Verify/Archive phases. Critical scenarios use **Approved Fixtures** — expected outputs approved by humans, immutable by the agent — avoiding the "AI writes tests, AI validates tests" self-referential loop.
 
-### 阶段感知的 Context Pack，避免指令污染
+### Phase-aware Context Packs, avoiding instruction pollution
 
-Guide Engine 按阶段精确组装上下文：Propose 阶段不注入完整代码库，Spec 阶段不注入实现代码。这与散落在各处的 Cursor Rules / AGENTS.md 不同——所有 Guides 与 Sensors 统一注册于 `harness.yaml`，避免互相矛盾的指令。
+The Guide Engine assembles context precisely per phase: the Propose phase does not inject the full codebase; the Spec phase does not inject implementation code. Unlike scattered Cursor Rules / AGENTS.md files, all Guides and Sensors are centrally registered in `harness.yaml`, preventing contradictory instructions.
 
-### 与类似产品的核心差异
+### Core differences from similar products
 
-| 类别 | 常见做法 | HarnessX 的不同 |
-|------|----------|-----------------|
-| 单元/集成测试框架 | 对已有代码跑测试 | 编排 **整个交付过程**；测试只是 Sensor 之一 |
-| CI/CD 流水线 | 提交后验证 | 在 Agent **每次迭代**中运行快速 Sensor，并将修正信号回灌 Agent |
-| Lint / 静态分析 | 代码质量门禁 | 与 Behaviour、Architecture Sensor 统一编排 |
-| BDD 框架 | 人写场景 → 生成测试 | OpenSpec Delta Spec + 追溯映射 + Approved Fixtures，规格即仓库真值 |
-| OpenSpec 单独使用 | 规格驱动、阶段灵活 | 扩展设计/验证阶段、三大 Harness 域、Sensor 门禁与 Steering Loop |
-| Agent Rules / AGENTS.md | 静态 Prompt | **阶段感知**、集中注册，并与匹配 Sensor 配对 |
-| AI Code Review 工具 | PR 事后审查 | 作为 Inferential Sensor 集成到门禁，输出 Agent 可消费的 `fix_hint` |
+| Category | Typical approach | How HarnessX differs |
+|----------|------------------|----------------------|
+| Unit/integration test frameworks | Run tests on existing code | Orchestrates the **entire delivery process**; tests are just one sensor type |
+| CI/CD pipelines | Validate after commit | Runs fast Sensors on **every agent iteration** and feeds correction signals back to the agent |
+| Lint / static analysis | Code quality gates | Unified orchestration with Behaviour and Architecture Sensors |
+| BDD frameworks | Human-written scenarios → generated tests | OpenSpec Delta Spec + traceability mapping + Approved Fixtures; specs are repo truth |
+| OpenSpec alone | Spec-driven, flexible phases | Extends with design/verify phases, three harness domains, Sensor gates, and Steering Loop |
+| Agent Rules / AGENTS.md | Static prompts | **Phase-aware**, centrally registered, paired with matching Sensors |
+| AI code review tools | Post-hoc PR review | Integrated as Inferential Sensors in gates, outputting agent-consumable `fix_hint` |
 
-**一句话定位**：HarnessX 不是测试运行器，不是仿真框架，也不是 Agent 本身——它是让编码 Agent 足够可靠以支撑生产交付的 **Outer 控制平面**。
+**In one sentence**: HarnessX is not a test runner, not a simulation framework, and not an agent itself — it is the **outer control plane** that makes coding agents reliable enough for production delivery.
 
 ## Quick start
 
