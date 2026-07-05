@@ -70,6 +70,8 @@ wrote .qoder/quests/fee-recalc.md
 
 Quest file includes full spec, task list (with Requirement labels), environment guidance (`git worktree add ../quest-fee-recalc` isolated run, `hx verify fee-recalc` inside worktree before merge). **Worktree isolation + verify gate** means: however Qoder works inside, only path to mainline is green verification suite.
 
+Since v0.2, HarnessX provides unified worktree CLI (`hx runtime worktree create`), **best-of-N fan-out** (`hx apply --fan-out N`), and Orca diff import (`hx review import`) — full walkthrough in [scenario 13](13-v0.2-orchestration-parallel-delivery.md) and [`docs/integrations/orca.md`](../../integrations/orca.md).
+
 ### 4. Bypass drill: `--no-verify` does not go far
 
 Zheng rushes home, local fast suite red, bypasses hooks:

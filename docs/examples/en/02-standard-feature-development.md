@@ -159,6 +159,18 @@ completed tasks: 01a, 01b, 02a, 02b, 03a, 03b; remaining: 0
 
 Either way, fast suite (lint/typecheck/spec-validate per `harness.yaml`) runs after each task; agent self-corrects with `fix_hint`, max N retries (`--max-retries`, default 3), then stops for human. Cursor `.cursor/hooks.json` also watches: touching `tests/fixtures/` triggers `hx fixture verify` on save.
 
+**v0.2 optional: parallel tasks** — independent `[test]` tasks can use `@group=` in tasks.md (see [scenario 13](13-v0.2-orchestration-parallel-delivery.md)):
+
+```markdown
+- [ ] 01a [test] (...) Write failing test(s)... @group=tests-a
+- [ ] 02a [test] (...) Write failing test(s)... @group=tests-a
+- [ ] 01b [impl] (...) Implement... @depends=01a
+```
+
+```console
+$ hx apply partial-refund --parallel 2 --runner '<agent>'
+```
+
 Tests use `Scenario:` naming for traceability:
 
 ```typescript
