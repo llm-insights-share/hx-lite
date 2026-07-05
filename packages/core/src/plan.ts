@@ -16,6 +16,10 @@ export interface Task {
   capability: string;
   title: string;
   done: boolean;
+  /** v0.2: tasks sharing a group may run concurrently (hx apply --parallel). */
+  parallelGroup?: string;
+  /** v0.2: task ids that must complete before this one starts. */
+  dependsOn?: string[];
 }
 
 export function generateTasks(ws: Workspace, change: string): { file: string; tasks: Task[] } {
@@ -61,18 +65,32 @@ export function serializeTasks(change: string, tasks: Task[]): string {
     ""
   ];
   for (const t of tasks) {
-    lines.push(`- [${t.done ? "x" : " "}] ${t.id} [${t.track}] (${t.capability} / Requirement: ${t.requirement}) ${t.title}`);
+    let line = `- [${t.done ? "x" : " "}] ${t.id} [${t.track}] (${t.capability} / Requirement: ${t.requirement}) ${t.title}`;
+    if (t.parallelGroup) line += ` @group=${t.parallelGroup}`;
+    if (t.dependsOn?.length) line += ` @depends=${t.dependsOn.join(",")}`;
+    lines.push(line);
   }
   return lines.join("\n") + "\n";
 }
 
-const TASK_RE = /^- \[( |x)\] (\S+) \[(test|impl)\] \(([^/]+) \/ Requirement: (.+?)\) (.*)$/;
+const TASK_RE =
+  /^- \[( |x)\] (\S+) \[(test|impl)\] \(([^/]+) \/ Requirement: (.+?)\) (.+?)(?: @group=(\S+))?(?: @depends=([\d\w,]+))?$/;
 
 export function parseTasks(md: string): Task[] {
   const tasks: Task[] = [];
   for (const line of md.split("\n")) {
     const m = line.match(TASK_RE);
-    if (m) tasks.push({ done: m[1] === "x", id: m[2], track: m[3] as Task["track"], capability: m[4].trim(), requirement: m[5].trim(), title: m[6] });
+    if (m)
+      tasks.push({
+        done: m[1] === "x",
+        id: m[2],
+        track: m[3] as Task["track"],
+        capability: m[4].trim(),
+        requirement: m[5].trim(),
+        title: m[6].trim(),
+        parallelGroup: m[7],
+        dependsOn: m[8] ? m[8].split(",").map((s) => s.trim()).filter(Boolean) : undefined
+      });
   }
   return tasks;
 }
@@ -88,6 +106,20 @@ export function markTaskDone(ws: Workspace, change: string, taskId: string): Tas
   const tasks = readTasks(ws, change).map((t) => (t.id === taskId ? { ...t, done: true } : t));
   fs.writeFileSync(file, serializeTasks(change, tasks), "utf8");
   return tasks;
+}
+
+/** v0.2: next batch of tasks ready to run (respects dependsOn and parallel groups). */
+export function nextTaskBatch(tasks: Task[], completed: string[], parallel = 1): Task[] {
+  const pending = tasks.filter((t) => !t.done && !completed.includes(t.id));
+  const ready = pending.filter((t) => (t.dependsOn ?? []).every((d) => completed.includes(d) || tasks.find((x) => x.id === d)?.done));
+  if (!ready.length) return [];
+
+  const ungrouped = ready.filter((t) => !t.parallelGroup);
+  if (ungrouped.length) return [ungrouped[0]!];
+
+  const firstGroup = ready.find((t) => t.parallelGroup)?.parallelGroup;
+  if (!firstGroup) return [ready[0]!];
+  return ready.filter((t) => t.parallelGroup === firstGroup).slice(0, Math.max(1, parallel));
 }
 
 /** Requirements whose test track is missing or skipped — need waivers. */

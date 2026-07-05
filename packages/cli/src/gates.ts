@@ -1,5 +1,4 @@
 import { Command } from "commander";
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import {
   Workspace,
@@ -10,7 +9,6 @@ import {
   renderContextPack,
   generateTasks,
   missingTestTasks,
-  applyLoop,
   gitChangedFiles,
   installHooks,
   ciInit,
@@ -18,6 +16,7 @@ import {
   recordApproval,
   scaffoldDesign,
   readMeta,
+  scaffoldFromIssue,
   type RunnerOptions
 } from "@harnessx/core";
 import { builtinSensors } from "@harnessx/sensors";
@@ -132,35 +131,11 @@ export function registerGateCommands(program: Command): void {
     .option("--runner <cmd>", "command executed per task; receives HX_TASK_* env vars")
     .option("--max-retries <n>", "self-correction attempts per task", "3")
     .option("--limit <n>", "process at most N tasks")
-    .action(async (change: string, opts: { runner?: string; maxRetries: string; limit?: string }) => {
-      const w = ws();
-      const res = await applyLoop(w, change, {
-        runner: runnerOpts(w),
-        maxRetries: parseInt(opts.maxRetries, 10),
-        limit: opts.limit ? parseInt(opts.limit, 10) : undefined,
-        executor: ({ task, attempt, fixHints }) => {
-          if (!opts.runner) {
-            console.log(`task ${task.id} [${task.track}] ${task.title} (attempt ${attempt}) — no --runner given, marking for manual work`);
-            return;
-          }
-          const env = {
-            ...process.env,
-            HX_TASK_ID: task.id,
-            HX_TASK_TRACK: task.track,
-            HX_TASK_TITLE: task.title,
-            HX_TASK_REQUIREMENT: task.requirement,
-            HX_FIX_HINTS: fixHints.join("\n")
-          };
-          const r = spawnSync(opts.runner!, { shell: true, cwd: w.root, stdio: "inherit", env });
-          if (r.status !== 0) throw new Error(`runner exited ${r.status}`);
-        }
-      });
-      console.log(`completed tasks: ${res.completed.join(", ") || "(none)"}; remaining: ${res.remaining}`);
-      if (res.failed) {
-        console.error(`task ${res.failed.task.id} failed after self-correction limit; blockers:`);
-        for (const b of res.failed.suite.blockers) console.error(`  - ${b}`);
-        process.exit(1);
-      }
+    .option("--parallel <n>", "max concurrent tasks within the same @group (v0.2)", "1")
+    .option("--fan-out <n>", "run apply+verify in N isolated worktrees; pick best (v0.2)")
+    .action(async (change: string, opts: { runner?: string; maxRetries: string; limit?: string; parallel?: string; fanOut?: string }) => {
+      const { runApplyCommand } = await import("./orchestration.js");
+      await runApplyCommand(change, opts);
     });
 
   program

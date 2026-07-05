@@ -5,6 +5,10 @@ process — requirements → design → coding → testing — with spec-driven 
 feedforward **Guides**, feedback **Sensors**, fail-closed **Gates**, and a **Steering loop**
 that continuously improves the harness itself.
 
+**v0.2** adds orchestration: parallel apply (`--parallel`), best-of-N worktree fan-out (`--fan-out`),
+diff review annotations → fix hints, guide behavior evals, GitHub issue scaffolding, and `hx watch`.
+See [`docs/integrations/orca.md`](docs/integrations/orca.md) for combining HarnessX with Orca.
+
 Design document: [`docs/harness-delivery-system-design.html`](docs/harness-delivery-system-design.html)
 · Build plan & status: [`docs/build-plan.csv`](docs/build-plan.csv)
 · **Usage scenario examples**: [`docs/examples/en/`](docs/examples/en/README.md) (English) · [`docs/examples/`](docs/examples/README.md) (中文) — 12 end-to-end scenarios (new project onboarding, standard development flow, strict test-first, concurrent conflicts, emergency hotfix, legacy migration, Steering governance, Hub sharing, multi-tool collaboration, custom sensors, custom requirements template, custom design template)
@@ -74,6 +78,12 @@ node bin/hx.js propose add-auth --title "Session expiry"
 node bin/hx.js gate advance add-auth       # gates advance only when sensors pass
 node bin/hx.js plan add-auth               # dual-track tasks (test + impl per requirement)
 node bin/hx.js apply add-auth --runner "<your agent command>"
+node bin/hx.js apply add-auth --parallel 2 --runner "<agent>"   # v0.2: concurrent @group tasks
+node bin/hx.js apply add-auth --fan-out 3 --runner "<agent>"    # v0.2: best-of-N worktrees
+node bin/hx.js review import add-auth reviews.json              # v0.2: Orca diff annotations
+node bin/hx.js notify add-auth --once                            # v0.2: change notifications
+node bin/hx.js eval guides add-auth                             # v0.2: guide behavior evals
+node bin/hx.js change create add-auth --from-issue <url>        # v0.2: GitHub issue scaffold
 node bin/hx.js verify add-auth             # verification suite + traceability
 node bin/hx.js archive add-auth            # merge delta specs into main specs
 node bin/hx.js adapter sync                # compile to .cursor/ .trae/ .qoder/ CLAUDE.md AGENTS.md
@@ -101,6 +111,6 @@ node bin/hx.js adapter sync                # compile to .cursor/ .trae/ .qoder/ 
 ## Development
 
 ```bash
-npm run verify     # typecheck + all 86 tests (unit + milestone acceptance + full-cycle E2E)
+npm run verify     # typecheck + all 96 tests (unit + milestone acceptance + full-cycle E2E)
 npm test           # tests only
 ```

@@ -1,16 +1,15 @@
 import { Workspace } from "./paths.js";
 import { readMeta, setStatus } from "./metaStore.js";
-import { readTasks, markTaskDone, type Task } from "./plan.js";
+import { readTasks, markTaskDone, nextTaskBatch, type Task } from "./plan.js";
 import { runSuite, type RunnerOptions } from "./sensorRunner.js";
 import { appendRun } from "./telemetry.js";
 import { updateTraceForTask } from "./traceability.js";
+import { pendingFixHints } from "./reviewAnnotations.js";
 import type { SuiteResult } from "./schemas.js";
 
 /**
  * T-204 (FR-007): the apply loop drives implementation task-by-task.
- * After each task, the profile's fast suite runs; on failure the executor is
- * re-invoked with the suite's fix hints (self-correction), up to maxRetries.
- * Completed tasks are checked off and traceability is updated.
+ * v0.2: supports parallel groups (@group=) and review annotation fix_hints.
  */
 
 export interface TaskExecution {
@@ -27,6 +26,8 @@ export interface ApplyOptions {
   maxRetries?: number;
   /** stop after this many tasks (for interactive runs) */
   limit?: number;
+  /** v0.2: max concurrent tasks within the same @group (default 1 = serial) */
+  parallel?: number;
 }
 
 export interface ApplyResult {
@@ -35,50 +36,100 @@ export interface ApplyResult {
   remaining: number;
 }
 
+async function runOneTask(
+  ws: Workspace,
+  change: string,
+  task: Task,
+  suiteName: string | undefined,
+  maxRetries: number,
+  baseFixHints: string[],
+  opts: ApplyOptions
+): Promise<{ ok: boolean; suite?: SuiteResult }> {
+  const harness = ws.readHarness();
+  let fixHints = [...baseFixHints];
+  let suite: SuiteResult | undefined;
+  let ok = !suiteName;
+
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    await opts.executor({ task, attempt, fixHints });
+    if (!suiteName) {
+      ok = true;
+      break;
+    }
+    suite = await runSuite(ws, harness, suiteName, change, opts.runner);
+    if (suite.passed) {
+      ok = true;
+      break;
+    }
+    fixHints = [...baseFixHints, ...suite.blockers, ...suite.fixHints];
+    appendRun(ws, { kind: "apply", change, name: `task:${task.id}`, status: "fail", detail: { attempt, blockers: suite.blockers } });
+  }
+
+  if (!ok) {
+    appendRun(ws, { kind: "apply", change, name: `task:${task.id}`, status: "error", detail: { reason: "self-correction limit reached" } });
+    return { ok: false, suite };
+  }
+
+  markTaskDone(ws, change, task.id);
+  updateTraceForTask(ws, change, task);
+  appendRun(ws, { kind: "apply", change, name: `task:${task.id}`, status: "pass" });
+  return { ok: true, suite };
+}
+
 export async function applyLoop(ws: Workspace, change: string, opts: ApplyOptions): Promise<ApplyResult> {
   const harness = ws.readHarness();
   const meta = readMeta(ws, change);
   const suiteName = harness.profiles[meta.profile]?.suites?.["apply"];
   const maxRetries = opts.maxRetries ?? 3;
+  const parallel = opts.parallel ?? 1;
   const completed: string[] = [];
+  const reviewHints = pendingFixHints(ws, change);
 
   if (meta.status !== "implementing") setStatus(ws, change, "implementing");
 
-  let pending = readTasks(ws, change).filter((t) => !t.done);
+  let allTasks = readTasks(ws, change);
   let processed = 0;
-  while (pending.length > 0 && (!opts.limit || processed < opts.limit)) {
-    const task = pending[0];
-    let fixHints: string[] = [];
-    let suite: SuiteResult | undefined;
-    let ok = !suiteName; // no suite configured → executor result is accepted
 
-    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-      await opts.executor({ task, attempt, fixHints });
-      if (!suiteName) {
-        ok = true;
-        break;
+  while (allTasks.some((t) => !t.done) && (!opts.limit || processed < opts.limit)) {
+    const batch = nextTaskBatch(allTasks, completed, parallel);
+    if (!batch.length) break;
+
+    const limited = opts.limit ? batch.slice(0, Math.max(0, opts.limit - processed)) : batch;
+    let failed: { task: Task; suite: SuiteResult } | undefined;
+
+    if (limited.length === 1) {
+      const task = limited[0]!;
+      const res = await runOneTask(ws, change, task, suiteName, maxRetries, reviewHints, opts);
+      if (!res.ok) failed = { task, suite: res.suite! };
+      else {
+        completed.push(task.id);
+        processed++;
       }
-      suite = await runSuite(ws, harness, suiteName, change, opts.runner);
-      if (suite.passed) {
-        ok = true;
-        break;
+    } else {
+      const results = await Promise.all(
+        limited.map(async (task) => {
+          const res = await runOneTask(ws, change, task, suiteName, maxRetries, reviewHints, opts);
+          return { task, ...res };
+        })
+      );
+      for (const r of results) {
+        if (!r.ok) {
+          failed = { task: r.task, suite: r.suite! };
+          break;
+        }
+        completed.push(r.task.id);
+        processed++;
       }
-      fixHints = [...suite.blockers, ...suite.fixHints];
-      appendRun(ws, { kind: "apply", change, name: `task:${task.id}`, status: "fail", detail: { attempt, blockers: suite.blockers } });
     }
 
-    if (!ok) {
-      appendRun(ws, { kind: "apply", change, name: `task:${task.id}`, status: "error", detail: { reason: "self-correction limit reached" } });
-      return { completed, failed: { task, suite: suite! }, remaining: pending.length };
+    if (failed) {
+      const remaining = readTasks(ws, change).filter((t) => !t.done).length;
+      return { completed, failed, remaining };
     }
 
-    markTaskDone(ws, change, task.id);
-    updateTraceForTask(ws, change, task);
-    appendRun(ws, { kind: "apply", change, name: `task:${task.id}`, status: "pass" });
-    completed.push(task.id);
-    processed++;
-    pending = readTasks(ws, change).filter((t) => !t.done);
+    allTasks = readTasks(ws, change);
   }
 
-  return { completed, remaining: pending.length };
+  const remaining = allTasks.filter((t) => !t.done).length;
+  return { completed, remaining };
 }
