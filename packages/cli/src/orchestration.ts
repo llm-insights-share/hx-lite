@@ -81,7 +81,7 @@ export function registerOrchestrationCommands(program: Command): void {
   const review = program.command("review").description("Diff review annotations → fix_hints (v0.2)");
   review
     .command("import <change> <file>")
-    .description("Import Orca-compatible JSON or HarnessX YAML annotations")
+    .description("Import JSON or YAML diff line annotations")
     .action((change: string, file: string) => {
       const data = importReviewAnnotations(ws(), change, file);
       console.log(`imported ${data.annotations.length} annotation(s)`);

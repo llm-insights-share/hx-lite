@@ -6,8 +6,8 @@ feedforward **Guides**, feedback **Sensors**, fail-closed **Gates**, and a **Ste
 that continuously improves the harness itself.
 
 **v0.2** adds orchestration: parallel apply (`--parallel`), best-of-N worktree fan-out (`--fan-out`),
-diff review annotations → fix hints, guide behavior evals, GitHub issue scaffolding, and `hx watch`.
-See [`docs/integrations/orca.md`](docs/integrations/orca.md) for combining HarnessX with Orca.
+diff review annotations → fix hints, guide behavior evals, GitHub issue scaffolding, and `hx notify`.
+See [scenario 13](docs/examples/13-v0.2-编排与并行交付.md) for the full walkthrough.
 
 Design document: [`docs/harness-delivery-system-design.html`](docs/harness-delivery-system-design.html)
 · Build plan & status: [`docs/build-plan.csv`](docs/build-plan.csv)
@@ -80,7 +80,7 @@ node bin/hx.js plan add-auth               # dual-track tasks (test + impl per r
 node bin/hx.js apply add-auth --runner "<your agent command>"
 node bin/hx.js apply add-auth --parallel 2 --runner "<agent>"   # v0.2: concurrent @group tasks
 node bin/hx.js apply add-auth --fan-out 3 --runner "<agent>"    # v0.2: best-of-N worktrees
-node bin/hx.js review import add-auth reviews.json              # v0.2: Orca diff annotations
+node bin/hx.js review import add-auth reviews.json              # v0.2: diff line annotations
 node bin/hx.js notify add-auth --once                            # v0.2: change notifications
 node bin/hx.js eval guides add-auth                             # v0.2: guide behavior evals
 node bin/hx.js change create add-auth --from-issue <url>        # v0.2: GitHub issue scaffold

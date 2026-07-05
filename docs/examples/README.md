@@ -18,7 +18,7 @@
 | [10](10-自定义传感器与触发器.md) | 安全团队接入自研扫描器 + 事件/定时触发 | 插件 API（Node/命令协议）/ file-save 触发 / schedule / `hx fix` |
 | [11](11-自定义需求产出模板.md) | 开工前定制 proposal 模板与 delta spec 写作规范 | `guide.template` / spec-writing Skill / Gate 强制节 / `overrides` |
 | [12](12-自定义概要设计产出模板.md) | 开工前定制 design.md 结构与 design 阶段命令 | design-template 资产 / 定制 `/hx-design` / api-design Skill / Context Pack |
-| [13](13-v0.2-编排与并行交付.md) | **v0.2** 编排：并行 Apply、Best-of-N、Diff 标注、Issue 接入 | `--parallel` / `--fan-out` / `hx review` / `--from-issue` / `hx eval guides` / `hx notify` / Orca 协作 |
+| [13](13-v0.2-编排与并行交付.md) | **v0.2** 编排：并行 Apply、Best-of-N、Diff 标注、Issue 接入 | `--parallel` / `--fan-out` / `hx review` / `--from-issue` / `hx eval guides` / `hx notify` |
 
 ## 阅读前提
 

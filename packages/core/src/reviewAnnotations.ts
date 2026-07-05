@@ -4,7 +4,7 @@ import { Workspace, ensureDir, readYaml, writeYaml } from "./paths.js";
 
 /**
  * v0.2 P1: Diff line annotations → structured fix_hints for apply self-correction.
- * Compatible with Orca-style review exports and HarnessX-native YAML.
+ * Supports HarnessX-native YAML and a generic JSON array format.
  */
 
 export type ReviewSeverity = "critical" | "important" | "minor" | "suggestion";
@@ -63,7 +63,7 @@ export function pendingFixHints(ws: Workspace, change: string): string[] {
   return formatFixHints(readReviewAnnotations(ws, change).annotations);
 }
 
-/** Import from HarnessX YAML or Orca-compatible JSON array. */
+/** Import from HarnessX YAML or generic JSON array. */
 export function importReviewAnnotations(ws: Workspace, change: string, sourceFile: string): ReviewAnnotationsYaml {
   const abs = path.resolve(ws.root, sourceFile);
   if (!fs.existsSync(abs)) throw new Error(`review file not found: ${sourceFile}`);

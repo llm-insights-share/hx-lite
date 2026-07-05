@@ -16,7 +16,7 @@ This directory collects end-to-end scenarios that mirror real work. Each scenari
 | [10](10-custom-sensors-triggers.md) | Security team integrates custom scanner + event/schedule triggers | plugin API (Node/command protocol) / file-save trigger / schedule / `hx fix` |
 | [11](11-custom-requirements-output-template.md) | Customize proposal template and delta spec norms before delivery | `guide.template` / spec-writing Skill / Gate mandatory sections / `overrides` |
 | [12](12-custom-design-output-template.md) | Customize design.md structure and design-phase command before delivery | design-template asset / customized `/hx-design` / api-design Skill / Context Pack |
-| [13](13-v0.2-orchestration-parallel-delivery.md) | **v0.2** orchestration: parallel apply, best-of-N, diff annotations, issue onboarding | `--parallel` / `--fan-out` / `hx review` / `--from-issue` / `hx eval guides` / `hx notify` / Orca integration |
+| [13](13-v0.2-orchestration-parallel-delivery.md) | **v0.2** orchestration: parallel apply, best-of-N, diff annotations, issue onboarding | `--parallel` / `--fan-out` / `hx review` / `--from-issue` / `hx eval guides` / `hx notify` |
 
 **中文**: [docs/examples/](../README.md)
 
