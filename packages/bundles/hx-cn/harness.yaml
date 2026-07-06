@@ -21,9 +21,9 @@ profiles:
 
 suites:
   fast-lite: [spec-validate]
-  fast: [spec-validate]
+  fast: [spec-validate, typecheck, lint, unit-changed]
   verification: [spec-validate, spec-trace]
-  verification-strict: [spec-validate, spec-trace, ai-spec-review]
+  verification-strict: [spec-validate, spec-trace, unit-changed, mutation-probe, ai-spec-review]
 
 guides:
   - id: proposal-template
@@ -118,3 +118,31 @@ sensors:
     builtin: fixture-hash
     on_fail: block
     fix_hint: "已批准的 fixture 不可修改；如需变更请通过 waiver 流程重新批准"
+  - id: typecheck
+    kind: sensor.script
+    execution: computational
+    phase: [apply, verify]
+    builtin: typecheck
+    on_fail: block
+    fix_hint: "修复 tsc 报告的类型错误"
+  - id: lint
+    kind: sensor.script
+    execution: computational
+    phase: [apply, verify]
+    builtin: lint
+    on_fail: block
+    fix_hint: "修复 lint 违规"
+  - id: unit-changed
+    kind: sensor.script
+    execution: computational
+    phase: [apply, verify]
+    builtin: unit-changed
+    on_fail: block
+    fix_hint: "修复与当前 diff 相关的失败测试"
+  - id: mutation-probe
+    kind: sensor.mutation
+    execution: computational
+    phase: [verify]
+    builtin: mutation-probe
+    on_fail: block
+    fix_hint: "加强场景测试——避免桩和恒真断言"

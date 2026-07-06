@@ -1,0 +1,11 @@
+rules:
+  - id: ears-trigger
+    status: enforced
+    check: Requirements use EARS-style WHEN/THEN phrasing
+    pattern: "WHEN .+ THE SYSTEM SHALL"
+    severity: warn
+  - id: no-placeholder
+    status: enforced
+    check: No unfilled angle-bracket placeholders in specs
+    pattern: "<[a-zA-Z][^>]*>"
+    severity: block

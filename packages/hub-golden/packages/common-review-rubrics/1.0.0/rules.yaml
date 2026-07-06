@@ -1,0 +1,11 @@
+rules:
+  - id: spec-ambiguous
+    status: enforced
+    check: Spec avoids vague words (maybe, probably, etc.)
+    pattern: "\\b(maybe|probably|might|should probably)\\b"
+    severity: warn
+  - id: rollback-mentioned
+    status: trial
+    check: Risky changes mention rollback or feature flag in proposal/design
+    pattern: "\\b(rollback|feature flag|kill switch)\\b"
+    severity: info

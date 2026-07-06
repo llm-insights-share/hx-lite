@@ -1,8 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Workspace, ensureDir, readYaml, writeYaml } from "./paths.js";
 import { loadAssetDir, assetContentHash, type LoadedAsset } from "./assets.js";
 import { scanGuideContent } from "./supplyChain.js";
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+/** Built-in golden hub packages shipped with harnessx (T-602). */
+export const BUILTIN_HUB_GOLDEN_DIR = path.resolve(HERE, "../../hub-golden");
 
 /**
  * T-602 (§11.5): Harness Hub — a directory/git repo of shared asset packages:
@@ -146,4 +151,26 @@ export function hubReviewStatus(hubRoot: string, id: string, version: string): "
   const marker = path.join(hubPackageDir(hubRoot, id, version), ".review");
   if (!fs.existsSync(marker)) return "missing";
   return (readYaml<{ status: "pending" | "approved" }>(marker)).status;
+}
+
+/** Lists package ids available in the built-in golden hub catalog. */
+export function listGoldenHubPackages(goldenDir = BUILTIN_HUB_GOLDEN_DIR): HubRef[] {
+  const root = path.join(goldenDir, "packages");
+  if (!fs.existsSync(root)) return [];
+  const out: HubRef[] = [];
+  for (const id of fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory())) {
+    for (const ver of hubVersions(goldenDir, id.name)) {
+      out.push({ id: id.name, version: ver });
+    }
+  }
+  return out.sort((a, b) => a.id.localeCompare(b.id) || a.version.localeCompare(b.version));
+}
+
+/** Creates a hub repo from built-in golden packages (pre-approved for local consumption). */
+export function seedGoldenHub(targetRoot: string, goldenDir = BUILTIN_HUB_GOLDEN_DIR): HubRef[] {
+  const src = path.join(goldenDir, "packages");
+  if (!fs.existsSync(src)) throw new Error(`golden hub catalog not found at ${goldenDir}`);
+  const dest = path.join(targetRoot, "packages");
+  copyDir(src, dest);
+  return listGoldenHubPackages(goldenDir);
 }

@@ -124,14 +124,9 @@ describe("overall verification: full delivery cycle through the CLI", () => {
 
     // register a crashing sensor into the apply suite
     const harnessFile = path.join(repo, "harnessX/harness.yaml");
-    const y = fs.readFileSync(harnessFile, "utf8").replace("fast: [spec-validate]", "fast: [spec-validate, crasher]");
-    fs.writeFileSync(
-      harnessFile,
-      y +
-        `\n# appended by test\n` +
-        ``
-    );
-    const doc = fs.readFileSync(harnessFile, "utf8").replace(
+    let doc = fs.readFileSync(harnessFile, "utf8");
+    doc = doc.replace(/fast: \[[^\]]+\]/, (m) => m.replace("]", ", crasher]"));
+    doc = doc.replace(
       "sensors:",
       `sensors:\n  - id: crasher\n    kind: sensor.script\n    execution: computational\n    run: "exit 99"\n    on_fail: block\n`
     );

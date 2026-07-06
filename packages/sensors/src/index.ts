@@ -4,6 +4,8 @@ import { specTrace, fixtureHash, approvedTests } from "./builtins.js";
 import { archBoundary } from "./archBoundary.js";
 import { budget } from "./budget.js";
 import { rubricSensor } from "./rubricSensor.js";
+import { typecheck, lint, unitChanged } from "./fastSuite.js";
+import { mutationProbe, analyzeTestStrength } from "./mutation.js";
 
 export * from "./types.js";
 export { specValidate, checkEars } from "./specValidate.js";
@@ -21,6 +23,8 @@ export {
 export type { LayerRules, ResolvedLayerRules } from "./archBoundary.js";
 export { budget } from "./budget.js";
 export { rubricSensor } from "./rubricSensor.js";
+export { typecheck, lint, unitChanged } from "./fastSuite.js";
+export { mutationProbe, analyzeTestStrength } from "./mutation.js";
 
 export const builtinSensors: Record<string, BuiltinSensor> = {
   "spec-validate": specValidate,
@@ -29,7 +33,11 @@ export const builtinSensors: Record<string, BuiltinSensor> = {
   "approved-tests": approvedTests,
   "arch-boundary": archBoundary,
   budget: budget,
-  rubric: rubricSensor
+  rubric: rubricSensor,
+  typecheck,
+  lint,
+  "unit-changed": unitChanged,
+  "mutation-probe": mutationProbe
 };
 
 export function registerBuiltin(name: string, sensor: BuiltinSensor): void {

@@ -164,7 +164,8 @@ hx archive add-refund        # merge deltas into main specs and archive
 | `hx waiver add <id> --sensor <s> --reason "..." --expires YYYY-MM-DD` | Time-boxed waiver |
 | `hx adapter sync` | Compile harnessX assets to AI tool directories |
 | `hx steer report` | Recurring failures → candidate new guides |
-| `hx eval guides <id>` | v0.2: guide behavior evals |
+| `hx hub golden` | List built-in golden Hub packages |
+| `hx hub seed [path]` | Create a hub repo from golden packages |
 
 ## 6. Core mental model
 

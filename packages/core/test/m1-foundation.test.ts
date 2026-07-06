@@ -61,7 +61,9 @@ describe("T-100 hx init", () => {
     expect(fs.existsSync(res.ws.harnessFile)).toBe(true);
     expect(fs.existsSync(res.ws.configFile)).toBe(true);
     expect(fs.existsSync(path.join(res.ws.assetsDir, "guides/proposal-template/template.md"))).toBe(true);
+    expect(fs.existsSync(path.join(res.ws.assetsDir, "guides/design-template/template.md"))).toBe(true);
     const harness = res.ws.readHarness();
+    expect(harness.guides.map((g) => g.id)).toContain("design-template");
     expect(Object.keys(harness.profiles)).toEqual(expect.arrayContaining(["lite", "standard", "strict"]));
     expect(res.nextSteps.length).toBeGreaterThan(2);
     expect(() => initWorkspace(root)).toThrow(/already initialized/);

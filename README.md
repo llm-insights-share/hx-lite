@@ -76,7 +76,7 @@ npm install
 node bin/hx.js init --bundle api-service   # scaffold harnessX/ in your repo
 node bin/hx.js init --locale hx-cn --bundle api-service-cn   # Chinese scaffold (hx-cn)
 node bin/hx.js bundle list                 # api-service | event-consumer | frontend-dashboard (+ *-cn)
-node bin/hx.js bundle add event-consumer   # add another topology after init
+node bin/hx.js hub seed ./harness-hub       # golden Hub packages (api-conventions, common-review-rubrics)
 node bin/hx.js change create add-auth --domains auth
 node bin/hx.js propose add-auth --title "Session expiry"
 node bin/hx.js gate advance add-auth       # gates advance only when sensors pass

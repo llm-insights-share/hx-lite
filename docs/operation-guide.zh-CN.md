@@ -164,7 +164,8 @@ hx archive add-refund        # 合并 delta 至主规格并归档
 | `hx waiver add <id> --sensor <s> --reason "..." --expires YYYY-MM-DD` | 记录有时限豁免 |
 | `hx adapter sync` | 将 harnessX 资产编译到各 AI 工具目录 |
 | `hx steer report` | 查看反复失败，候选新 Guide |
-| `hx eval guides <id>` | v0.2：Guide 行为评测 |
+| `hx hub golden` | 列出内置 Hub 黄金资产包 |
+| `hx hub seed [path]` | 从黄金资产包创建 Hub 仓库 |
 
 ## 6. 核心心智模型
 

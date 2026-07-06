@@ -5,10 +5,12 @@ You are running the **design** phase. Precondition: the proposal is complete (th
 ## Steps
 
 1. Scaffold: `hx design <change>` (this runs the propose-completeness gate first; fix blockers before continuing).
-2. Fill `harnessX/changes/<change>/design.md`:
+2. Fill `harnessX/changes/<change>/design.md` using the **design-template** layout:
    - **Context** — constraints from explore.md and the current specs;
+   - **API Surface** / **Data Model** — when the change exposes APIs or persistence;
    - **Decisions (ADR)** — one ADR entry per significant decision: status, the decision itself, consequences. Record rejected alternatives and WHY they lost;
-   - **Architecture Constraints** — rules that sensors should enforce afterwards (layer boundaries, dependency direction, budgets). Write them so they can be checked mechanically.
+   - **Architecture Constraints** — rules that sensors should enforce afterwards (layer boundaries, dependency direction, budgets). Write them so they can be checked mechanically;
+   - **Observability** and **Rollback Plan** when the change is user-facing or risky.
 3. Cross-check against the constitution (`harnessX/constitution.md`) and any `guide.constraint` assets — if your design conflicts with a constraint, either change the design or open the conflict explicitly with the human. Do not silently violate.
 4. If the design implies spec changes (new/changed scenarios), update the delta specs now and re-run `hx gate check <change> --phase spec`.
 5. Advance when clean: `hx gate advance <change>`.

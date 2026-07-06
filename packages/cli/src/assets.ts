@@ -13,12 +13,15 @@ import {
   hubSync,
   hubPromote,
   hubApproveReview,
+  seedGoldenHub,
+  listGoldenHubPackages,
   scanAssetDir,
   dispatchFileSave,
   runScheduled,
   startWatcher,
   buildFixPack,
   loadAssetDir,
+  ensureDir,
   type AssetStatus
 } from "@harnessx/core";
 import { builtinSensors } from "@harnessx/sensors";
@@ -69,6 +72,19 @@ export function registerAssetCommands(program: Command): void {
   });
 
   const hub = program.command("hub").description("Harness Hub (§11.5)");
+  hub.command("golden").description("List built-in golden hub packages").action(() => {
+    for (const p of listGoldenHubPackages()) console.log(`${p.id}@${p.version}`);
+  });
+  hub
+    .command("seed [path]")
+    .description("Create a hub repo from built-in golden packages (pre-approved)")
+    .action((hubPath?: string) => {
+      const target = path.resolve(hubPath ?? "harness-hub");
+      ensureDir(target);
+      const pkgs = seedGoldenHub(target);
+      console.log(`Seeded ${target} with ${pkgs.length} package(s):`);
+      for (const p of pkgs) console.log(`  ${p.id}@${p.version}`);
+    });
   hub
     .command("add <pkg>")
     .requiredOption("--hub <path>", "hub repo path")
