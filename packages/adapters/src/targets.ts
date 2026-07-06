@@ -11,12 +11,17 @@ import { commandBody, type TargetEmitter } from "./compiler.js";
 
 /* ── T-605 Cursor: commands / skills / rules / hooks ── */
 
-/** Cursor postToolUse hook: verify approved fixtures after Write and inject violations into agent context. */
+/** Cursor agent write tools that edit files (StrReplace is the default Agent path; Write is full overwrite). */
+const CURSOR_FIXTURE_WRITE_MATCHER = "Write|StrReplace|Apply_patch";
+
+/** Cursor fixture hook: preToolUse blocks protected paths; postToolUse injects verify violations into agent context. */
 const CURSOR_FIXTURE_VERIFY_HOOK = `#!/usr/bin/env node
-/** HarnessX Cursor hook — run hx fixture verify after protected file writes. */
+/** HarnessX Cursor hook — guard approved fixtures on agent file edits. */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+
+const WRITE_TOOLS = new Set(["Write", "StrReplace", "Apply_patch", "apply_patch", "search_replace", "edit_file", "MultiEdit"]);
 
 function readInput() {
   try {
@@ -42,6 +47,33 @@ function isProtected(rel) {
   return /^harnessX\\/changes\\/[^/]+\\/meta\\.yaml$/.test(rel);
 }
 
+function isAgentWriteTool(toolName) {
+  return WRITE_TOOLS.has(toolName);
+}
+
+function patchText(toolInput) {
+  const ti = toolInput ?? {};
+  return String(ti.command ?? ti.input ?? ti.diff ?? ti.patch ?? "");
+}
+
+function extractTargetRel(input, roots) {
+  if (input.file_path) return relativePath(input.file_path, roots);
+  const ti = input.tool_input ?? {};
+  const direct = ti.file_path ?? ti.path ?? ti.target_file ?? "";
+  if (direct) return relativePath(direct, roots);
+  const patch = patchText(ti);
+  const m = patch.match(/^\\*\\*\\* (?:Update|Add) File: (.+)$/m);
+  if (m) return relativePath(m[1].trim(), roots);
+  return "";
+}
+
+function patchTouchesProtected(toolInput) {
+  const patch = patchText(toolInput);
+  if (!patch) return false;
+  if (/tests\\/fixtures\\//.test(patch)) return true;
+  return /harnessX\\/changes\\/[^/]+\\/meta\\.yaml/.test(patch);
+}
+
 function out(obj) {
   process.stdout.write(JSON.stringify(obj) + "\\n");
 }
@@ -53,38 +85,50 @@ function runFixtureVerify(cwd) {
 }
 
 const input = readInput();
+const event = input.hook_event_name ?? "";
+const toolName = input.tool_name ?? "";
 const roots = input.workspace_roots ?? [];
 const cwd = roots[0] ?? process.cwd();
-let rel = "";
+const rel = extractTargetRel(input, roots);
+const agentWrite = isAgentWriteTool(toolName);
+const protectedTarget = isProtected(rel) || (agentWrite && patchTouchesProtected(input.tool_input));
 
-if (input.file_path) {
-  rel = relativePath(input.file_path, roots);
-} else if (input.tool_name === "Write") {
-  rel = relativePath(input.tool_input?.file_path ?? input.tool_input?.path ?? "", roots);
+function denyProtectedEdit(target) {
+  const msg = \`[HarnessX fixture guard] Agents must not edit protected file: \${target}\\nRestore the file, or have a human re-approve: hx fixture approve \${target} --by <name>\`;
+  out({ permission: "deny", agent_message: msg, user_message: \`HarnessX blocked edit to \${target}\` });
 }
 
-if (!isProtected(rel)) {
-  out({});
+if (event === "preToolUse" && agentWrite && protectedTarget) {
+  denyProtectedEdit(rel || "protected fixture/meta.yaml path");
+  process.exit(0);
+}
+
+if (!protectedTarget) {
+  out(event === "preToolUse" ? { permission: "allow" } : {});
   process.exit(0);
 }
 
 const hx = runFixtureVerify(cwd);
 if (hx.error) {
   const err = \`hx fixture verify failed to run (\${hx.error.code}): ensure hx is on PATH or installed in node_modules\`;
-  if (input.tool_name === "Write") out({ additional_context: \`[HarnessX fixture guard] \${err}\` });
+  if (event === "postToolUse" && agentWrite) out({ additional_context: \`[HarnessX fixture guard] \${err}\` });
+  else if (event === "preToolUse") out({ permission: "allow" });
   else console.error(err);
   process.exit(0);
 }
 if (hx.status === 0) {
-  out({});
+  out(event === "preToolUse" ? { permission: "allow" } : {});
   process.exit(0);
 }
 
 const detail = (hx.stderr || hx.stdout || "fixture verify failed").trim();
-const ctx = \`[HarnessX fixture guard] \${detail}\\nRestore the fixture, or have a human re-approve: hx fixture approve \${rel} --by <name>\`;
+const target = rel || "protected fixture";
+const ctx = \`[HarnessX fixture guard] \${detail}\\nRestore the fixture, or have a human re-approve: hx fixture approve \${target} --by <name>\`;
 
-if (input.tool_name === "Write") {
+if (event === "postToolUse" && agentWrite) {
   out({ additional_context: ctx });
+} else if (event === "preToolUse") {
+  out({ permission: "allow" });
 } else {
   console.error(ctx);
   out({});
@@ -106,7 +150,7 @@ export const cursorEmitter: TargetEmitter = (ws, ctx) => {
   ensureDir(path.dirname(hookAbs));
   fs.writeFileSync(hookAbs, CURSOR_FIXTURE_VERIFY_HOOK);
   files.push(hookRel);
-  // hooks: postToolUse feeds violations back to the agent; afterFileEdit is observational only
+  // hooks: preToolUse blocks protected paths; postToolUse feeds violations back to the agent; afterFileEdit is observational only
   files.push(
     ctx.write(
       `.cursor/hooks.json`,
@@ -115,7 +159,8 @@ export const cursorEmitter: TargetEmitter = (ws, ctx) => {
           version: 1,
           hooks: {
             beforeSubmitPrompt: [{ command: "hx gate hook-check" }],
-            postToolUse: [{ command: "node .cursor/hooks/fixture-verify.mjs", matcher: "Write" }],
+            preToolUse: [{ command: "node .cursor/hooks/fixture-verify.mjs", matcher: CURSOR_FIXTURE_WRITE_MATCHER }],
+            postToolUse: [{ command: "node .cursor/hooks/fixture-verify.mjs", matcher: CURSOR_FIXTURE_WRITE_MATCHER }],
             afterFileEdit: [
               {
                 command: "node .cursor/hooks/fixture-verify.mjs",

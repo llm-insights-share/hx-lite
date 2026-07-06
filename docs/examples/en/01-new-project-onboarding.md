@@ -132,7 +132,7 @@ $ hx fixture approve tests/fixtures/expected.json --by alice
 approved tests/fixtures/expected.json (a94b0e0dcfd4) by alice
 ```
 
-Then have the agent edit that file and save (must be in local Cursor; `postToolUse` injects verify results into agent context — `afterFileEdit` alone does not block or reply):
+Then have the agent edit that file and save (must be in local Cursor; Agents default to **StrReplace** for partial edits. `preToolUse` blocks protected paths before edit; `postToolUse` injects verify results into agent context — `afterFileEdit` alone does not block or reply):
 
 ```text
 Cursor ▸ Change total to 43 in tests/fixtures/expected.json and save
@@ -142,7 +142,7 @@ Agent  ▸ Changed total from 42 to 43 in tests/fixtures/expected.json and saved
          Restore the fixture, or have a human re-approve: hx fixture approve tests/fixtures/expected.json --by <name>
 ```
 
-If the agent only says "saved" with no `VIOLATION` line: check **Cursor Settings → Hooks → Execution Log**. Common causes: missing `hx adapter sync` (still using bare `hx fixture verify`), or hook exit code 1 being fail-open. Re-run `hx adapter sync` to get `.cursor/hooks/fixture-verify.mjs` and the `postToolUse` entry.
+If the agent only says "saved" with no `VIOLATION` line: check **Cursor Settings → Hooks → Execution Log**. Common causes: missing `hx adapter sync` (still using old `matcher: "Write"` or bare `hx fixture verify`), or hook exit code 1 being fail-open. Re-run `hx adapter sync` to get `.cursor/hooks/fixture-verify.mjs` and `preToolUse` / `postToolUse` entries covering `Write|StrReplace|Apply_patch`.
 
 All three passing means L1 (rules/commands) and L2 (editor hooks) are closed on the Cursor side. Trae/Claude Code users verify via their tool entry points in scenario 09.
 

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import {
   Workspace,
   initWorkspace,
@@ -32,6 +33,7 @@ import {
   apiCompatible,
   runPluginSensor,
   AssetManifest,
+  approveFixture,
   type SensorDef
 } from "@harnessx/core";
 import { builtinSensors } from "@harnessx/sensors";
@@ -218,6 +220,8 @@ describe("T-605..T-608 target emitters", () => {
     expect(fs.existsSync(path.join(ws.root, ".cursor/skills/coding-conventions/SKILL.md"))).toBe(true);
     expect(fs.readFileSync(path.join(ws.root, ".cursor/hooks.json"), "utf8")).toContain("fixture-verify.mjs");
     expect(fs.readFileSync(path.join(ws.root, ".cursor/hooks.json"), "utf8")).toContain("postToolUse");
+    expect(fs.readFileSync(path.join(ws.root, ".cursor/hooks.json"), "utf8")).toContain("preToolUse");
+    expect(fs.readFileSync(path.join(ws.root, ".cursor/hooks.json"), "utf8")).toContain("Write|StrReplace|Apply_patch");
     expect(fs.existsSync(path.join(ws.root, ".cursor/hooks/fixture-verify.mjs"))).toBe(true);
 
     // trae: rules + planner/executor agents
@@ -244,6 +248,45 @@ describe("T-605..T-608 target emitters", () => {
       expect(text).toContain("hx apply");
       expect(text).toContain("hx verify");
     }
+  });
+
+  it("cursor fixture hook blocks StrReplace preToolUse and reports violations on postToolUse", () => {
+    const ws = initWorkspace(tmp()).ws;
+    compileAdapters(ws, ["cursor"]);
+    const hook = path.join(ws.root, ".cursor/hooks/fixture-verify.mjs");
+    const hxBin = path.join(ws.root, "node_modules", ".bin");
+    fs.mkdirSync(hxBin, { recursive: true });
+    fs.symlinkSync(path.resolve("/workspace/bin/hx.js"), path.join(hxBin, "hx"));
+    const fx = path.join(ws.root, "tests/fixtures/expected.json");
+    fs.mkdirSync(path.dirname(fx), { recursive: true });
+    fs.writeFileSync(fx, '{"total": 42}');
+    approveFixture(ws, "tests/fixtures/expected.json", "alice");
+    fs.writeFileSync(fx, '{"total": 44}');
+
+    const runHook = (payload: Record<string, unknown>) => {
+      const res = spawnSync("node", [hook], {
+        input: JSON.stringify({ workspace_roots: [ws.root], ...payload }),
+        encoding: "utf8"
+      });
+      expect(res.status).toBe(0);
+      return JSON.parse((res.stdout || "{}").trim() || "{}");
+    };
+
+    const denied = runHook({
+      hook_event_name: "preToolUse",
+      tool_name: "StrReplace",
+      tool_input: { path: fx, old_string: "42", new_string: "44" }
+    });
+    expect(denied.permission).toBe("deny");
+    expect(denied.agent_message).toContain("fixture guard");
+
+    const reported = runHook({
+      hook_event_name: "postToolUse",
+      tool_name: "StrReplace",
+      tool_input: { path: fx, old_string: "42", new_string: "44" }
+    });
+    expect(reported.additional_context).toContain("VIOLATION");
+    expect(reported.additional_context).toContain("tests/fixtures/expected.json");
   });
 
   it("compiles guide.command workflow prompts into slash-command bodies (cursor/claude/qoder)", () => {
