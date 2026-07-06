@@ -177,7 +177,7 @@ hx archive add-refund        # merge deltas into main specs and archive
 
 ## 7. Further reading
 
-- [13 usage scenario walkthroughs](examples/en/README.md)
+- [14 usage scenario walkthroughs](examples/en/README.md)
 - [System design document](harness-delivery-system-design.html) (Chinese)
 - [Build plan & status](build-plan.csv)
 - Repository [README.md](../README.md)

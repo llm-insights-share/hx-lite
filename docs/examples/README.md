@@ -19,6 +19,7 @@
 | [11](11-自定义需求产出模板.md) | 开工前定制 proposal 模板与 delta spec 写作规范 | `guide.template` / spec-writing Skill / Gate 强制节 / `overrides` |
 | [12](12-自定义概要设计产出模板.md) | 开工前定制 design.md 结构与 design 阶段命令 | design-template 资产 / 定制 `/hx-design` / api-design Skill / Context Pack |
 | [13](13-v0.2-编排与并行交付.md) | **v0.2** 编排：并行 Apply、Best-of-N、Diff 标注、Issue 接入 | `--parallel` / `--fan-out` / `hx review` / `--from-issue` / `hx eval guides` / `hx notify` |
+| [14](14-企业全栈多角色交付.md) | 企业全栈应用：API + B 端后台 + C 端门户，五角色按序交付 | 多 bundle 叠加 / `frontend-2c` / 双轨 `tasks.md` / `@group` 前后端并行 apply / 全角色分工 |
 
 ## 阅读前提
 

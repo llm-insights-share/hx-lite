@@ -177,7 +177,7 @@ hx archive add-refund        # 合并 delta 至主规格并归档
 
 ## 7. 进一步阅读
 
-- [使用场景示例（13 个）](examples/README.md)
+- [使用场景示例（14 个）](examples/README.md)
 - [系统设计文档](harness-delivery-system-design.html)
 - [构建计划与状态](build-plan.csv)
 - 仓库根目录 [README.md](../README.md)
