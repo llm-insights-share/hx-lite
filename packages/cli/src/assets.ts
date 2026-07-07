@@ -14,6 +14,13 @@ import {
   hubSyncApply,
   hubPromote,
   hubApproveReview,
+  hubAssetInfo,
+  hubSetAssetStatus,
+  requestHubReview,
+  approveHubReview,
+  rejectHubReview,
+  hubGovernanceReport,
+  gcHubRemoteCache,
   seedGoldenHub,
   listGoldenHubPackages,
   listGoldenHubBundles,
@@ -21,6 +28,7 @@ import {
   hubEvalPackage,
   hubEvalLocal,
   hubEvalGoldenRepo,
+  writeHubEvalReport,
   scanAssetDir,
   searchHubCatalog,
   writeHubIndex,
@@ -111,9 +119,11 @@ export function registerAssetCommands(program: Command): void {
     .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
     .option("--apply", "apply upstream updates with three-way merge")
     .option("--force", "apply merges even when conflicts occur")
+    .option("--offline", "use local hub cache without remote fetch")
+    .option("--refresh", "force refresh remote cache before operation")
     .option("--only <ids>", "comma-separated package ids to sync")
-    .action((opts: { hub: string; apply?: boolean; force?: boolean; only?: string }) => {
-      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true });
+    .action((opts: { hub: string; apply?: boolean; force?: boolean; only?: string; offline?: boolean; refresh?: boolean }) => {
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true, offline: opts.offline, refresh: opts.refresh });
       if (opts.apply) {
         const only = opts.only?.split(",").map((s) => s.trim()).filter(Boolean);
         for (const r of hubSyncApply(ws(), hubRoot, { force: opts.force, only })) {
@@ -132,8 +142,16 @@ export function registerAssetCommands(program: Command): void {
     .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
     .requiredOption("--by <name>")
     .option("--evidence <ref>", "metrics/report evidencing the asset's value")
-    .action((dir: string, opts: { hub: string; by: string; evidence?: string }) => {
+    .option("--skip-policy", "skip policy check before publish")
+    .action((dir: string, opts: { hub: string; by: string; evidence?: string; skipPolicy?: boolean }) => {
       const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true });
+      if (!opts.skipPolicy) {
+        const report = hubGovernanceReport(hubRoot);
+        if (!report.ok) {
+          const first = report.issues.find((i) => i.severity === "error");
+          throw new Error(`hub policy check failed before promote: ${first?.asset} ${first?.message}`);
+        }
+      }
       const res = hubPromote(ws(), hubRoot, path.resolve(dir), { publishedBy: opts.by, evidence: opts.evidence });
       console.log(`published to ${res.dest} (review pending)`);
     });
@@ -152,17 +170,20 @@ export function registerAssetCommands(program: Command): void {
     .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
     .option("--local <dir>", "evaluate a local asset directory instead of a hub package")
     .option("--golden <name>", "evaluate a golden-repo eval set")
-    .action((pkg: string, opts: { hub: string; local?: string; golden?: string }) => {
+    .option("--out <file>", "write eval report json")
+    .action((pkg: string, opts: { hub: string; local?: string; golden?: string; out?: string }) => {
       const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true });
       if (opts.golden) {
         const res = hubEvalGoldenRepo(hubRoot, opts.golden);
         for (const c of res.checks) console.log(`${c.ok ? "PASS" : "FAIL"}\t${c.name}${c.detail ? `\t${c.detail}` : ""}`);
+        if (opts.out) console.log(`report\t${writeHubEvalReport(path.resolve(opts.out), res)}`);
         if (!res.passed) process.exit(1);
         return;
       }
       if (opts.local) {
         const res = hubEvalLocal(path.resolve(opts.local));
         for (const c of res.checks) console.log(`${c.ok ? "PASS" : "FAIL"}\t${c.name}${c.detail ? `\t${c.detail}` : ""}`);
+        if (opts.out) console.log(`report\t${writeHubEvalReport(path.resolve(opts.out), res)}`);
         if (!res.passed) process.exit(1);
         return;
       }
@@ -170,6 +191,7 @@ export function registerAssetCommands(program: Command): void {
       if (!version) throw new Error("use <id>@<version>");
       const res = hubEvalPackage(hubRoot, { id, version });
       for (const c of res.checks) console.log(`${c.ok ? "PASS" : "FAIL"}\t${c.name}${c.detail ? `\t${c.detail}` : ""}`);
+      if (opts.out) console.log(`report\t${writeHubEvalReport(path.resolve(opts.out), res)}`);
       if (!res.passed) process.exit(1);
     });
   hub
@@ -194,6 +216,117 @@ export function registerAssetCommands(program: Command): void {
       for (const e of results) {
         console.log(`${e.category}\t${e.id}@${e.version}\t${e.kind}\t${e.description ?? ""}`);
       }
+    });
+
+  hub
+    .command("catalog")
+    .argument("<action>", "rebuild")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
+    .action((action: string, opts: { hub: string }) => {
+      if (action !== "rebuild") throw new Error(`unknown hub catalog action: ${action}`);
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true, refresh: true });
+      console.log(`wrote ${writeHubIndex(hubRoot)}`);
+    });
+
+  const hubAsset = hub.command("asset").description("Hub asset lifecycle management");
+  hubAsset
+    .command("info <pkg>")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
+    .action((pkg: string, opts: { hub: string }) => {
+      const [id, version] = pkg.split("@");
+      if (!id || !version) throw new Error("use <id>@<version>");
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true });
+      const info = hubAssetInfo(hubRoot, { id, version });
+      console.log(JSON.stringify(info, null, 2));
+    });
+  hubAsset
+    .command("promote <pkg>")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
+    .requiredOption("--to <status>", "draft | trial | enforced | deprecated | archived")
+    .action((pkg: string, opts: { hub: string; to: "draft" | "trial" | "enforced" | "deprecated" | "archived" }) => {
+      const [id, version] = pkg.split("@");
+      if (!id || !version) throw new Error("use <id>@<version>");
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true, refresh: true });
+      const meta = hubSetAssetStatus(hubRoot, { id, version }, opts.to);
+      console.log(`${pkg} -> ${meta.status}`);
+    });
+  hubAsset
+    .command("deprecate <pkg>")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
+    .requiredOption("--reason <text>", "deprecation reason")
+    .action((pkg: string, opts: { hub: string; reason: string }) => {
+      const [id, version] = pkg.split("@");
+      if (!id || !version) throw new Error("use <id>@<version>");
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true, refresh: true });
+      const meta = hubSetAssetStatus(hubRoot, { id, version }, "deprecated");
+      console.log(`${pkg} -> ${meta.status} (${opts.reason})`);
+    });
+
+  const hubReviewCmd = hub.command("review").description("Hub review workflow");
+  hubReviewCmd
+    .command("request <pkg>")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
+    .requiredOption("--by <name>", "requestor")
+    .action((pkg: string, opts: { hub: string; by: string }) => {
+      const [id, version] = pkg.split("@");
+      if (!id || !version) throw new Error("use <id>@<version>");
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true, refresh: true });
+      const info = hubAssetInfo(hubRoot, { id, version });
+      const rec = requestHubReview(info.dir, opts.by);
+      console.log(`${pkg}\t${rec.status}\trequested by ${opts.by}`);
+    });
+  hubReviewCmd
+    .command("approve <pkg>")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
+    .requiredOption("--reviewer <name>", "reviewer")
+    .action((pkg: string, opts: { hub: string; reviewer: string }) => {
+      const [id, version] = pkg.split("@");
+      if (!id || !version) throw new Error("use <id>@<version>");
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true, refresh: true });
+      const info = hubAssetInfo(hubRoot, { id, version });
+      const rec = approveHubReview(info.dir, opts.reviewer);
+      console.log(`${pkg}\t${rec.status}\tapproved by ${opts.reviewer}`);
+    });
+  hubReviewCmd
+    .command("reject <pkg>")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
+    .requiredOption("--reviewer <name>", "reviewer")
+    .requiredOption("--reason <text>", "rejection reason")
+    .action((pkg: string, opts: { hub: string; reviewer: string; reason: string }) => {
+      const [id, version] = pkg.split("@");
+      if (!id || !version) throw new Error("use <id>@<version>");
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true, refresh: true });
+      const info = hubAssetInfo(hubRoot, { id, version });
+      const rec = rejectHubReview(info.dir, opts.reviewer, opts.reason);
+      console.log(`${pkg}\t${rec.status}\trejected by ${opts.reviewer}: ${opts.reason}`);
+    });
+
+  hub
+    .command("policy")
+    .argument("<action>", "check")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
+    .option("--strict", "fail on warnings")
+    .action((action: string, opts: { hub: string; strict?: boolean }) => {
+      if (action !== "check") throw new Error(`unknown hub policy action: ${action}`);
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true, refresh: true });
+      const report = hubGovernanceReport(hubRoot);
+      for (const i of report.issues) {
+        const label = i.severity === "error" ? "ERROR" : "WARN";
+        console.error(`${label}\t${i.asset}\t${i.message}`);
+      }
+      const hasWarn = report.issues.some((i) => i.severity === "warn");
+      if (!report.ok || (opts.strict && hasWarn)) process.exit(1);
+      console.log("hub policy check passed");
+    });
+
+  const cache = hub.command("cache").description("Remote hub cache operations");
+  cache
+    .command("gc")
+    .option("--older-than-days <n>", "remove cache entries older than N days", "30")
+    .action((opts: { olderThanDays: string }) => {
+      const removed = gcHubRemoteCache(process.cwd(), parseInt(opts.olderThanDays, 10) * 24 * 3600_000);
+      console.log(`removed ${removed.length} cache entr${removed.length === 1 ? "y" : "ies"}`);
+      for (const d of removed) console.log(`  ${d}`);
     });
   const adapter = program.command("adapter").description("Single-source adapter compilation (FR-032/033)");
   adapter

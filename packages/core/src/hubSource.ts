@@ -14,6 +14,9 @@ export type GitExec = (args: string[], cwd?: string) => GitExecResult;
 
 export interface ResolveHubSourceOptions {
   updateRemote?: boolean;
+  offline?: boolean;
+  refresh?: boolean;
+  maxStaleMs?: number;
   gitExec?: GitExec;
 }
 
@@ -29,6 +32,24 @@ export function isGitHubHubRef(hubRef: string): boolean {
 export function hubRemoteCacheDir(workspaceRoot: string, hubRef: string): string {
   const hash = crypto.createHash("sha256").update(hubRef).digest("hex").slice(0, 16);
   return path.join(workspaceRoot, "harnessX", ".hub-remotes", hash, "repo");
+}
+
+function cacheStateFile(repoDir: string): string {
+  return path.join(path.dirname(repoDir), ".state.json");
+}
+
+function readCacheState(repoDir: string): { lastFetchedAt?: string } {
+  const f = cacheStateFile(repoDir);
+  if (!fs.existsSync(f)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(f, "utf8")) as { lastFetchedAt?: string };
+  } catch {
+    return {};
+  }
+}
+
+function writeCacheState(repoDir: string, state: { lastFetchedAt: string }): void {
+  fs.writeFileSync(cacheStateFile(repoDir), JSON.stringify(state, null, 2), "utf8");
 }
 
 function runGit(args: string[], cwd?: string): GitExecResult {
@@ -63,7 +84,16 @@ export function resolveHubSource(workspaceRoot: string, hubRef: string, opts: Re
     if (cloned.status !== 0) throwGitFailure("clone", hubRef, cloned);
     // test doubles may skip side effects; create .git marker so subsequent calls behave consistently
     ensureDir(path.join(repoDir, ".git"));
-  } else if (opts.updateRemote) {
+    writeCacheState(repoDir, { lastFetchedAt: new Date().toISOString() });
+  } else if (opts.updateRemote && !opts.offline) {
+    const state = readCacheState(repoDir);
+    const shouldRefresh =
+      opts.refresh ||
+      !state.lastFetchedAt ||
+      !opts.maxStaleMs ||
+      Date.now() - new Date(state.lastFetchedAt).getTime() > opts.maxStaleMs;
+    if (!shouldRefresh) return repoDir;
+
     const fetched = execGit(["-C", repoDir, "fetch", "--all", "--prune"]);
     if (fetched.status !== 0) throwGitFailure("fetch", hubRef, fetched);
 
@@ -73,7 +103,25 @@ export function resolveHubSource(workspaceRoot: string, hubRef: string, opts: Re
       const pulled = execGit(["-C", repoDir, "pull", "--ff-only", "origin", branch]);
       if (pulled.status !== 0) throwGitFailure("pull", hubRef, pulled);
     }
+    writeCacheState(repoDir, { lastFetchedAt: new Date().toISOString() });
   }
 
   return repoDir;
+}
+
+export function gcHubRemoteCache(workspaceRoot: string, olderThanMs = 30 * 24 * 3600_000): string[] {
+  const root = path.join(workspaceRoot, "harnessX", ".hub-remotes");
+  if (!fs.existsSync(root)) return [];
+  const removed: string[] = [];
+  for (const e of fs.readdirSync(root, { withFileTypes: true })) {
+    if (!e.isDirectory()) continue;
+    const dir = path.join(root, e.name);
+    const state = readCacheState(path.join(dir, "repo"));
+    const t = state.lastFetchedAt ? new Date(state.lastFetchedAt).getTime() : 0;
+    if (!t || Date.now() - t > olderThanMs) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      removed.push(dir);
+    }
+  }
+  return removed;
 }
