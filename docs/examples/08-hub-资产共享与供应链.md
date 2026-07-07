@@ -78,6 +78,18 @@ clock-injection	installed 1.0.0	latest 1.1.0	update-available
 
 如果营销团队之前在本地缓存上做过定制（比如加了一条"营销活动倒计时必须用服务端时间"），状态会变成 `update-and-local-changes`——**升级前必须先处置本地改动**：要么把定制条目单独抽成本仓库资产（走 `overrides` 显式声明 + 理由），要么把它贡献回 Hub 变成 1.2.0。杜绝"升级悄悄冲掉本地定制"或"本地定制永远滞留旧版"。
 
+应用合并（v0.3）：
+
+```console
+$ hx hub sync --hub /tmp/harness-hub --apply
+clock-injection	merged → 1.1.0
+
+$ hx lock write && hx lock verify
+harness.lock verified
+```
+
+若同一文件双方都有修改且无法自动合并，使用 `--force` 保留冲突标记后人工裁决。完整 walkthrough 见 [场景 16](16-v0.3-hub-blueprint-init.md)。
+
 分层解析规则（change > 本地 > 团队 > Hub > 内置）保证了定制的正规出口：
 
 ```console

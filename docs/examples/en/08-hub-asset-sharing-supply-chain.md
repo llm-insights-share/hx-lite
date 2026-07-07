@@ -78,6 +78,18 @@ clock-injection	installed 1.0.0	latest 1.1.0	update-available
 
 If marketing previously customized local cache (e.g. "campaign countdown must use server time"), status becomes `update-and-local-changes` — **must resolve local edits before upgrade**: extract customization as local repo asset (`overrides` with explicit reason), or contribute back to Hub as 1.2.0. Prevents "upgrade silently wipes customization" or "local customization stuck on old version forever".
 
+Apply merge (v0.3):
+
+```console
+$ hx hub sync --hub /tmp/harness-hub --apply
+clock-injection	merged → 1.1.0
+
+$ hx lock write && hx lock verify
+harness.lock verified
+```
+
+Use `--force` when both sides edited the same file. Full walkthrough: [scenario 16](16-v0.3-hub-blueprint-init.md).
+
 Layered resolution (change > local > team > Hub > built-in) gives formal customization outlet:
 
 ```console

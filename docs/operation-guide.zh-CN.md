@@ -50,7 +50,21 @@ hx ci init          # GitHub Actions 工作流
 hx adapter sync     # 编译到 .cursor/ 等工具目录
 ```
 
-## 3. 两类操作入口
+### 从 Harness Hub 初始化（v0.3 推荐）
+
+平台组维护中央 Hub 时，业务仓库可直接拉取**拓扑 Bundle** 或**交付蓝图**：
+
+```bash
+hx hub seed ./harness-hub                    # 首次：从内置黄金资产创建 Hub（仅平台组）
+hx init --from-hub api-service@1.0.0 --hub ./harness-hub
+hx init --from-hub enterprise-delivery@1.0.0 --hub ./harness-hub --adapter cursor
+hx init --from-hub frontend-2c@1.0.0 --hub ./harness-hub
+```
+
+`--from-hub` 会：脚手架 `harnessX/` → 安装 Hub 包到 `.hub-cache/` → 写入 `harness.lock` → 在 `config.yaml` 记录 `hub` 路径。拓扑 Bundle 与蓝图说明见场景 [16](examples/16-v0.3-hub-blueprint-init.md)。
+
+`harnessX/blueprint.yaml` 描述交付路径（extends 哪个 profile、依赖哪些 Hub 包）。`hx-cn` 与 `--from-hub` 可组合：`hx init --locale hx-cn --from-hub api-service@1.0.0 --hub ./harness-hub`（若 Hub 提供中文蓝图则优先用蓝图）。
+
 
 HarnessX 将「管控面」与「执行面」分离：
 
@@ -134,6 +148,8 @@ hx apply add-refund --fan-out 3 --runner "<agent>"
 
 或在 Cursor 用 `/hx-apply` 逐任务实现。每步后 fast sensor 套件须全绿。
 
+使用 Codex/OpenCode 等弱 IDE 适配器时，`hx adapter sync --targets codex,generic` 会写入 `.harnessx-adapter-tier`；Tier 2 自动增强 gate 检查（追加 typecheck/lint 等），建议在终端用 `hx apply --runner "<agent>"` 挂机交付。
+
 ### 4.7 Verify — 完整验证
 
 ```bash
@@ -165,8 +181,17 @@ hx archive add-refund        # 合并 delta 至主规格并归档
 | `hx waiver add <id> --sensor <s> --reason "..." --expires YYYY-MM-DD` | 记录有时限豁免 |
 | `hx adapter sync` | 将 harnessX 资产编译到各 AI 工具目录 |
 | `hx steer report` | 查看反复失败，候选新 Guide |
-| `hx hub golden` | 列出内置 Hub 黄金资产包 |
+| `hx hub golden` | 列出内置 Hub 黄金资产包（package / bundle） |
 | `hx hub seed [path]` | 从黄金资产包创建 Hub 仓库 |
+| `hx hub add <id>@<ver> --hub <path>` | 安装 Hub 包到 `.hub-cache/` |
+| `hx hub sync --hub <path> [--apply]` | 对账上游更新；`--apply` 三方合并本地定制 |
+| `hx hub search [q] --hub <path>` | 按关键词/kind/phase 检索 Hub 资产（v0.4） |
+| `hx hub eval <pkg> --hub <path>` | 发布前验收 Hub 包 |
+| `hx steer publish <dir> --hub <path> --by <name>` | 指标回填 → eval → promote 闭环 |
+| `hx steer coverage [--aggregate <dir>]` | 本仓或跨仓 Harness Coverage 聚合（v0.4） |
+| `hx bundle list [--hub <path>]` | 列出内置或 Hub 拓扑 Bundle |
+| `hx view [--out file]` | 生成交付仪表盘（阶段漏斗 + 资产效果，v0.4） |
+| `hx sync` | spec↔code 漂移检测；verify 阶段也可用 `drift` sensor 统一检测 |
 
 ## 6. 核心心智模型
 
@@ -176,9 +201,19 @@ hx archive add-refund        # 合并 delta 至主规格并归档
 4. `hx archive` 将 delta 合并进主规格；主规格是系统行为的唯一事实源。
 5. 反复失败经 **Steering** 蒸馏为新 Guide，经 **Hub** 共享——harness 持续进化。
 
-## 7. 进一步阅读
+## 7. v0.3 / v0.4 分层架构速览
 
-- [使用场景示例（15 个）](examples/README.md)
+| 层级 | v0.3+ 能力 | 典型命令 |
+| --- | --- | --- |
+| **Hub 资产层** | 包/Bundle/蓝图分发、搜索、eval、sync 合并 | `init --from-hub`、`hub search`、`hub sync --apply` |
+| **HX 编排层** | Blueprint 交付路径、Tier 补偿、漂移与 UAT 门禁 | `blueprint.yaml`、`drift` sensor、`uat-complete` |
+| **IDE 执行层** | codex/opencode 适配 + 更强 L3 检查 | `adapter sync --targets codex,generic` |
+
+enterprise profile 在 v0.4 新增：`prototype-complete`（design 门禁）、`uat-complete`（verify 门禁）、统一 `drift` sensor。api-service Bundle 含 `integration-smoke`（有 `npm run test:integration` 时执行）。
+
+## 8. 进一步阅读
+
+- [使用场景示例（17 个）](examples/README.md)
 - [系统设计文档](harness-delivery-system-design.html)
 - [构建计划与状态](build-plan.csv)
 - 仓库根目录 [README.md](../README.md)

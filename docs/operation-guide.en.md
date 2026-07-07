@@ -50,6 +50,21 @@ hx ci init          # GitHub Actions workflow
 hx adapter sync     # compile to .cursor/ and other tool dirs
 ```
 
+### Initialize from Harness Hub (v0.3 recommended)
+
+When a platform team maintains a central Hub, application repos can pull **topology bundles** or **delivery blueprints**:
+
+```bash
+hx hub seed ./harness-hub                    # first time: create Hub from golden packages (platform team)
+hx init --from-hub api-service@1.0.0 --hub ./harness-hub
+hx init --from-hub enterprise-delivery@1.0.0 --hub ./harness-hub --adapter cursor
+hx init --from-hub frontend-2c@1.0.0 --hub ./harness-hub
+```
+
+`--from-hub` scaffolds `harnessX/`, installs Hub packages into `.hub-cache/`, writes `harness.lock`, and records the `hub` path in `config.yaml`. See scenario [16](examples/en/16-v0.3-hub-blueprint-init.md).
+
+`harnessX/blueprint.yaml` describes the delivery path (profile, Hub dependencies). Combine with `hx-cn`: `hx init --locale hx-cn --from-hub api-service@1.0.0 --hub ./harness-hub`.
+
 ## 3. Two operation entry points
 
 HarnessX separates the **control plane** from the **execution plane**:
@@ -134,6 +149,8 @@ hx apply add-refund --fan-out 3 --runner "<agent>"
 
 Or `/hx-apply` in Cursor, one task at a time. Fast sensor suite must pass after each task.
 
+With weaker IDE adapters (Codex/OpenCode), `hx adapter sync --targets codex,generic` writes `.harnessx-adapter-tier`; Tier 2 automatically strengthens gate checks. Prefer headless `hx apply --runner "<agent>"` for reliable feedback.
+
 ### 4.7 Verify — full verification
 
 ```bash
@@ -165,8 +182,17 @@ hx archive add-refund        # merge deltas into main specs and archive
 | `hx waiver add <id> --sensor <s> --reason "..." --expires YYYY-MM-DD` | Time-boxed waiver |
 | `hx adapter sync` | Compile harnessX assets to AI tool directories |
 | `hx steer report` | Recurring failures → candidate new guides |
-| `hx hub golden` | List built-in golden Hub packages |
+| `hx hub golden` | List built-in golden Hub packages (package / bundle) |
 | `hx hub seed [path]` | Create a hub repo from golden packages |
+| `hx hub add <id>@<ver> --hub <path>` | Install Hub package into `.hub-cache/` |
+| `hx hub sync --hub <path> [--apply]` | Report upstream drift; `--apply` three-way merges local overrides |
+| `hx hub search [q] --hub <path>` | Search Hub catalog by keyword/kind/phase (v0.4) |
+| `hx hub eval <pkg> --hub <path>` | Pre-publish validation of a Hub package |
+| `hx steer publish <dir> --hub <path> --by <name>` | Metrics → eval → promote closed loop |
+| `hx steer coverage [--aggregate <dir>]` | Per-repo or cross-repo Harness Coverage (v0.4) |
+| `hx bundle list [--hub <path>]` | List built-in or Hub topology bundles |
+| `hx view [--out file]` | Delivery dashboard (phase funnel + asset effectiveness, v0.4) |
+| `hx sync` | Spec↔code drift; verify phase also runs unified `drift` sensor |
 
 ## 6. Core mental model
 
@@ -176,9 +202,19 @@ hx archive add-refund        # merge deltas into main specs and archive
 4. `hx archive` merges deltas into main specs — the single source of truth for system behaviour.
 5. Recurring failures feed **Steering** → new guides, shared via **Hub** — the harness evolves.
 
-## 7. Further reading
+## 7. v0.3 / v0.4 layered architecture at a glance
 
-- [14 usage scenario walkthroughs](examples/en/README.md)
+| Layer | v0.3+ capability | Typical commands |
+| --- | --- | --- |
+| **Hub assets** | Package/bundle/blueprint distribution, search, eval, sync merge | `init --from-hub`, `hub search`, `hub sync --apply` |
+| **HX orchestration** | Blueprint delivery path, tier compensation, drift & UAT gates | `blueprint.yaml`, `drift` sensor, `uat-complete` |
+| **IDE execution** | codex/opencode adapters + stronger L3 checks | `adapter sync --targets codex,generic` |
+
+The enterprise profile adds in v0.4: `prototype-complete` (design gate), `uat-complete` (verify gate), and unified `drift` sensor. The api-service bundle includes `integration-smoke` (runs when `npm run test:integration` exists).
+
+## 8. Further reading
+
+- [17 usage scenario walkthroughs](examples/en/README.md)
 - [System design document](harness-delivery-system-design.html) (Chinese)
 - [Build plan & status](build-plan.csv)
 - Repository [README.md](../README.md)

@@ -21,6 +21,8 @@
 | [13](13-v0.2-编排与并行交付.md) | **v0.2** 编排：并行 Apply、Best-of-N、Diff 标注、Issue 接入 | `--parallel` / `--fan-out` / `hx review` / `--from-issue` / `hx eval guides` / `hx notify` |
 | [14](14-企业全栈多角色交付.md) | 企业全栈应用：API + B 端后台 + C 端门户，五角色按序交付 | 多 bundle 叠加 / `frontend-2c` / 双轨 `tasks.md` / `@group` 前后端并行 apply / 全角色分工 |
 | [15](15-企业级需求到交付交接.md) | **enterprise** profile：需求分析 → HLD/LLD → Task Pack 编码交接 | `requirements/` / `design/overview.md` / `delivery-trace.yaml` / `@design=` / `hx guide task-pack` |
+| [16](16-v0.3-hub-blueprint-init.md) | **v0.3** 从 Hub 蓝图/Bundle 初始化 + 资产同步合并 | `init --from-hub` / `blueprint.yaml` / `hub sync --apply` / Tier 补偿 / `steer publish` |
+| [17](17-v0.4-平台治理与仪表盘.md) | **v0.4** 原型/UAT 门禁、统一漂移、组织看板 | `prototype-complete` / `uat-complete` / `drift` / `hub search` / `steer coverage --aggregate` / `hx view` |
 
 ## 阅读前提
 

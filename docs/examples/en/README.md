@@ -19,6 +19,8 @@ This directory collects end-to-end scenarios that mirror real work. Each scenari
 | [13](13-v0.2-orchestration-parallel-delivery.md) | **v0.2** orchestration: parallel apply, best-of-N, diff annotations, issue onboarding | `--parallel` / `--fan-out` / `hx review` / `--from-issue` / `hx eval guides` / `hx notify` |
 | [14](14-enterprise-fullstack-multi-role.md) | Enterprise full-stack: API + B2B admin + B2C portal, five roles in execution order | multi-bundle stack / `frontend-2c` / dual-track `tasks.md` / `@group` parallel apply / role playbook |
 | [15](15-enterprise-delivery-handoff.md) | **enterprise** profile: requirements → HLD/LLD → Task Pack apply handoff | `requirements/` / `design/overview.md` / `delivery-trace.yaml` / `@design=` / `hx guide task-pack` |
+| [16](16-v0.3-hub-blueprint-init.md) | **v0.3** init from Hub blueprint/bundle + asset sync merge | `init --from-hub` / `blueprint.yaml` / `hub sync --apply` / tier compensation / `steer publish` |
+| [17](17-v0.4-platform-governance.md) | **v0.4** prototype/UAT gates, unified drift, org dashboard | `prototype-complete` / `uat-complete` / `drift` / `hub search` / `steer coverage --aggregate` / `hx view` |
 
 **中文**: [docs/examples/](../README.md) · [操作说明](../operation-guide.zh-CN.md)
 
