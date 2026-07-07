@@ -31,12 +31,12 @@ profiles:
 suites:
   fast-lite: [spec-validate]
   fast: [spec-validate, typecheck, lint, unit-changed]
-  verification: [spec-validate, spec-trace]
+  verification: [spec-validate, spec-trace, drift]
   verification-strict: [spec-validate, spec-trace, unit-changed, mutation-probe, ai-spec-review]
   propose-enterprise: [requirements-complete, spec-validate, typecheck, lint, unit-changed]
-  design-enterprise: [design-hld-complete, design-lld-complete, design-spec-align]
+  design-enterprise: [design-hld-complete, design-lld-complete, design-spec-align, prototype-complete]
   plan-enterprise: [plan-coverage]
-  verification-enterprise: [spec-validate, spec-trace, design-drift, unit-changed, mutation-probe, ai-spec-review]
+  verification-enterprise: [spec-validate, spec-trace, design-drift, drift, uat-complete, unit-changed, mutation-probe, ai-spec-review]
 
 guides:
   - id: requirements-template
@@ -223,3 +223,32 @@ sensors:
     builtin: design-drift
     on_fail: warn
     fix_hint: "Implement files listed in delivery-trace code_hints or update the trace"
+  - id: prototype-complete
+    kind: sensor.script
+    execution: computational
+    phase: [design]
+    builtin: prototype-complete
+    on_fail: block
+    fix_hint: "Add design/ui/pages.md wireframe inventory (prototype-wireframe skill)"
+  - id: uat-complete
+    kind: sensor.script
+    execution: computational
+    phase: [verify]
+    builtin: uat-complete
+    on_fail: block
+    fix_hint: "Complete change/uat-checklist.md with scenario walkthrough and sign-off"
+  - id: drift
+    kind: sensor.drift
+    execution: computational
+    phase: [verify]
+    builtin: drift
+    on_fail: warn
+    fix_hint: "Run hx sync; fix spec↔code or design↔code drift; hx adapter sync for adapter drift"
+  - id: integration-smoke
+    kind: sensor.script
+    execution: computational
+    phase: [verify]
+    builtin: integration-smoke
+    on_fail: warn
+    timeout_ms: 120000
+    fix_hint: "Add npm run test:integration or fix failing integration tests"

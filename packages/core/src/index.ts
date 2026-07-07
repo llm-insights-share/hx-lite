@@ -36,6 +36,8 @@ export * from "./supplyChain.js";
 export * from "./blueprint.js";
 export * from "./gateCompensation.js";
 export * from "./hubEval.js";
+export * from "./hubSearch.js";
+export * from "./coverageAggregate.js";
 export * from "./triggers.js";
 export * from "./fix.js";
 export * from "./version.js";

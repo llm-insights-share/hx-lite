@@ -17,10 +17,13 @@ import {
   seedGoldenHub,
   listGoldenHubPackages,
   listGoldenHubBundles,
+  listHubBundles,
   hubEvalPackage,
   hubEvalLocal,
   hubEvalGoldenRepo,
   scanAssetDir,
+  searchHubCatalog,
+  writeHubIndex,
   dispatchFileSave,
   runScheduled,
   startWatcher,
@@ -165,7 +168,29 @@ export function registerAssetCommands(program: Command): void {
       for (const c of res.checks) console.log(`${c.ok ? "PASS" : "FAIL"}\t${c.name}${c.detail ? `\t${c.detail}` : ""}`);
       if (!res.passed) process.exit(1);
     });
-
+  hub
+    .command("search [query]")
+    .requiredOption("--hub <path>")
+    .option("--kind <kind>", "filter by asset kind")
+    .option("--phase <phase>", "filter by phase")
+    .option("--category <cat>", "package | bundle | blueprint")
+    .option("--index", "write hub index.json")
+    .action((query: string | undefined, opts: { hub: string; kind?: string; phase?: string; category?: string; index?: boolean }) => {
+      const hubRoot = path.resolve(opts.hub);
+      if (opts.index) {
+        console.log(`wrote ${writeHubIndex(hubRoot)}`);
+        return;
+      }
+      const results = searchHubCatalog(hubRoot, {
+        query,
+        kind: opts.kind,
+        phase: opts.phase,
+        category: opts.category as "package" | "bundle" | "blueprint" | undefined
+      });
+      for (const e of results) {
+        console.log(`${e.category}\t${e.id}@${e.version}\t${e.kind}\t${e.description ?? ""}`);
+      }
+    });
   const adapter = program.command("adapter").description("Single-source adapter compilation (FR-032/033)");
   adapter
     .command("sync")

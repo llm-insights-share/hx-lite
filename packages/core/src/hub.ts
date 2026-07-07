@@ -396,6 +396,19 @@ export function listGoldenHubBundles(goldenDir = BUILTIN_HUB_GOLDEN_DIR): HubRef
   return out.sort((a, b) => a.id.localeCompare(b.id) || a.version.localeCompare(b.version));
 }
 
+/** Lists bundles in any hub repo (v0.4). */
+export function listHubBundles(hubRoot: string): HubRef[] {
+  const root = path.join(hubRoot, "bundles");
+  if (!fs.existsSync(root)) return [];
+  const out: HubRef[] = [];
+  for (const id of fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory())) {
+    for (const ver of hubVersions(hubRoot, id.name, "bundles")) {
+      out.push({ id: id.name, version: ver });
+    }
+  }
+  return out.sort((a, b) => a.id.localeCompare(b.id) || a.version.localeCompare(b.version));
+}
+
 /** Creates a hub repo from built-in golden packages (pre-approved for local consumption). */
 export function seedGoldenHub(targetRoot: string, goldenDir = BUILTIN_HUB_GOLDEN_DIR): HubRef[] {
   const seeded: HubRef[] = [];

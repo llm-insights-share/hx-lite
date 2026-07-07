@@ -30,5 +30,13 @@ sensors:
     phase: [verify]
     builtin: budget
     on_fail: warn
+  - id: integration-smoke
+    kind: sensor.script
+    execution: computational
+    phase: [verify]
+    builtin: integration-smoke
+    on_fail: warn
+    timeout_ms: 120000
+    fix_hint: "Add npm run test:integration or fix failing integration tests"
 suites:
-  verification: [spec-validate, spec-trace, arch-boundary, perf-budget]
+  verification: [spec-validate, spec-trace, arch-boundary, perf-budget, integration-smoke]

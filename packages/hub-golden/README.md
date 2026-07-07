@@ -19,6 +19,8 @@ Built-in example packages for `hx hub seed`. Teams can publish this directory as
 |--------|------|---------|
 | `api-service@1.0.0` | harness.bundle | API service topology harness |
 
+| `frontend-2c@1.0.0` | harness.bundle | Consumer-facing web topology |
+
 ## Blueprints (`blueprints/`)
 
 | Blueprint | Purpose |

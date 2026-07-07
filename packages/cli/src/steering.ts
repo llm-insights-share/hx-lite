@@ -11,6 +11,8 @@ import {
   recordRubricFeedback,
   janitorRun,
   steerPublish,
+  aggregateFromParent,
+  writeCoverageIndex,
   type ReviewComment
 } from "@harnessx/core";
 
@@ -61,15 +63,26 @@ export function registerSteeringCommands(program: Command): void {
       }
     });
 
-  steer.command("coverage").action(() => {
-    const rep = coverageReport(ws());
-    console.log(`sensor runs: ${rep.metrics.totalSensorRuns}`);
-    console.log(`first-attempt pass rate: ${(rep.metrics.firstAttemptPassRate * 100).toFixed(1)}%`);
-    console.log(`recurrent patterns (>=3): ${rep.metrics.recurrentPatterns}, uncovered: ${rep.uncoveredPatterns}`);
-    for (const p of rep.patterns) {
-      console.log(`  ${p.count}x ${p.signature} — covered by: ${p.coveredBy.join(", ") || "(nothing)"}`);
-    }
-  });
+  steer
+    .command("coverage")
+    .option("--aggregate <dir>", "aggregate coverage from child repos under a parent directory")
+    .action((opts: { aggregate?: string }) => {
+      if (opts.aggregate) {
+        const agg = aggregateFromParent(path.resolve(opts.aggregate));
+        const file = writeCoverageIndex(ws(), agg);
+        console.log(`aggregated ${agg.totals.repos} repo(s) → ${file}`);
+        console.log(`avg first-attempt pass: ${(agg.totals.avgFirstAttemptPassRate * 100).toFixed(1)}%`);
+        console.log(`recurrent patterns: ${agg.totals.totalRecurrentPatterns}, uncovered: ${agg.totals.totalUncoveredPatterns}`);
+        return;
+      }
+      const rep = coverageReport(ws());
+      console.log(`sensor runs: ${rep.metrics.totalSensorRuns}`);
+      console.log(`first-attempt pass rate: ${(rep.metrics.firstAttemptPassRate * 100).toFixed(1)}%`);
+      console.log(`recurrent patterns (>=3): ${rep.metrics.recurrentPatterns}, uncovered: ${rep.uncoveredPatterns}`);
+      for (const p of rep.patterns) {
+        console.log(`  ${p.count}x ${p.signature} — covered by: ${p.coveredBy.join(", ") || "(nothing)"}`);
+      }
+    });
 
   steer
     .command("publish <dir>")

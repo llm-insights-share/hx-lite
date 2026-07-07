@@ -15,3 +15,4 @@ phases:
     guides: [prototype-wireframe, design-template]
   verify:
     guides: [uat-checklist]
+    sensors: [uat-complete, drift]

@@ -181,7 +181,7 @@ describe("T-305 dashboard", () => {
     expect(rows[0].scenarios.total).toBe(2);
     const html = renderDashboard(ws);
     expect(html).toContain("c1");
-    expect(html).toContain("HarnessX — Change Dashboard");
+    expect(html).toContain("HarnessX — Delivery Dashboard");
     expect(html).toContain("tbody");
   });
 });

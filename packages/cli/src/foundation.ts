@@ -5,6 +5,7 @@ import {
   initWorkspace,
   initFromHub,
   listBundles,
+  listHubBundles,
   applyBundle,
   createChange,
   scaffoldProposal,
@@ -46,10 +47,15 @@ export function registerFoundationCommands(program: Command): void {
     .command("bundle")
     .argument("<action>", "list | add")
     .argument("[bundleId]", "topology bundle id (required for add)")
+    .option("--hub <path>", "list bundles from a hub repo (with list)")
     .description("Manage topology bundles")
-    .action((action: string, bundleId?: string) => {
+    .action((action: string, bundleId: string | undefined, opts: { hub?: string }) => {
       if (action === "list") {
-        for (const b of listBundles()) console.log(`${b.id}\t${b.description}`);
+        if (opts?.hub) {
+          for (const b of listHubBundles(path.resolve(opts.hub))) console.log(`${b.id}@${b.version}\t(hub)`);
+        } else {
+          for (const b of listBundles()) console.log(`${b.id}\t${b.description}`);
+        }
         return;
       }
       if (action === "add") {

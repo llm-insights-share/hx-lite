@@ -14,8 +14,12 @@ import {
   planCoverage,
   designDrift
 } from "./delivery.js";
+import { prototypeComplete, uatComplete } from "./prototypeUat.js";
+import { driftSensor, integrationSmoke } from "./drift.js";
 
 export * from "./delivery.js";
+export { prototypeComplete, uatComplete } from "./prototypeUat.js";
+export { driftSensor, integrationSmoke } from "./drift.js";
 
 export * from "./types.js";
 export { specValidate, checkEars } from "./specValidate.js";
@@ -53,7 +57,11 @@ export const builtinSensors: Record<string, BuiltinSensor> = {
   "design-lld-complete": designLldComplete,
   "design-spec-align": designSpecAlign,
   "plan-coverage": planCoverage,
-  "design-drift": designDrift
+  "design-drift": designDrift,
+  "prototype-complete": prototypeComplete,
+  "uat-complete": uatComplete,
+  drift: driftSensor,
+  "integration-smoke": integrationSmoke
 };
 
 export function registerBuiltin(name: string, sensor: BuiltinSensor): void {
