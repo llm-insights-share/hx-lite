@@ -3,6 +3,7 @@ import fs from "node:fs";
 import YAML from "yaml";
 import { ConfigYaml, HarnessYaml, type MetaYaml, MetaYaml as MetaSchema } from "./schemas.js";
 import { expandHarnessImports } from "./harnessCompose.js";
+import { resolveHubSource } from "./hubSource.js";
 
 /** Resolves harnessX layout inside a repository root, honoring compat_mode: openspec. */
 export class Workspace {
@@ -96,7 +97,8 @@ export class Workspace {
     const raw = HarnessYaml.parse(YAML.parse(fs.readFileSync(this.harnessFile, "utf8")) ?? {});
     let hubRoot: string | undefined;
     try {
-      hubRoot = this.readConfig().hub;
+      const hub = this.readConfig().hub;
+      hubRoot = hub ? resolveHubSource(this.root, hub) : undefined;
     } catch {
       hubRoot = undefined;
     }

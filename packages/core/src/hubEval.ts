@@ -21,6 +21,10 @@ export interface HubEvalResult {
   checks: HubEvalCheck[];
 }
 
+export interface HubEvalReport extends HubEvalResult {
+  generatedAt: string;
+}
+
 function evalDir(dir: string, label: string): HubEvalResult {
   const checks: HubEvalCheck[] = [];
   const manifestFile = path.join(dir, "asset.yaml");
@@ -92,4 +96,10 @@ export function hubEvalGoldenRepo(hubRoot: string, name: string): HubEvalResult 
     checks.push({ name: c.name, ok: fs.existsSync(path.join(dir, c.path)), detail: c.path });
   }
   return { package: `golden:${name}`, passed: checks.every((c) => c.ok), checks };
+}
+
+export function writeHubEvalReport(file: string, result: HubEvalResult): string {
+  const report: HubEvalReport = { ...result, generatedAt: new Date().toISOString() };
+  fs.writeFileSync(file, JSON.stringify(report, null, 2), "utf8");
+  return file;
 }

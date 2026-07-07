@@ -7,6 +7,7 @@ import { HarnessYaml } from "./schemas.js";
 import { hubAdd, hubBundleDir, resolveHubPackage, type HubRef } from "./hub.js";
 import { applyHubBlueprint } from "./blueprint.js";
 import { writeLock } from "./assets.js";
+import { isGitHubHubRef, resolveHubSource } from "./hubSource.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** Built-in bundle sources shipped with the harnessx package. */
@@ -82,7 +83,7 @@ const NEXT_STEPS_FROM_HUB_EN = [
 
 /** `hx init --from-hub`: scaffold from a hub bundle or blueprint package. */
 export function initFromHub(root: string, opts: InitFromHubOptions): InitResult {
-  const hubRoot = path.resolve(opts.hubRoot);
+  const hubRoot = resolveHubSource(root, opts.hubRoot, { updateRemote: true });
   const ref = parseHubRef(opts.hubRef);
   const resolved = resolveHubPackage(hubRoot, ref);
   if (!resolved) throw new Error(`hub package ${opts.hubRef} not found in ${hubRoot}`);
@@ -90,7 +91,8 @@ export function initFromHub(root: string, opts: InitFromHubOptions): InitResult 
   const res = initWorkspace(root, { locale: opts.locale, bundlesDir: opts.bundlesDir });
 
   const config = res.ws.readConfig();
-  writeYaml(res.ws.configFile, { ...config, hub: hubRoot, ...(opts.adapter ? { adapter: { target: opts.adapter } } : {}) });
+  const hubConfig = isGitHubHubRef(opts.hubRoot) ? opts.hubRoot : path.resolve(opts.hubRoot);
+  writeYaml(res.ws.configFile, { ...config, hub: hubConfig, ...(opts.adapter ? { adapter: { target: opts.adapter } } : {}) });
 
   if (resolved.kind === "bundle") {
     applyBundle(res.ws, ref.id, resolved.dir);

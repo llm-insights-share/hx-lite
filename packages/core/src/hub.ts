@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 import { Workspace, ensureDir, readYaml, writeYaml } from "./paths.js";
 import { loadAssetDir, assetContentHash, type LoadedAsset } from "./assets.js";
 import { scanGuideContent } from "./supplyChain.js";
+import { HubAssetMeta, type HubAssetStatus } from "./hubAssetSchema.js";
+import { assertHubAssetTransition } from "./hubLifecycle.js";
+import { approveHubReview, readHubReview, requestHubReview } from "./hubReview.js";
+import { hashHubAssetDir } from "./hubIntegrity.js";
+import { hubEvalLocal } from "./hubEval.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** Built-in golden hub packages shipped with harnessx (T-602). */
@@ -332,6 +337,21 @@ export interface PromoteOptions {
   publishedBy: string;
   /** Skip pre-publish eval (not recommended). */
   skipEval?: boolean;
+  owner?: string;
+}
+
+export function hubMetaFile(dir: string): string {
+  return path.join(dir, ".hub-meta.yaml");
+}
+
+export function readHubMeta(dir: string): HubAssetMeta | null {
+  const f = hubMetaFile(dir);
+  if (!fs.existsSync(f)) return null;
+  return HubAssetMeta.parse(readYaml<HubAssetMeta>(f));
+}
+
+export function writeHubMeta(dir: string, meta: HubAssetMeta): void {
+  writeYaml(hubMetaFile(dir), HubAssetMeta.parse(meta));
 }
 
 /** hub promote: publish a local asset dir to the hub with provenance; review marker required before consumption. */
@@ -339,6 +359,14 @@ export function hubPromote(ws: Workspace, hubRoot: string, assetDir: string, opt
   const asset = loadAssetDir(assetDir, "local");
   if (!asset) throw new Error(`no asset.yaml in ${assetDir}`);
   if (asset.manifest.status === "draft") throw new Error("draft assets cannot be promoted to the hub — promote to trial/enforced locally first");
+
+  if (!opts.skipEval) {
+    const evalRes = hubEvalLocal(assetDir);
+    if (!evalRes.passed) {
+      const fail = evalRes.checks.find((c) => !c.ok);
+      throw new Error(`hub eval failed before promote: ${fail?.name ?? "unknown check"}${fail?.detail ? ` (${fail.detail})` : ""}`);
+    }
+  }
 
   const findings = scanAssetDir(assetDir);
   if (findings.length > 0) throw new Error(`asset failed injection scan before publish: ${findings[0]}`);
@@ -355,20 +383,83 @@ export function hubPromote(ws: Workspace, hubRoot: string, assetDir: string, opt
     ...(opts.evidence ? [{ type: "evidence", ref: opts.evidence }] : [])
   ];
   writeYaml(path.join(dest, "asset.yaml"), manifest);
-  writeYaml(path.join(dest, ".review"), { status: "pending", publishedBy: opts.publishedBy, at: new Date().toISOString() });
+  requestHubReview(dest, opts.publishedBy);
+  const hash = hashHubAssetDir(dest);
+  writeHubMeta(
+    dest,
+    HubAssetMeta.parse({
+      id: manifest.id,
+      version: manifest.version,
+      category: "package",
+      kind: manifest.kind,
+      owner: opts.owner,
+      status: manifest.status,
+      phases: manifest.phase ?? [],
+      provenance: {
+        source: `${path.basename(ws.root)}`,
+        evidence: opts.evidence ? [{ type: "evidence", ref: opts.evidence }] : []
+      },
+      security: { hash },
+      updatedAt: new Date().toISOString()
+    })
+  );
   return { dest };
 }
 
 export function hubApproveReview(hubRoot: string, id: string, version: string, reviewer: string): void {
-  const marker = path.join(hubPackageDir(hubRoot, id, version), ".review");
-  if (!fs.existsSync(marker)) throw new Error("no review marker — was this package published via hx hub promote?");
-  writeYaml(marker, { status: "approved", reviewer, at: new Date().toISOString() });
+  const dir = hubPackageDir(hubRoot, id, version);
+  if (!fs.existsSync(path.join(dir, "asset.yaml"))) throw new Error(`package ${id}@${version} not found`);
+  approveHubReview(dir, reviewer);
 }
 
-export function hubReviewStatus(hubRoot: string, id: string, version: string): "pending" | "approved" | "missing" {
-  const marker = path.join(hubPackageDir(hubRoot, id, version), ".review");
-  if (!fs.existsSync(marker)) return "missing";
-  return readYaml<{ status: "pending" | "approved" }>(marker).status;
+export function hubReviewStatus(hubRoot: string, id: string, version: string): "pending" | "approved" | "rejected" | "missing" {
+  const dir = hubPackageDir(hubRoot, id, version);
+  if (!fs.existsSync(path.join(dir, "asset.yaml"))) return "missing";
+  return readHubReview(dir).status;
+}
+
+export interface HubAssetInfo {
+  id: string;
+  version: string;
+  category: "package" | "bundle" | "blueprint";
+  dir: string;
+  meta?: HubAssetMeta;
+  reviewStatus: "pending" | "approved" | "rejected";
+}
+
+export function hubAssetInfo(hubRoot: string, ref: HubRef): HubAssetInfo {
+  const resolved = resolveHubPackage(hubRoot, ref);
+  if (!resolved) throw new Error(`hub asset ${ref.id}@${ref.version} not found`);
+  return {
+    id: ref.id,
+    version: ref.version,
+    category: resolved.kind,
+    dir: resolved.dir,
+    meta: readHubMeta(resolved.dir) ?? undefined,
+    reviewStatus: readHubReview(resolved.dir).status
+  };
+}
+
+export function hubSetAssetStatus(hubRoot: string, ref: HubRef, to: HubAssetStatus): HubAssetMeta {
+  const info = hubAssetInfo(hubRoot, ref);
+  const current = info.meta?.status ?? "trial";
+  assertHubAssetTransition(current, to);
+  const next = HubAssetMeta.parse({
+    ...(info.meta ?? {
+      id: ref.id,
+      version: ref.version,
+      category: info.category,
+      status: current,
+      phases: [],
+      tags: [],
+      provenance: { evidence: [] }
+    }),
+    status: to,
+    security: { ...(info.meta?.security ?? {}), hash: hashHubAssetDir(info.dir) },
+    updatedAt: new Date().toISOString()
+  });
+  writeHubMeta(info.dir, next);
+  return next;
 }
 
 /** Lists package ids available in the built-in golden hub catalog. */

@@ -248,6 +248,20 @@ export const AssetManifest = z.object({
 });
 export type AssetManifest = z.infer<typeof AssetManifest>;
 
+/* ── hub asset metadata / review sidecars ── */
+export const HubAssetMetaYaml = z.object({
+  id: z.string(),
+  version: z.string(),
+  category: z.enum(["package", "bundle", "blueprint"]),
+  status: z.enum(["draft", "trial", "enforced", "deprecated", "archived"]).default("trial"),
+  owner: z.string().optional(),
+  phases: z.array(z.string()).default([]),
+  tags: z.array(z.string()).default([]),
+  security: z.object({ hash: z.string().optional(), signature: z.string().optional() }).optional(),
+  updatedAt: z.string().optional()
+});
+export type HubAssetMetaYaml = z.infer<typeof HubAssetMetaYaml>;
+
 /* ── traceability.yaml (§7.4) ── */
 
 export const ScenarioTrace = z.object({
