@@ -1,4 +1,10 @@
 # Scenario 06: Legacy Project Migration — OpenSpec Import and Backfilling Specs
+| | |
+| --- | --- |
+| **Journey** | Customize·Migrate |
+| **Roles** | Architect |
+| **Prerequisites** | Scenario(s) — |
+| **Related** | [Scenario picker](00-scenario-picker.md) |
 
 ## Background
 

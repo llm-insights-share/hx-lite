@@ -1,4 +1,10 @@
 # Scenario 09: One Repo, Four AI Tools, and CI That Cannot Be Bypassed
+| | |
+| --- | --- |
+| **Journey** | Tools |
+| **Roles** | Eng effectiveness |
+| **Prerequisites** | Scenario(s) 01 |
+| **Related** | [Scenario picker](00-scenario-picker.md) |
 
 ## Background
 

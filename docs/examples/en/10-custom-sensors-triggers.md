@@ -1,4 +1,10 @@
 # Scenario 10: Security Team Integrates Custom Scanner — Plugins, Event Triggers, and Fix Loop
+| | |
+| --- | --- |
+| **Journey** | Tools |
+| **Roles** | Security |
+| **Prerequisites** | Scenario(s) 01 |
+| **Related** | [Scenario picker](00-scenario-picker.md) |
 
 ## Background
 

@@ -1,53 +1,122 @@
 # HarnessX Usage Scenario Examples (English)
 
-This directory collects end-to-end scenarios that mirror real work. Each scenario includes: **background and roles**, **step-by-step commands with expected output**, and **key mechanism notes**. Command output matches actual `hx` CLI behavior and can be reproduced in a real repository.
+**中文**: [使用场景示例](../README.md) · **Not sure where to start?** → [Scenario picker](00-scenario-picker.md)
 
-| # | Scenario | Primary capabilities covered |
+Scenarios are organized by **user journey**, not by version number. Each includes: **background & roles**, **step-by-step commands with expected output**, and **mechanism notes**.
+
+> CLI options and config: [Operation Guide](../operation-guide.en.md) · Glossary: [glossary](../glossary.md)
+
+---
+
+## Quick picker
+
+| Your goal right now | Start here |
+| --- | --- |
+| First-time HarnessX setup | [01 New project onboarding](01-new-project-onboarding.md) |
+| Ship a regular feature | [02 Standard feature](02-standard-feature-development.md) (after 01) |
+| Init from org Hub | [16 Hub blueprint init](16-v0.3-hub-blueprint-init.md) |
+| Enterprise requirements → code handoff | [15 Enterprise handoff](15-enterprise-delivery-handoff.md) |
+| Headless Codex/script delivery | [18 Minimal harness + MCP](18-minimal-harness-headless-mcp.md) |
+| Not sure | [00 Scenario picker](00-scenario-picker.md) |
+
+---
+
+## Six user journeys
+
+### Journey 1 · Onboarding: zero to first PR
+
+| Scenario | Role | Outcome |
 | --- | --- | --- |
-| [01](01-new-project-onboarding.md) | Onboard a new backend API project to HarnessX | `init --bundle` / hooks / CI replay / adapter compile |
-| [02](02-standard-feature-development.md) | Add "partial refund" to order service (standard profile) | propose→design→spec→human approval→plan→apply self-correction→verify→archive |
-| [03](03-core-domain-strict-test-first.md) | Payment core-domain change, strict profile + test-first | profile recommendation / testfirst / approved-assertion protection / waiver |
-| [04](04-concurrent-change-conflicts.md) | Two teams modify the same capability concurrently | domain overlap warning / rebase check / conflict resolution |
-| [05](05-emergency-hotfix-lite.md) | Production bug hotfix via lite fast lane | profile downgrade audit trail / `archive --force` / post-hoc spec catch-up |
-| [06](06-legacy-migration-openspec.md) | Migrate existing OpenSpec project + backfill specs for legacy code | `openspec import` / `sync` drift detection / spec backfill |
-| [07](07-steering-quality-governance.md) | AI delivery quality governance: from repeated failures to rule assets | failure catalog / `steer distill` / rubric lifecycle / janitor |
-| [08](08-hub-asset-sharing-supply-chain.md) | Platform team distributes normative assets to business repos via Hub | hub promote/review/add/sync / lock / injection scan |
-| [09](09-multi-tool-collaboration-ci-enforcement.md) | Team members use Cursor/Trae/Qoder/Claude Code | adapter single-source compile / manual-edit drift detection / Quest export / CI blocks hook bypass |
-| [10](10-custom-sensors-triggers.md) | Security team integrates custom scanner + event/schedule triggers | plugin API (Node/command protocol) / file-save trigger / schedule / `hx fix` |
-| [11](11-custom-requirements-output-template.md) | Customize proposal template and delta spec norms before delivery | `guide.template` / spec-writing Skill / Gate mandatory sections / `overrides` |
-| [12](12-custom-design-output-template.md) | Customize design.md structure and design-phase command before delivery | design-template asset / customized `/hx-design` / api-design Skill / Context Pack |
-| [13](13-v0.2-orchestration-parallel-delivery.md) | **v0.2** orchestration: parallel apply, best-of-N, diff annotations, issue onboarding | `--parallel` / `--fan-out` / `hx review` / `--from-issue` / `hx eval guides` / `hx notify` |
-| [14](14-enterprise-fullstack-multi-role.md) | Enterprise full-stack: API + B2B admin + B2C portal, five roles in execution order | multi-bundle stack / `frontend-2c` / dual-track `tasks.md` / `@group` parallel apply / role playbook |
-| [15](15-enterprise-delivery-handoff.md) | **enterprise** profile: requirements → HLD/LLD → Task Pack apply handoff | `requirements/` / `design/overview.md` / `delivery-trace.yaml` / `@design=` / `hx guide task-pack` |
-| [16](16-v0.3-hub-blueprint-init.md) | **v0.3** init from Hub blueprint/bundle + asset sync merge | `init --from-hub` / `blueprint.yaml` / `hub sync --apply` / tier compensation / `steer publish` |
-| [17](17-v0.4-platform-governance.md) | **v0.4** prototype/UAT gates, unified drift, org dashboard | `prototype-complete` / `uat-complete` / `drift` / `hub search` / `steer coverage --aggregate` / `hx view` |
+| [01 Onboarding](01-new-project-onboarding.md) | Tech lead | init, constitution, hooks/CI, adapter |
+| [02 Standard feature](02-standard-feature-development.md) | Developer | Full propose→archive loop |
+| [18 Minimal + MCP](18-minimal-harness-headless-mcp.md) | Platform / effectiveness | `imports:`, headless apply, MCP L1 |
 
-**中文**: [docs/examples/](../README.md) · [操作说明](../operation-guide.zh-CN.md)
+### Journey 2 · Daily delivery: pick risk level
+
+| Scenario | When |
+| --- | --- |
+| [02 Standard](02-standard-feature-development.md) | Regular features, `standard` |
+| [03 Strict core](03-core-domain-strict-test-first.md) | Payments/core, test-first |
+| [05 Hotfix](05-emergency-hotfix-lite.md) | Production incident, `lite` |
+| [04 Concurrent](04-concurrent-change-conflicts.md) | Overlapping teams |
+
+### Journey 3 · Enterprise: multi-role & full-stack
+
+| Scenario | When |
+| --- | --- |
+| [14 Full-stack roles](14-enterprise-fullstack-multi-role.md) | API + admin + portal |
+| [15 Enterprise handoff](15-enterprise-delivery-handoff.md) | Requirements → HLD/LLD → task-pack |
+
+### Journey 4 · Platform & governance
+
+| Scenario | When |
+| --- | --- |
+| [08 Hub supply chain](08-hub-asset-sharing-supply-chain.md) | promote/review/sync/lock |
+| [16 Hub blueprint](16-v0.3-hub-blueprint-init.md) | `--from-hub`, blueprint, sync merge |
+| [07 Steering](07-steering-quality-governance.md) | Failures → rules |
+| [17 Dashboard](17-v0.4-platform-governance.md) | prototype/UAT/drift, `hx view` |
+
+### Journey 5 · Tools & automation
+
+| Scenario | When |
+| --- | --- |
+| [09 Multi-tool](09-multi-tool-collaboration-ci-enforcement.md) | Cursor/Trae/Qoder/Claude + CI |
+| [13 Orchestration](13-v0.2-orchestration-parallel-delivery.md) | parallel, fan-out, review |
+| [10 Custom sensors](10-custom-sensors-triggers.md) | Security, triggers, fix loop |
+| [18 Headless MCP](18-minimal-harness-headless-mcp.md) | Tier 2, `HX_TASK_*`, MCP |
+
+### Journey 6 · Customize & migrate
+
+| Scenario | When |
+| --- | --- |
+| [11 Requirements template](11-custom-requirements-output-template.md) | Proposal / delta spec |
+| [12 Design template](12-custom-design-output-template.md) | Design / `/hx-design` |
+| [06 OpenSpec migration](06-legacy-migration-openspec.md) | Legacy OpenSpec import |
+
+---
+
+## Full scenario index
+
+| # | Scenario | Journey | Capabilities |
+| --- | --- | --- | --- |
+| 00 | [Scenario picker](00-scenario-picker.md) | — | Role/goal navigation |
+| 01 | [Onboarding](01-new-project-onboarding.md) | Onboarding | `init --bundle` / hooks / CI |
+| 02 | [Standard feature](02-standard-feature-development.md) | Onboarding·Daily | standard loop + self-correction |
+| 03 | [Strict core](03-core-domain-strict-test-first.md) | Daily | testfirst / waiver |
+| 04 | [Concurrent changes](04-concurrent-change-conflicts.md) | Daily | domain overlap / rebase |
+| 05 | [Emergency hotfix](05-emergency-hotfix-lite.md) | Daily | lite / `archive --force` |
+| 06 | [OpenSpec migration](06-legacy-migration-openspec.md) | Migrate | import / sync |
+| 07 | [Steering quality](07-steering-quality-governance.md) | Platform | distill / rubric |
+| 08 | [Hub supply chain](08-hub-asset-sharing-supply-chain.md) | Platform | hub sync/lock |
+| 09 | [Multi-tool CI](09-multi-tool-collaboration-ci-enforcement.md) | Tools | adapters / CI |
+| 10 | [Custom sensors](10-custom-sensors-triggers.md) | Tools | plugins / triggers |
+| 11 | [Requirements template](11-custom-requirements-output-template.md) | Customize | guide.template |
+| 12 | [Design template](12-custom-design-output-template.md) | Customize | design-template |
+| 13 | [Parallel orchestration](13-v0.2-orchestration-parallel-delivery.md) | Tools | parallel / fan-out |
+| 14 | [Full-stack roles](14-enterprise-fullstack-multi-role.md) | Enterprise | multi-bundle |
+| 15 | [Enterprise handoff](15-enterprise-delivery-handoff.md) | Enterprise | task-pack / delivery-trace |
+| 16 | [Hub blueprint init](16-v0.3-hub-blueprint-init.md) | Platform | `--from-hub` / sync --apply |
+| 17 | [Platform dashboard](17-v0.4-platform-governance.md) | Platform | prototype/UAT / view |
+| 18 | [Minimal harness + MCP](18-minimal-harness-headless-mcp.md) | Onboarding·Tools | `imports:` / MCP L1 |
+
+---
 
 ## Prerequisites
 
-- Complete `npm install` per the repository root `README.md`. Examples use `hx` as shorthand for `node bin/hx.js` (or globally installed `hx`).
-- Fictional names (Wang, Li, Zhang the architect, etc.) and domains (orders, payments, inventory) illustrate role division: **who writes specs, who approves, who implements, who reviews**.
+- `npm install` at repo root; `hx` = `node bin/hx.js`.
+- Names and domains are fictional to illustrate **who writes specs, approves, implements**.
 
-## Two kinds of entry points
+## Two entry points
 
-Operations in the examples fall into two categories:
+1. **Terminal** (`$ hx ...`): control plane — approval, advance, waivers, archive.
+2. **Cursor dialog** (`Cursor ▸`): execution plane — drafts and code; requires `hx adapter sync`.
 
-1. **Terminal commands** (`$ hx ...` in console code blocks): run directly in the shell — repo management, gate advancement, human approval, and other "control plane" actions.
-2. **Cursor dialog operations** (blocks labeled `Cursor ▸`): type into Cursor's Agent dialog to drive the agent. Requires prior `hx adapter sync` (scenario 01). Then:
-   - Type `/` to see eight slash commands (`hx-explore`, `hx-propose`, … `hx-archive`). **Each command body is the full workflow prompt for that phase** (steps, guardrails, done criteria); the agent follows it and calls `hx` CLI for self-checks;
-   - `.cursor/rules/harnessx.mdc` (`alwaysApply: true`) keeps the constitution and HarnessX discipline in **every** conversation (no hand-editing meta.yaml/fixtures, read fix_hint on failure, etc.);
-   - `.cursor/skills/*/SKILL.md` (coding conventions, EARS spec writing, etc.) are mounted by Cursor by relevance;
-   - `.cursor/hooks.json` runs `hx gate hook-check` before commit prompts and `hx fixture verify` after editing fixtures/meta.yaml (L2 enforcement).
+Rule of thumb: **agent work in Cursor; human-only actions in the terminal** (audit trail).
 
-  Equivalent entry points for other tools (Trae/Qoder/Claude Code) are in scenario 09; this directory defaults to Cursor.
+## Mental model
 
-A useful rule of thumb: **what the agent can do** (proposals, specs, code, fixes) goes through the Cursor dialog; **what only humans can do** (approval, waivers, release review) goes through the terminal — that is also where audit trails land.
-
-## Core mental model (1-minute version)
-
-1. All behavior changes live in a **change workspace** (`harnessX/changes/<id>/`), described by delta specs as "incremental spec changes".
-2. Phase advancement uses **Gates**: `hx gate advance` proceeds only when that phase's sensor suite is green and prerequisites are met (e.g. human approval). Sensor crashes block (fail-closed).
-3. AI agent input is assembled by **Guide/Context Pack** (`hx guide pack`); output is checked by **Sensors**. Failure reports include `fix_hint`/`fix_command` for direct repair loops (`hx fix`).
-4. After delivery, `hx archive` merges deltas into main specs; main specs are the single source of truth for current system behavior.
-5. Recurring failures are distilled via **Steering** into new Guide/Rubric assets, promoted to enforced after trial validation, then shared to other repos via **Hub** — the harness evolves continuously.
+1. Changes live in **change workspaces** with delta specs.
+2. **Gates** advance only when sensors pass; fail-closed.
+3. **Guides** assemble input; **Sensors** check output; failures → `hx fix`.
+4. **archive** merges into main specs.
+5. **Steering + Hub** evolve the harness.

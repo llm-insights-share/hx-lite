@@ -1,53 +1,122 @@
 # HarnessX 使用场景示例
 
-**English**: [Usage scenario examples (English)](en/README.md) · [Operation Guide (English)](../operation-guide.en.md)
+**English**: [Usage scenarios (English)](en/README.md) · **不知道看哪个？** → [场景选择指南](00-场景选择指南.md)
 
-本目录收录一组贴近实际工作的端到端场景。每个场景包含：**背景与角色**、**逐步操作命令与期望输出**、**关键机制解析**。命令输出均与 `hx` CLI 实际行为一致，可以照着在真实仓库中复现。
+本目录按**使用者旅程**组织端到端场景（非按版本号堆砌）。每个场景含：**背景与角色**、**逐步命令与期望输出**、**关键机制**。
 
-| # | 场景 | 主要覆盖能力 |
+> 命令与配置细节见 [操作说明](../operation-guide.zh-CN.md)；概念词表见 [glossary](../glossary.zh-CN.md)。
+
+---
+
+## 快速选型
+
+| 你此刻的目标 | 从这里开始 |
+| --- | --- |
+| 第一次接入 HarnessX | [01 新项目接入](01-新项目接入.md) |
+| 交付一个常规功能 | [02 标准功能全流程](02-标准功能开发全流程.md)（需先 01） |
+| 从组织 Hub 初始化 | [16 Hub 蓝图初始化](16-v0.3-hub-blueprint-init.md) |
+| 企业级需求→编码交接 | [15 enterprise 交接](15-企业级需求到交付交接.md) |
+| Codex/脚本无头交付 | [18 精简 harness + MCP](18-精简配置与无头Agent-MCP.md) |
+| 不确定 | [00 场景选择指南](00-场景选择指南.md) |
+
+---
+
+## 六条使用者旅程
+
+### 旅程 1 · 入门：从零到第一个 PR
+
+| 场景 | 角色 | 你会做到 |
 | --- | --- | --- |
-| [01](01-新项目接入.md) | 新的后端 API 项目接入 HarnessX | `init --bundle` / hooks / CI 重放 / adapter 编译 |
-| [02](02-标准功能开发全流程.md) | 订单服务新增"部分退款"功能（standard profile） | propose→design→spec→人工批准→plan→apply 自校正→verify→archive |
-| [03](03-核心域改动-strict-测试先行.md) | 支付核心域改动，strict profile + 测试先行 | profile 推荐 / testfirst / 已批准断言保护 / waiver |
-| [04](04-并发变更冲突.md) | 两个团队同时修改同一 capability | 域重叠告警 / rebase check / 冲突解决 |
-| [05](05-紧急修复-lite.md) | 线上 bug 紧急修复走 lite 快速通道 | profile 降级记录 / `archive --force` / 事后补账 |
-| [06](06-遗留项目迁移-openspec.md) | 存量 OpenSpec 项目迁移 + 遗留代码补 spec | `openspec import` / `sync` 漂移检测 / 回写规格 |
-| [07](07-steering-质量治理.md) | AI 交付质量治理：从重复失败到规则沉淀 | 失败目录 / `steer distill` / rubric 生命周期 / janitor |
-| [08](08-hub-资产共享与供应链.md) | 平台团队通过 Hub 向业务仓库分发规范资产 | hub promote/review/add/sync / lock / 注入扫描 |
-| [09](09-多工具协作与CI强制.md) | 团队成员分别使用 Cursor/Trae/Qoder/Claude Code | adapter 单源编译 / 手改漂移检测 / Quest 导出 / 绕过 hooks 被 CI 拦截 |
-| [10](10-自定义传感器与触发器.md) | 安全团队接入自研扫描器 + 事件/定时触发 | 插件 API（Node/命令协议）/ file-save 触发 / schedule / `hx fix` |
-| [11](11-自定义需求产出模板.md) | 开工前定制 proposal 模板与 delta spec 写作规范 | `guide.template` / spec-writing Skill / Gate 强制节 / `overrides` |
-| [12](12-自定义概要设计产出模板.md) | 开工前定制 design.md 结构与 design 阶段命令 | design-template 资产 / 定制 `/hx-design` / api-design Skill / Context Pack |
-| [13](13-v0.2-编排与并行交付.md) | **v0.2** 编排：并行 Apply、Best-of-N、Diff 标注、Issue 接入 | `--parallel` / `--fan-out` / `hx review` / `--from-issue` / `hx eval guides` / `hx notify` |
-| [14](14-企业全栈多角色交付.md) | 企业全栈应用：API + B 端后台 + C 端门户，五角色按序交付 | 多 bundle 叠加 / `frontend-2c` / 双轨 `tasks.md` / `@group` 前后端并行 apply / 全角色分工 |
-| [15](15-企业级需求到交付交接.md) | **enterprise** profile：需求分析 → HLD/LLD → Task Pack 编码交接 | `requirements/` / `design/overview.md` / `delivery-trace.yaml` / `@design=` / `hx guide task-pack` |
-| [16](16-v0.3-hub-blueprint-init.md) | **v0.3** 从 Hub 蓝图/Bundle 初始化 + 资产同步合并 | `init --from-hub` / `blueprint.yaml` / `hub sync --apply` / Tier 补偿 / `steer publish` |
-| [17](17-v0.4-平台治理与仪表盘.md) | **v0.4** 原型/UAT 门禁、统一漂移、组织看板 | `prototype-complete` / `uat-complete` / `drift` / `hub search` / `steer coverage --aggregate` / `hx view` |
+| [01 新项目接入](01-新项目接入.md) | 技术负责人 | init、宪法、hooks/CI、adapter、验证 Cursor 约束 |
+| [02 标准功能全流程](02-标准功能开发全流程.md) | 后端开发 | propose→archive 完整循环 |
+| [18 精简 harness + MCP](18-精简配置与无头Agent-MCP.md) | 效能/平台 | `imports:` 最小 harness、无头 apply、MCP L1 |
+
+### 旅程 2 · 日常交付：按风险选路径
+
+| 场景 | 何时选 |
+| --- | --- |
+| [02 标准功能](02-标准功能开发全流程.md) | 常规需求，`standard` profile |
+| [03 核心域 strict](03-核心域改动-strict-测试先行.md) | 支付/核心域，测试先行 |
+| [05 紧急 hotfix](05-紧急修复-lite.md) | 线上故障，`lite` 快通道 |
+| [04 并发冲突](04-并发变更冲突.md) | 多团队同 capability |
+
+### 旅程 3 · 企业交付：多角色与全栈
+
+| 场景 | 何时选 |
+| --- | --- |
+| [14 全栈多角色](14-企业全栈多角色交付.md) | API + B 端 + C 端五人协作 |
+| [15 enterprise 交接](15-企业级需求到交付交接.md) | 需求分析 → HLD/LLD → task-pack |
+
+### 旅程 4 · 平台与治理：Hub 与组织视角
+
+| 场景 | 何时选 |
+| --- | --- |
+| [08 Hub 供应链](08-hub-资产共享与供应链.md) | promote/review/add/sync/lock |
+| [16 Hub 蓝图初始化](16-v0.3-hub-blueprint-init.md) | `init --from-hub`、blueprint、sync 合并 |
+| [07 Steering 质量](07-steering-质量治理.md) | 失败 → Skill/Rubric 沉淀 |
+| [17 平台看板](17-v0.4-平台治理与仪表盘.md) | prototype/UAT/drift、`hx view`、跨仓 coverage |
+
+### 旅程 5 · 工具与自动化：不止 Cursor
+
+| 场景 | 何时选 |
+| --- | --- |
+| [09 多工具协作](09-多工具协作与CI强制.md) | Cursor/Trae/Qoder/Claude + CI |
+| [13 并行编排](13-v0.2-编排与并行交付.md) | `--parallel`、`--fan-out`、review 标注 |
+| [10 自定义 sensor](10-自定义传感器与触发器.md) | 安全扫描、触发器、`hx fix` |
+| [18 无头 MCP](18-精简配置与无头Agent-MCP.md) | Tier 2、`HX_TASK_*`、MCP 工具 |
+
+### 旅程 6 · 定制与迁移
+
+| 场景 | 何时选 |
+| --- | --- |
+| [11 需求模板](11-自定义需求产出模板.md) | 定制 proposal / delta spec |
+| [12 设计模板](12-自定义概要设计产出模板.md) | 定制 design / `/hx-design` |
+| [06 OpenSpec 迁移](06-遗留项目迁移-openspec.md) | 存量 OpenSpec 导入 |
+
+---
+
+## 场景完整索引
+
+| # | 场景 | 旅程 | 主要能力 |
+| --- | --- | --- | --- |
+| 00 | [场景选择指南](00-场景选择指南.md) | — | 按角色/目标选型 |
+| 01 | [新项目接入](01-新项目接入.md) | 入门 | `init --bundle` / hooks / CI / adapter |
+| 02 | [标准功能全流程](02-标准功能开发全流程.md) | 入门·日常 | standard 全阶段 + apply 自校正 |
+| 03 | [核心域 strict](03-核心域改动-strict-测试先行.md) | 日常 | testfirst / waiver / 已批准断言 |
+| 04 | [并发变更冲突](04-并发变更冲突.md) | 日常 | 域重叠 / `rebase check` |
+| 05 | [紧急 hotfix](05-紧急修复-lite.md) | 日常 | lite / `archive --force` |
+| 06 | [OpenSpec 迁移](06-遗留项目迁移-openspec.md) | 迁移 | `openspec import` / `sync` |
+| 07 | [Steering 质量](07-steering-质量治理.md) | 平台 | distill / rubric / janitor |
+| 08 | [Hub 供应链](08-hub-资产共享与供应链.md) | 平台 | hub promote/sync/lock |
+| 09 | [多工具协作](09-多工具协作与CI强制.md) | 工具 | adapter 多目标 / CI 强制 |
+| 10 | [自定义 sensor](10-自定义传感器与触发器.md) | 工具 | 插件 API / 触发器 / fix |
+| 11 | [需求模板](11-自定义需求产出模板.md) | 定制 | guide.template / overrides |
+| 12 | [设计模板](12-自定义概要设计产出模板.md) | 定制 | design-template / Context Pack |
+| 13 | [并行编排](13-v0.2-编排与并行交付.md) | 工具 | parallel / fan-out / review |
+| 14 | [全栈多角色](14-企业全栈多角色交付.md) | 企业 | 多 bundle / `@group` 并行 |
+| 15 | [enterprise 交接](15-企业级需求到交付交接.md) | 企业 | requirements / delivery-trace / task-pack |
+| 16 | [Hub 蓝图初始化](16-v0.3-hub-blueprint-init.md) | 平台 | `--from-hub` / blueprint / sync --apply |
+| 17 | [平台看板](17-v0.4-平台治理与仪表盘.md) | 平台 | prototype/UAT / drift / `hx view` |
+| 18 | [精简 harness + MCP](18-精简配置与无头Agent-MCP.md) | 入门·工具 | `imports:` / MCP L1 / 无头 apply |
+
+---
 
 ## 阅读前提
 
-- 已按仓库根目录 `README.md` 完成 `npm install`；示例中以 `hx` 代指 `node bin/hx.js`（或全局安装后的 `hx`）。
-- 示例中的人名（王工、李工、张架构师等）与业务（订单、支付、库存）均为虚构，用于说明角色分工：**谁写规格、谁批准、谁实现、谁审核**。
+- 已完成仓库根目录 `npm install`；`hx` = `node bin/hx.js`。
+- 人名与业务域均为虚构，用来说明**谁写规格、谁批准、谁实现**。
 
 ## 两类操作入口
 
-示例中的操作分两类，注意区分：
+1. **终端**（`$ hx ...`）：管控面 — 批准、推进、豁免、归档。
+2. **Cursor 对话框**（`Cursor ▸`）：执行面 — 写提案、规格、代码；须先 `hx adapter sync`。
 
-1. **终端命令**（`$ hx ...` 的 console 代码块）：直接在 shell 里执行，通常是仓库管理、gate 推进、人工批准这类"管控面"动作。
-2. **Cursor 对话框操作**（标注为 `Cursor ▸` 的代码块）：在 Cursor 的 Agent 对话框里输入，驱动 agent 干活。前提是已跑过 `hx adapter sync`（场景 01），此时：
-   - 输入 `/` 可以看到 `hx-explore`、`hx-propose` … `hx-archive` 八个斜杠命令，**每个命令的正文是该阶段的完整工作流提示词**（步骤、护栏、完成标准），agent 会照着执行并自己调用 `hx` CLI 自检；
-   - `.cursor/rules/harnessx.mdc`（`alwaysApply: true`）让 agent 在**每一次**对话中都带着宪法与 HarnessX 纪律（不许手改 meta.yaml/fixtures、失败先读 fix_hint 等）；
-   - `.cursor/skills/*/SKILL.md`（编码规范、EARS 规格写作等）由 Cursor 按相关性自动挂载；
-   - `.cursor/hooks.json` 在提交提示前自动跑 `hx gate hook-check`、在编辑 fixtures/meta.yaml 后自动跑 `hx fixture verify`（L2 强制）。
+经验法则：**agent 能做的走 Cursor；只有人才能做的走终端**（审计留痕）。
 
-  其他工具（Trae/Qoder/Claude Code）的等价入口见场景 09；本目录默认以 Cursor 为例。
+## 核心心智模型
 
-一条常用的经验法则：**agent 能自己做的（写提案、写规格、写代码、修失败）走 Cursor 对话框；只有人才能做的（批准、豁免、发布评审）走终端命令**——后者也是审计留痕的落点。
-
-## 核心心智模型（1 分钟版）
-
-1. 一切行为改动都在 **change 工作区**（`harnessX/changes/<id>/`）内进行，通过 delta spec 描述"规格的增量"。
-2. 阶段推进靠 **Gate**：`hx gate advance` 只在该阶段 Sensor 套件全绿、且满足前置条件（如人工批准）时才放行；Sensor 崩溃视为阻断（fail-closed）。
-3. AI agent 的输入由 **Guide/Context Pack** 组装（`hx guide pack`），输出由 **Sensor** 检验；失败报告带 `fix_hint`/`fix_command`，可直接进入修复回环（`hx fix`）。
-4. 交付完成后 `hx archive` 把 delta 合并进主规格，主规格永远是"当前系统行为"的唯一事实源。
-5. 反复出现的失败通过 **Steering** 蒸馏成新的 Guide/Rubric 资产，经 trial 验证后晋级 enforced，再经 **Hub** 共享到其他仓库——harness 自身持续进化。
+1. 改动在 **change 工作区**，用 delta spec 描述增量。
+2. **Gate** 全绿 + 前置条件才 `advance`；fail-closed。
+3. **Guide** 组装输入，**Sensor** 检验输出；失败进 `hx fix`。
+4. **archive** 合并进主规格。
+5. **Steering + Hub** 让 harness 持续进化。

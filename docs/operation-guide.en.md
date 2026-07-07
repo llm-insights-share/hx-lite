@@ -2,7 +2,7 @@
 
 **中文**: [操作说明（中文）](operation-guide.zh-CN.md)
 
-This guide explains how to use HarnessX (`hx` CLI) with AI coding agents in day-to-day delivery. **Every command documents all options and their meaning**; **every user-editable configuration file includes samples and setup steps**. For end-to-end walkthroughs, see [`docs/examples/en/`](examples/en/README.md).
+This guide explains how to use HarnessX (`hx` CLI) with AI coding agents in day-to-day delivery. **Every command documents all options and their meaning**; **every user-editable configuration file includes samples and setup steps**. For end-to-end walkthroughs, see [`docs/examples/en/`](examples/en/README.md) ([scenario picker](examples/en/00-scenario-picker.md)).
 
 ---
 
@@ -535,7 +535,7 @@ Enterprise profile adds `prototype-complete`, `uat-complete`, unified `drift`. S
 
 ## 9. Further reading
 
-- [17 usage scenario walkthroughs](examples/en/README.md)
+- [18 usage scenarios (by user journey)](examples/en/README.md)
 - [Concept glossary](glossary.md)
 - [Package boundaries](architecture/package-boundaries.md)
 - [L1 env contract JSON Schema](../schemas/l1/agent-env-contract.json)

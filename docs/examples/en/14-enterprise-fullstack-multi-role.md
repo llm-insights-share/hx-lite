@@ -1,4 +1,10 @@
 # Scenario 14: Enterprise Full-Stack — Member Points Center (Multi-Role E2E)
+| | |
+| --- | --- |
+| **Journey** | Enterprise |
+| **Roles** | Full-stack TL |
+| **Prerequisites** | Scenario(s) 01 |
+| **Related** | [Scenario picker](00-scenario-picker.md) |
 
 ## Background
 

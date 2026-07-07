@@ -1,4 +1,10 @@
 # Scenario 12: Customize design output templates before delivery (design.md)
+| | |
+| --- | --- |
+| **Journey** | Customize |
+| **Roles** | Architect |
+| **Prerequisites** | Scenario(s) 01,11 |
+| **Related** | [Scenario picker](00-scenario-picker.md) |
 
 ## Background
 

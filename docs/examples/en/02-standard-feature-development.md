@@ -1,4 +1,10 @@
 # Scenario 02: Add "Partial Refund" to Order Service (Standard Profile Full Flow)
+| | |
+| --- | --- |
+| **Journey** | Onboarding·Daily |
+| **Roles** | Backend dev |
+| **Prerequisites** | Scenario(s) 01 |
+| **Related** | [Scenario picker](00-scenario-picker.md) |
 
 ## Background
 

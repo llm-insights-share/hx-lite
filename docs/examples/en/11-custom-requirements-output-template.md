@@ -1,4 +1,10 @@
 # Scenario 11: Customize requirements output templates before delivery (proposal + delta spec)
+| | |
+| --- | --- |
+| **Journey** | Customize |
+| **Roles** | BA |
+| **Prerequisites** | Scenario(s) 01 |
+| **Related** | [Scenario picker](00-scenario-picker.md) |
 
 ## Background
 

@@ -1,4 +1,10 @@
 # Scenario 08: Platform Team Distributes Normative Assets via Hub
+| | |
+| --- | --- |
+| **Journey** | Platform |
+| **Roles** | Platform team |
+| **Prerequisites** | Scenario(s) — |
+| **Related** | [Scenario picker](00-scenario-picker.md) |
 
 ## Background
 

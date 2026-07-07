@@ -14,7 +14,7 @@ See [scenario 15](docs/examples/15-企业级需求到交付交接.md).
 Design document: [`docs/harness-delivery-system-design.html`](docs/harness-delivery-system-design.html)
 · Build plan & status: [`docs/build-plan.csv`](docs/build-plan.csv)
 · **Operation guides**: [`docs/operation-guide.en.md`](docs/operation-guide.en.md) (English) · [`docs/operation-guide.zh-CN.md`](docs/operation-guide.zh-CN.md) (中文)
-· **Usage scenario examples**: [`docs/examples/en/`](docs/examples/en/README.md) (English) · [`docs/examples/`](docs/examples/README.md) (中文) — 17 end-to-end scenarios (… **v0.2 orchestration**, **enterprise delivery**, **v0.3 Hub blueprint**, **v0.4 platform governance**)
+· **Usage scenario examples**: [`docs/examples/`](docs/examples/README.md) (中文) · [`docs/examples/en/`](docs/examples/en/README.md) (English) — **18 user-journey scenarios** ([picker](docs/examples/00-场景选择指南.md)) covering onboarding, daily delivery, enterprise, platform governance, headless MCP, and more
 
 ## Advanced Features & Differentiation
 

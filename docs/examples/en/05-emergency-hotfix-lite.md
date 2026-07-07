@@ -1,4 +1,10 @@
 # Scenario 05: Production Bug Hotfix via Lite Fast Lane
+| | |
+| --- | --- |
+| **Journey** | Daily delivery |
+| **Roles** | On-call |
+| **Prerequisites** | Scenario(s) 01 |
+| **Related** | [Scenario picker](00-scenario-picker.md) |
 
 ## Background
 

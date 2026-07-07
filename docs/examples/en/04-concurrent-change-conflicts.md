@@ -1,4 +1,10 @@
 # Scenario 04: Two Teams Modify the Same Capability Concurrently
+| | |
+| --- | --- |
+| **Journey** | Daily delivery |
+| **Roles** | Multi-team |
+| **Prerequisites** | Scenario(s) 01,02 |
+| **Related** | [Scenario picker](00-scenario-picker.md) |
 
 ## Background
 

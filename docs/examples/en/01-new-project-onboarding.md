@@ -1,10 +1,28 @@
 # Scenario 01: Onboard a New Backend API Project to HarnessX
 
+| | |
+| --- | --- |
+| **Journey** | Onboarding → first PR |
+| **Roles** | Tech lead, new project owner |
+| **Prerequisites** | None |
+| **Outcome** | harnessX init, hooks/CI/adapter, verify Cursor constraints |
+| **Next** | [02 Standard feature](02-standard-feature-development.md) · Headless: [18](18-minimal-harness-headless-mcp.md) |
+
 ## Background
 
 An e-commerce company starts a new "coupon service" (coupon-service): Node.js + TypeScript layered architecture (routes → services → repositories). Team of 5 — 3 heavy Cursor users, 1 on Claude Code, 1 on Trae. Tech lead Wang wants **all AI-generated code delivered under the same constraints from day one**, not governance after chaos appears.
 
 ## Steps
+
+### 0. Choose an init path (pick one)
+
+| Path | Command | When |
+| --- | --- | --- |
+| **A. Topology bundle** | `hx init --bundle api-service` | Self-contained repo, no org Hub |
+| **B. Minimal imports** | `hx init` then `imports: [api-service]` in `harness.yaml` | Short harness file (v0.5+) |
+| **C. Org Hub** | `hx init --from-hub api-service@1.0.0 --hub <path>` | Central assets — [scenario 16](16-v0.3-hub-blueprint-init.md) |
+
+Steps below use **path A**; paths B/C converge at step 2.
 
 ### 1. Initialize (choose api-service topology bundle)
 

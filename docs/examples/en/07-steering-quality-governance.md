@@ -1,4 +1,10 @@
 # Scenario 07: AI Delivery Quality Governance — From Repeated Failures to Rule Assets (Steering Loop)
+| | |
+| --- | --- |
+| **Journey** | Platform |
+| **Roles** | Quality lead |
+| **Prerequisites** | Scenario(s) 01,02 |
+| **Related** | [Scenario picker](00-scenario-picker.md) |
 
 ## Background
 

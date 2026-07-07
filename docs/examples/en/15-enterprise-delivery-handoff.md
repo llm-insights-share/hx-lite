@@ -1,4 +1,10 @@
 # Scenario 15: Enterprise requirements → HLD/LLD → AI coding handoff (enterprise profile)
+| | |
+| --- | --- |
+| **Journey** | Enterprise |
+| **Roles** | BA/Architect |
+| **Prerequisites** | Scenario(s) 01 |
+| **Related** | [Scenario picker](00-scenario-picker.md) |
 
 ## Background
 

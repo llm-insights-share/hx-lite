@@ -1,4 +1,10 @@
 # Scenario 03: Payment Core-Domain Change — Strict Profile and Test-First
+| | |
+| --- | --- |
+| **Journey** | Daily delivery |
+| **Roles** | Core-domain dev |
+| **Prerequisites** | Scenario(s) 01 |
+| **Related** | [Scenario picker](00-scenario-picker.md) |
 
 ## Background
 
