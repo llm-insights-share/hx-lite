@@ -71,6 +71,22 @@ export class Workspace {
   deltaSpecsDir(id: string) {
     return path.join(this.changeDir(id), "specs");
   }
+  requirementsDir(id: string) {
+    return path.join(this.changeDir(id), "requirements");
+  }
+  designDir(id: string) {
+    return path.join(this.changeDir(id), "design");
+  }
+  designOverviewFile(id: string) {
+    return path.join(this.designDir(id), "overview.md");
+  }
+  /** Legacy single-file design; prefer design/overview.md when present. */
+  designFile(id: string) {
+    return path.join(this.changeDir(id), "design.md");
+  }
+  deliveryTraceFile(id: string) {
+    return path.join(this.changeDir(id), "traces", "delivery-trace.yaml");
+  }
 
   readConfig(): ConfigYaml {
     return ConfigYaml.parse(YAML.parse(fs.readFileSync(this.configFile, "utf8")) ?? {});

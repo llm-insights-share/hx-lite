@@ -6,6 +6,16 @@ import { budget } from "./budget.js";
 import { rubricSensor } from "./rubricSensor.js";
 import { typecheck, lint, unitChanged } from "./fastSuite.js";
 import { mutationProbe, analyzeTestStrength } from "./mutation.js";
+import {
+  requirementsComplete,
+  designHldComplete,
+  designLldComplete,
+  designSpecAlign,
+  planCoverage,
+  designDrift
+} from "./delivery.js";
+
+export * from "./delivery.js";
 
 export * from "./types.js";
 export { specValidate, checkEars } from "./specValidate.js";
@@ -37,7 +47,13 @@ export const builtinSensors: Record<string, BuiltinSensor> = {
   typecheck,
   lint,
   "unit-changed": unitChanged,
-  "mutation-probe": mutationProbe
+  "mutation-probe": mutationProbe,
+  "requirements-complete": requirementsComplete,
+  "design-hld-complete": designHldComplete,
+  "design-lld-complete": designLldComplete,
+  "design-spec-align": designSpecAlign,
+  "plan-coverage": planCoverage,
+  "design-drift": designDrift
 };
 
 export function registerBuiltin(name: string, sensor: BuiltinSensor): void {

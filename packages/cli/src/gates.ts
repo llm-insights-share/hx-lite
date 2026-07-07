@@ -7,6 +7,7 @@ import {
   nextPhase,
   buildContextPack,
   renderContextPack,
+  writeTaskPack,
   generateTasks,
   missingTestTasks,
   gitChangedFiles,
@@ -113,6 +114,19 @@ export function registerGateCommands(program: Command): void {
       } else {
         console.log(text);
       }
+    });
+
+  guide
+    .command("task-pack <change> <taskId>")
+    .option("--out <file>", "write pack to file (default: changes/<id>/tasks/<taskId>-pack.md)")
+    .action((change: string, taskId: string, opts: { out?: string }) => {
+      const w = ws();
+      const res = writeTaskPack(w, change, taskId);
+      const dest = opts.out ?? res.file;
+      if (opts.out && opts.out !== res.file) {
+        fs.copyFileSync(res.file, dest);
+      }
+      console.log(`wrote ${dest} (${res.pack.sections.length} sections, ${res.pack.assembledInMs}ms)`);
     });
 
   program

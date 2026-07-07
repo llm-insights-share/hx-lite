@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Workspace, ensureDir } from "./paths.js";
 import { initMeta, readMeta } from "./metaStore.js";
+import { scaffoldDeliveryTrace } from "./deliveryTrace.js";
 import type { MetaYaml } from "./schemas.js";
 
 export interface OverlapWarning {
@@ -39,7 +40,8 @@ export function createChange(ws: Workspace, id: string, domains: string[], profi
   const warnings = detectOverlaps(ws, domains);
   const config = ws.readConfig();
   const meta = initMeta(ws, id, profile ?? config.profile, domains);
-  for (const sub of ["specs", "traces", "runs"]) ensureDir(path.join(ws.changeDir(id), sub));
+  for (const sub of ["specs", "traces", "runs", "requirements", "design"]) ensureDir(path.join(ws.changeDir(id), sub));
+  for (const sub of ["api", "ui/components", "data", "sequences"]) ensureDir(path.join(ws.changeDir(id), "design", sub));
   return { meta, warnings };
 }
 
@@ -104,7 +106,52 @@ export function scaffoldProposal(ws: Workspace, change: string, title: string): 
         ];
     fs.writeFileSync(deltaFile, deltaLines.join("\n"), "utf8");
   }
+  scaffoldRequirements(ws, change);
+  scaffoldDeliveryTrace(ws, change);
   return { proposalFile, deltaFile };
+}
+
+/** Scaffold requirements analysis artifacts (PRD distillation workspace). */
+export function scaffoldRequirements(ws: Workspace, change: string): string[] {
+  const harness = ws.readHarness();
+  const dir = ws.requirementsDir(change);
+  ensureDir(dir);
+  const written: string[] = [];
+  const tpl = harness.guides.find((g) => g.id === "requirements-template");
+  const zh = isZhCn(ws);
+
+  const files: Record<string, string> = {};
+  if (tpl) {
+    const raw = readTemplate(ws, tpl.source);
+    if (raw.includes("## User Stories")) {
+      files["prd-summary.md"] = raw.split("## User Stories")[0]!.trim() + "\n";
+      const rest = raw.split("## User Stories")[1] ?? "";
+      if (rest.includes("## Non-Functional")) {
+        files["user-stories.md"] = "## User Stories\n" + rest.split("## Non-Functional")[0]!.trim() + "\n";
+        files["nfr.md"] = "## Non-Functional Requirements\n" + rest.split("## Non-Functional")[1]!.trim() + "\n";
+      }
+    }
+  }
+  if (!files["prd-summary.md"]) {
+    files["prd-summary.md"] = zh
+      ? `# PRD Summary: ${change}\n\n> 从组织 PRD（docs/prd/）蒸馏；链接源文档。\n\n## Source\n\n- PRD: docs/prd/\n\n## Goals\n\n## In Scope\n\n## Out of Scope\n`
+      : `# PRD Summary: ${change}\n\n> Distilled from org PRD (docs/prd/); link the source doc.\n\n## Source\n\n- PRD: docs/prd/\n\n## Goals\n\n## In Scope\n\n## Out of Scope\n`;
+    files["user-stories.md"] = zh
+      ? `# User Stories: ${change}\n\n## Stories\n\n| ID | As a | I want | So that | AC ref |\n|----|------|--------|---------|--------|\n`
+      : `# User Stories: ${change}\n\n## Stories\n\n| ID | As a | I want | So that | AC ref |\n|----|------|--------|---------|--------|\n`;
+    files["nfr.md"] = zh
+      ? `# NFR: ${change}\n\n## Performance\n\n## Security\n\n## Availability\n`
+      : `# NFR: ${change}\n\n## Performance\n\n## Security\n\n## Availability\n`;
+  }
+
+  for (const [name, body] of Object.entries(files)) {
+    const f = path.join(dir, name);
+    if (!fs.existsSync(f)) {
+      fs.writeFileSync(f, body.replaceAll("{{change}}", change), "utf8");
+      written.push(f);
+    }
+  }
+  return written;
 }
 
 /** FR-002: read-only exploration notes. Callers must not modify code during explore. */
@@ -120,14 +167,36 @@ export function scaffoldExplore(ws: Workspace, change: string, topic: string): s
 
 /** FR-004: design doc with ADR entries and architecture constraints. */
 export function scaffoldDesign(ws: Workspace, change: string): string {
-  const f = path.join(ws.changeDir(change), "design.md");
   const harness = ws.readHarness();
   const tpl = harness.guides.find((g) => g.id === "design-template");
+  ensureDir(ws.designDir(change));
+  for (const sub of ["api", "ui", "data", "sequences"]) ensureDir(path.join(ws.designDir(change), sub));
+  ensureDir(path.join(ws.designDir(change), "ui", "components"));
+
+  const uiTpl = harness.guides.find((g) => g.id === "ui-pages-template");
+  const pagesFile = path.join(ws.designDir(change), "ui", "pages.md");
+  if (uiTpl && !fs.existsSync(pagesFile)) {
+    const raw = readTemplate(ws, uiTpl.source);
+    if (raw) fs.writeFileSync(pagesFile, raw.replaceAll("{{change}}", change), "utf8");
+  } else if (!fs.existsSync(pagesFile)) {
+    const zh = isZhCn(ws);
+    fs.writeFileSync(
+      pagesFile,
+      zh
+        ? `# UI Pages: ${change}\n\n| Page | Route | Layout shell | Notes |\n|------|-------|--------------|-------|\n`
+        : `# UI Pages: ${change}\n\n| Page | Route | Layout shell | Notes |\n|------|-------|--------------|-------|\n`
+    );
+  }
+
+  const overview = ws.designOverviewFile(change);
+  const legacy = ws.designFile(change);
   if (tpl) {
     const raw = readTemplate(ws, tpl.source);
     if (raw) {
-      fs.writeFileSync(f, raw.replaceAll("{{change}}", change), "utf8");
-      return f;
+      const body = raw.replaceAll("{{change}}", change);
+      fs.writeFileSync(overview, body, "utf8");
+      fs.writeFileSync(legacy, body, "utf8");
+      return overview;
     }
   }
   const zh = isZhCn(ws);
@@ -166,8 +235,9 @@ export function scaffoldDesign(ws: Workspace, change: string): string {
         "- <constraint that arch-boundary sensors should enforce>",
         ""
       ];
-  fs.writeFileSync(f, lines.join("\n"), "utf8");
-  return f;
+  fs.writeFileSync(overview, lines.join("\n"), "utf8");
+  fs.writeFileSync(legacy, lines.join("\n"), "utf8");
+  return overview;
 }
 
 export function proposalExists(ws: Workspace, change: string): boolean {

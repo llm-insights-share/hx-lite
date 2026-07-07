@@ -1,25 +1,25 @@
-# /hx-design — technical design with ADRs
+# /hx-design — HLD + LLD (overview + detailed design packages)
 
-You are running the **design** phase. Precondition: the proposal is complete (the design gate checks this and blocks otherwise).
+You are running the **design** phase. Precondition: proposal is complete.
 
 ## Steps
 
-1. Scaffold: `hx design <change>` (this runs the propose-completeness gate first; fix blockers before continuing).
-2. Fill `harnessX/changes/<change>/design.md` using the **design-template** layout:
-   - **Context** — constraints from explore.md and the current specs;
-   - **API Surface** / **Data Model** — when the change exposes APIs or persistence;
-   - **Decisions (ADR)** — one ADR entry per significant decision: status, the decision itself, consequences. Record rejected alternatives and WHY they lost;
-   - **Architecture Constraints** — rules that sensors should enforce afterwards (layer boundaries, dependency direction, budgets). Write them so they can be checked mechanically;
-   - **Observability** and **Rollback Plan** when the change is user-facing or risky.
-3. Cross-check against the constitution (`harnessX/constitution.md`) and any `guide.constraint` assets — if your design conflicts with a constraint, either change the design or open the conflict explicitly with the human. Do not silently violate.
-4. If the design implies spec changes (new/changed scenarios), update the delta specs now and re-run `hx gate check <change> --phase spec`.
-5. Advance when clean: `hx gate advance <change>`.
+1. Scaffold: `hx design <change>` — creates `design/overview.md`, `design/ui/pages.md`, and LLD directories.
+2. Fill **HLD** in `design/overview.md` (design-template): Context, API Surface, Data Model, ADR, Architecture Constraints, Observability, Rollback, UI Layout table, Design Tokens table.
+3. Fill **LLD** under `design/`:
+   - `design/ui/pages.md` — page inventory (route, layout shell);
+   - `design/ui/components/<page-slug>.md` — per new page/component (props, states, a11y, tokens);
+   - `design/api/*.yaml` — OpenAPI fragments for new endpoints;
+   - `design/data/*.sql` — schema/migration notes when needed.
+4. Follow **fe-layout** and **design-tokens** Skills; align API table with delta specs.
+5. Update delta specs if design reveals new scenarios; run `hx gate check <change> --phase design` (enterprise: HLD/LLD/align sensors).
+6. `hx gate advance <change>` when green.
 
 ## Guardrails
 
-- Design decisions that add new dependencies, new services, or cross-domain coupling must each have their own ADR entry.
-- No code in this phase. Pseudocode and interface sketches inside design.md are fine.
+- No production code; pseudocode and schemas in design/ only.
+- Every new REST row in API Surface must appear in delta specs before spec approval.
 
 ## Done when
 
-Every non-obvious implementation choice a coder (human or agent) would face in apply already has an answer or an ADR in design.md.
+HLD sections complete, LLD files exist for new UI/API surfaces, and design gates pass.

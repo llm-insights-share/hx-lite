@@ -158,6 +158,7 @@ hx archive add-refund        # merge deltas into main specs and archive
 | `hx gate advance <id>` | Advance to next phase (sensors green + preconditions) |
 | `hx gate approve <id> --gate spec --approver <name>` | Record human spec approval |
 | `hx guide pack <id> --phase <p>` | Assemble Context Pack for a phase |
+| `hx guide task-pack <id> <taskId>` | Assemble single-task handoff pack for apply (`HX_TASK_PACK`) |
 | `hx harness lint` | Detect constitution vs skill conflicts |
 | `hx bundle list` | List topology bundles (`api-service`, `frontend-dashboard`, `frontend-2c`, `library-sdk`, `serverless-function`, `mobile-app`, `data-pipeline`, plus `*-cn`) |
 | `hx bundle add <id>` | Apply an additional topology bundle after init |

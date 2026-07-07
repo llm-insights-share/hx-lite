@@ -7,7 +7,9 @@ that continuously improves the harness itself.
 
 **v0.2** adds orchestration: parallel apply (`--parallel`), best-of-N worktree fan-out (`--fan-out`),
 diff review annotations → fix hints, guide behavior evals, GitHub issue scaffolding, and `hx notify`.
-See [scenario 13](docs/examples/13-v0.2-编排与并行交付.md) for the full walkthrough.
+**Enterprise delivery** adds `requirements/` analysis artifacts, `design/` HLD+LLD packages,
+`delivery-trace.yaml`, `@design=` task handoff, and `hx guide task-pack` for scoped apply context.
+See [scenario 15](docs/examples/15-企业级需求到交付交接.md).
 
 Design document: [`docs/harness-delivery-system-design.html`](docs/harness-delivery-system-design.html)
 · Build plan & status: [`docs/build-plan.csv`](docs/build-plan.csv)
