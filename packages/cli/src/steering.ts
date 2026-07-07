@@ -13,6 +13,7 @@ import {
   steerPublish,
   aggregateFromParent,
   writeCoverageIndex,
+  resolveHubSource,
   type ReviewComment
 } from "@harnessx/core";
 
@@ -86,13 +87,14 @@ export function registerSteeringCommands(program: Command): void {
 
   steer
     .command("publish <dir>")
-    .requiredOption("--hub <path>")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
     .requiredOption("--by <name>")
     .option("--evidence <ref>", "evidence string for provenance")
     .option("--skip-eval", "skip pre-publish hub eval (not recommended)")
     .description("Steering closed loop: metrics → eval → hub promote")
     .action((dir: string, opts: { hub: string; by: string; evidence?: string; skipEval?: boolean }) => {
-      const res = steerPublish(ws(), path.resolve(dir), path.resolve(opts.hub), {
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true });
+      const res = steerPublish(ws(), path.resolve(dir), hubRoot, {
         publishedBy: opts.by,
         evidence: opts.evidence,
         skipEval: opts.skipEval

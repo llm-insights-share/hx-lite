@@ -38,7 +38,7 @@ hx init [options]
 | `--bundle <id>` | No | Merge a topology bundle at init. Built-ins: `api-service`, `api-service-cn`, `frontend-dashboard`, `library-sdk`, `serverless-function`, `mobile-app`, `data-pipeline`, and `*-cn` variants |
 | `--locale <id>` | No | Scaffold locale. `hx-cn` = Chinese assets (constitution, command prompts, templates, fix_hint strings) |
 | `--from-hub <id>@<ver>` | No | Install from a Hub package/bundle/blueprint (**requires** `--hub`) |
-| `--hub <path>` | With `--from-hub` | Hub repository root (local path or git clone) |
+| `--hub <path>` | With `--from-hub` | Hub source: local directory or GitHub repo URL (private repos supported; SSH recommended: `git@github.com:<org>/<repo>.git`) |
 | `--adapter <target>` | No | Default adapter target written to `config.yaml` (`cursor`, `codex`, `trae`, …) |
 
 **Example — English default + API topology:**
@@ -112,7 +112,7 @@ locale: en
 profile: enterprise          # default workflow: lite | standard | strict | enterprise
 locale: zh-CN                # en | zh-CN — affects scaffolds and some copy
 
-hub: ./harness-hub           # Hub root; used by hub add/sync/search and imports resolution
+hub: ./harness-hub           # local hub root; can also be GitHub URL (e.g. git@github.com:org/hx-hub.git)
 
 adapter:
   target: cursor             # primary IDE target
@@ -231,7 +231,7 @@ phases:
     sensors: [drift, uat-complete]
 ```
 
-**Setup:** Edit `blueprint.yaml`, then install via Hub (scenario [16](examples/en/16-v0.3-hub-blueprint-init.md)) or `hx init --from-hub <blueprint>@<ver> --hub <path>`.
+**Setup:** Edit `blueprint.yaml`, then install via Hub (scenario [16](examples/en/16-v0.3-hub-blueprint-init.md)) or `hx init --from-hub <blueprint>@<ver> --hub <path-or-git-url>`.
 
 ### 3.4 `harnessX/constitution.md`
 

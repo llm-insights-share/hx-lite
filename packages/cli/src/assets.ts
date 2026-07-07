@@ -24,6 +24,7 @@ import {
   scanAssetDir,
   searchHubCatalog,
   writeHubIndex,
+  resolveHubSource,
   dispatchFileSave,
   runScheduled,
   startWatcher,
@@ -96,22 +97,23 @@ export function registerAssetCommands(program: Command): void {
     });
   hub
     .command("add <pkg>")
-    .requiredOption("--hub <path>", "hub repo path")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
     .action((pkg: string, opts: { hub: string }) => {
       const [id, version] = pkg.split("@");
       if (!version) throw new Error("use <id>@<version>");
-      const res = hubAdd(ws(), path.resolve(opts.hub), { id, version });
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true });
+      const res = hubAdd(ws(), hubRoot, { id, version });
       console.log(`installed ${id}@${version} → ${res.dir}`);
       console.log("run hx lock write to pin it");
     });
   hub
     .command("sync")
-    .requiredOption("--hub <path>")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
     .option("--apply", "apply upstream updates with three-way merge")
     .option("--force", "apply merges even when conflicts occur")
     .option("--only <ids>", "comma-separated package ids to sync")
     .action((opts: { hub: string; apply?: boolean; force?: boolean; only?: string }) => {
-      const hubRoot = path.resolve(opts.hub);
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true });
       if (opts.apply) {
         const only = opts.only?.split(",").map((s) => s.trim()).filter(Boolean);
         for (const r of hubSyncApply(ws(), hubRoot, { force: opts.force, only })) {
@@ -127,29 +129,31 @@ export function registerAssetCommands(program: Command): void {
     });
   hub
     .command("promote <dir>")
-    .requiredOption("--hub <path>")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
     .requiredOption("--by <name>")
     .option("--evidence <ref>", "metrics/report evidencing the asset's value")
     .action((dir: string, opts: { hub: string; by: string; evidence?: string }) => {
-      const res = hubPromote(ws(), path.resolve(opts.hub), path.resolve(dir), { publishedBy: opts.by, evidence: opts.evidence });
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true });
+      const res = hubPromote(ws(), hubRoot, path.resolve(dir), { publishedBy: opts.by, evidence: opts.evidence });
       console.log(`published to ${res.dest} (review pending)`);
     });
   hub
     .command("approve <pkg>")
-    .requiredOption("--hub <path>")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
     .requiredOption("--reviewer <name>")
     .action((pkg: string, opts: { hub: string; reviewer: string }) => {
       const [id, version] = pkg.split("@");
-      hubApproveReview(path.resolve(opts.hub), id, version, opts.reviewer);
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true });
+      hubApproveReview(hubRoot, id, version, opts.reviewer);
       console.log(`${pkg} review approved by ${opts.reviewer}`);
     });
   hub
     .command("eval <pkg>")
-    .requiredOption("--hub <path>")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
     .option("--local <dir>", "evaluate a local asset directory instead of a hub package")
     .option("--golden <name>", "evaluate a golden-repo eval set")
     .action((pkg: string, opts: { hub: string; local?: string; golden?: string }) => {
-      const hubRoot = path.resolve(opts.hub);
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true });
       if (opts.golden) {
         const res = hubEvalGoldenRepo(hubRoot, opts.golden);
         for (const c of res.checks) console.log(`${c.ok ? "PASS" : "FAIL"}\t${c.name}${c.detail ? `\t${c.detail}` : ""}`);
@@ -170,13 +174,13 @@ export function registerAssetCommands(program: Command): void {
     });
   hub
     .command("search [query]")
-    .requiredOption("--hub <path>")
+    .requiredOption("--hub <path>", "hub source (local path or GitHub URL)")
     .option("--kind <kind>", "filter by asset kind")
     .option("--phase <phase>", "filter by phase")
     .option("--category <cat>", "package | bundle | blueprint")
     .option("--index", "write hub index.json")
     .action((query: string | undefined, opts: { hub: string; kind?: string; phase?: string; category?: string; index?: boolean }) => {
-      const hubRoot = path.resolve(opts.hub);
+      const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true });
       if (opts.index) {
         console.log(`wrote ${writeHubIndex(hubRoot)}`);
         return;

@@ -32,6 +32,7 @@ export * from "./rubric.js";
 export * from "./janitor.js";
 export * from "./assets.js";
 export * from "./hub.js";
+export * from "./hubSource.js";
 export * from "./supplyChain.js";
 export * from "./blueprint.js";
 export * from "./gateCompensation.js";

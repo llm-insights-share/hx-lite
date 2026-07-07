@@ -7,6 +7,7 @@ import {
   listBundles,
   listHubBundles,
   applyBundle,
+  resolveHubSource,
   createChange,
   scaffoldProposal,
   scaffoldExplore,
@@ -24,7 +25,7 @@ export function registerFoundationCommands(program: Command): void {
     .option("--bundle <id>", "apply a topology bundle (api-service, frontend-2c, library-sdk, serverless-function, mobile-app, data-pipeline, …)")
     .option("--locale <id>", "scaffold locale: hx-cn for Chinese assets (default: English base)")
     .option("--from-hub <pkg>", "initialize from a hub bundle/blueprint/package (requires --hub)")
-    .option("--hub <path>", "hub repo path (for --from-hub)")
+    .option("--hub <path>", "hub source: local path or GitHub URL (for --from-hub)")
     .option("--adapter <target>", "adapter target to record in config (cursor, codex, …)")
     .action((opts: { bundle?: string; locale?: string; fromHub?: string; hub?: string; adapter?: string }) => {
       if (opts.fromHub) {
@@ -47,12 +48,13 @@ export function registerFoundationCommands(program: Command): void {
     .command("bundle")
     .argument("<action>", "list | add")
     .argument("[bundleId]", "topology bundle id (required for add)")
-    .option("--hub <path>", "list bundles from a hub repo (with list)")
+    .option("--hub <path>", "list bundles from hub source (local path or GitHub URL)")
     .description("Manage topology bundles")
     .action((action: string, bundleId: string | undefined, opts: { hub?: string }) => {
       if (action === "list") {
         if (opts?.hub) {
-          for (const b of listHubBundles(path.resolve(opts.hub))) console.log(`${b.id}@${b.version}\t(hub)`);
+          const hubRoot = resolveHubSource(process.cwd(), opts.hub, { updateRemote: true });
+          for (const b of listHubBundles(hubRoot)) console.log(`${b.id}@${b.version}\t(hub)`);
         } else {
           for (const b of listBundles()) console.log(`${b.id}\t${b.description}`);
         }

@@ -38,7 +38,7 @@ hx init [选项]
 | `--bundle <id>` | 否 | 初始化时合并拓扑 Bundle。内置：`api-service`、`api-service-cn`、`frontend-dashboard`、`library-sdk`、`serverless-function`、`mobile-app`、`data-pipeline` 及对应 `*-cn` |
 | `--locale <id>` | 否 | 脚手架语言。`hx-cn` = 中文资产（宪法、命令提示词、模板、fix_hint） |
 | `--from-hub <id>@<ver>` | 否 | 从 Hub 安装包/Bundle/蓝图（**须同时** `--hub`） |
-| `--hub <path>` | 与 `--from-hub` 联用 | Hub 仓库根目录（本地路径或 git clone 路径） |
+| `--hub <path>` | 与 `--from-hub` 联用 | Hub 主仓来源：本地目录，或 GitHub 仓库 URL（支持私有库，建议 SSH：`git@github.com:<org>/<repo>.git`） |
 | `--adapter <target>` | 否 | 写入 `config.yaml` 的默认适配器目标（`cursor`、`codex`、`trae` 等） |
 
 **示例 — 英文默认 + API 拓扑：**
@@ -112,7 +112,7 @@ locale: en
 profile: enterprise          # 默认工作流：lite | standard | strict | enterprise
 locale: zh-CN                # en | zh-CN — 影响脚手架与部分提示文案
 
-hub: ./harness-hub           # Hub 根路径；供 hub add/sync/search 与 imports 解析
+hub: ./harness-hub           # 本地 Hub 根路径；也可写 GitHub URL（如 git@github.com:org/hx-hub.git）
 
 adapter:
   target: cursor             # 主 IDE 目标，供文档与 notify 使用
@@ -231,7 +231,7 @@ phases:
     sensors: [drift, uat-complete]
 ```
 
-**配置步骤：** 编辑 `blueprint.yaml` 后，在已配置 `config.yaml.hub` 的仓库执行 Hub 蓝图安装流程（见场景 [16](examples/16-v0.3-hub-blueprint-init.md)），或通过 `hx init --from-hub <blueprint>@<ver> --hub <path>` 初始化。
+**配置步骤：** 编辑 `blueprint.yaml` 后，在已配置 `config.yaml.hub` 的仓库执行 Hub 蓝图安装流程（见场景 [16](examples/16-v0.3-hub-blueprint-init.md)），或通过 `hx init --from-hub <blueprint>@<ver> --hub <path-or-git-url>` 初始化。
 
 ### 3.4 `harnessX/constitution.md`
 
