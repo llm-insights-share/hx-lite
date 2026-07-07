@@ -2,8 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { Workspace, ensureDir } from "./paths.js";
+import { Workspace, ensureDir, writeYaml } from "./paths.js";
 import { HarnessYaml } from "./schemas.js";
+import { hubAdd, hubBundleDir, resolveHubPackage, type HubRef } from "./hub.js";
+import { applyHubBlueprint } from "./blueprint.js";
+import { writeLock } from "./assets.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** Built-in bundle sources shipped with the harnessx package. */
@@ -57,6 +60,59 @@ export interface InitResult {
   nextSteps: string[];
 }
 
+export interface InitFromHubOptions extends InitOptions {
+  hubRef: string;
+  hubRoot: string;
+  adapter?: string;
+}
+
+function parseHubRef(ref: string): HubRef {
+  const [id, version] = ref.split("@");
+  if (!id || !version) throw new Error(`use <id>@<version> for --from-hub`);
+  return { id, version };
+}
+
+const NEXT_STEPS_FROM_HUB_EN = [
+  "1. Edit harnessX/constitution.md — write your project principles",
+  "2. Sync adapters:             hx adapter sync",
+  "3. Create your first change:  hx change create <name> --domains <d1,d2>",
+  "4. Draft the proposal:        hx propose <name> --title \"...\"",
+  "5. Install enforcement:       hx hooks install && hx ci init"
+];
+
+/** `hx init --from-hub`: scaffold from a hub bundle or blueprint package. */
+export function initFromHub(root: string, opts: InitFromHubOptions): InitResult {
+  const hubRoot = path.resolve(opts.hubRoot);
+  const ref = parseHubRef(opts.hubRef);
+  const resolved = resolveHubPackage(hubRoot, ref);
+  if (!resolved) throw new Error(`hub package ${opts.hubRef} not found in ${hubRoot}`);
+
+  const res = initWorkspace(root, { locale: opts.locale, bundlesDir: opts.bundlesDir });
+
+  const config = res.ws.readConfig();
+  writeYaml(res.ws.configFile, { ...config, hub: hubRoot, ...(opts.adapter ? { adapter: { target: opts.adapter } } : {}) });
+
+  if (resolved.kind === "bundle") {
+    applyBundle(res.ws, ref.id, resolved.dir);
+    res.created.push(`hub bundle ${ref.id}@${ref.version}`);
+  } else if (resolved.kind === "blueprint") {
+    const applied = applyHubBlueprint(res.ws, hubRoot, ref);
+    res.created.push(...applied);
+  } else {
+    hubAdd(res.ws, hubRoot, ref);
+    res.created.push(`hub package ${ref.id}@${ref.version}`);
+    const harness = res.ws.readHarness();
+    if (!harness.dependencies.includes(`${ref.id}@${ref.version}`)) {
+      harness.dependencies.push(`${ref.id}@${ref.version}`);
+      fs.writeFileSync(res.ws.harnessFile, YAML.stringify(HarnessYaml.parse(harness)), "utf8");
+    }
+  }
+
+  writeLock(res.ws);
+  res.nextSteps = opts.locale === "hx-cn" ? NEXT_STEPS_ZH : NEXT_STEPS_FROM_HUB_EN;
+  return res;
+}
+
 /** `hx init` (FR-034/NFR-007): creates harnessX/, seeds constitution, registry, assets. */
 export function initWorkspace(root: string, opts: InitOptions = {}): InitResult {
   const bundlesDir = opts.bundlesDir ?? BUILTIN_BUNDLES_DIR;
@@ -68,6 +124,8 @@ export function initWorkspace(root: string, opts: InitOptions = {}): InitResult 
   for (const f of ["constitution.md", "config.yaml", "harness.yaml"]) {
     fs.copyFileSync(path.join(baseDir, f), path.join(ws.base, f));
   }
+  const blueprintSrc = path.join(baseDir, "blueprint.yaml");
+  if (fs.existsSync(blueprintSrc)) fs.copyFileSync(blueprintSrc, path.join(ws.base, "blueprint.yaml"));
   copyDir(path.join(baseDir, "assets"), ws.assetsDir);
   for (const dir of [ws.specsDir, ws.changesDir, ws.archiveDir, ws.runsDir, ws.bundlesDir]) ensureDir(dir);
 
@@ -84,7 +142,7 @@ export function initWorkspace(root: string, opts: InitOptions = {}): InitResult 
 
 /** Merges a topology bundle (FR-031): copies assets and appends guides/sensors/suites to harness.yaml. */
 export function applyBundle(ws: Workspace, bundleId: string, bundlesDir = BUILTIN_BUNDLES_DIR): void {
-  const bundleDir = path.join(bundlesDir, bundleId);
+  const bundleDir = fs.existsSync(path.join(bundlesDir, "bundle.yaml")) ? bundlesDir : path.join(bundlesDir, bundleId);
   const manifestFile = path.join(bundleDir, "bundle.yaml");
   if (!fs.existsSync(manifestFile)) throw new Error(`unknown bundle: ${bundleId}`);
   const fragment = YAML.parse(fs.readFileSync(manifestFile, "utf8"));

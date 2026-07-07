@@ -11,10 +11,15 @@ import {
   verifyLock,
   hubAdd,
   hubSync,
+  hubSyncApply,
   hubPromote,
   hubApproveReview,
   seedGoldenHub,
   listGoldenHubPackages,
+  listGoldenHubBundles,
+  hubEvalPackage,
+  hubEvalLocal,
+  hubEvalGoldenRepo,
   scanAssetDir,
   dispatchFileSave,
   runScheduled,
@@ -73,7 +78,8 @@ export function registerAssetCommands(program: Command): void {
 
   const hub = program.command("hub").description("Harness Hub (§11.5)");
   hub.command("golden").description("List built-in golden hub packages").action(() => {
-    for (const p of listGoldenHubPackages()) console.log(`${p.id}@${p.version}`);
+    for (const p of listGoldenHubPackages()) console.log(`package\t${p.id}@${p.version}`);
+    for (const p of listGoldenHubBundles()) console.log(`bundle\t${p.id}@${p.version}`);
   });
   hub
     .command("seed [path]")
@@ -98,8 +104,21 @@ export function registerAssetCommands(program: Command): void {
   hub
     .command("sync")
     .requiredOption("--hub <path>")
-    .action((opts: { hub: string }) => {
-      for (const e of hubSync(ws(), path.resolve(opts.hub))) {
+    .option("--apply", "apply upstream updates with three-way merge")
+    .option("--force", "apply merges even when conflicts occur")
+    .option("--only <ids>", "comma-separated package ids to sync")
+    .action((opts: { hub: string; apply?: boolean; force?: boolean; only?: string }) => {
+      const hubRoot = path.resolve(opts.hub);
+      if (opts.apply) {
+        const only = opts.only?.split(",").map((s) => s.trim()).filter(Boolean);
+        for (const r of hubSyncApply(ws(), hubRoot, { force: opts.force, only })) {
+          const conflicts = r.conflicts?.length ? ` conflicts: ${r.conflicts.join(", ")}` : "";
+          console.log(`${r.id}\t${r.action}\t${r.detail ?? ""}${r.toVersion ? ` → ${r.toVersion}` : ""}${conflicts}`);
+        }
+        console.log("run hx lock write to refresh harness.lock");
+        return;
+      }
+      for (const e of hubSync(ws(), hubRoot)) {
         console.log(`${e.id}\tinstalled ${e.installed}\tlatest ${e.latest}\t${e.state}`);
       }
     });
@@ -120,6 +139,31 @@ export function registerAssetCommands(program: Command): void {
       const [id, version] = pkg.split("@");
       hubApproveReview(path.resolve(opts.hub), id, version, opts.reviewer);
       console.log(`${pkg} review approved by ${opts.reviewer}`);
+    });
+  hub
+    .command("eval <pkg>")
+    .requiredOption("--hub <path>")
+    .option("--local <dir>", "evaluate a local asset directory instead of a hub package")
+    .option("--golden <name>", "evaluate a golden-repo eval set")
+    .action((pkg: string, opts: { hub: string; local?: string; golden?: string }) => {
+      const hubRoot = path.resolve(opts.hub);
+      if (opts.golden) {
+        const res = hubEvalGoldenRepo(hubRoot, opts.golden);
+        for (const c of res.checks) console.log(`${c.ok ? "PASS" : "FAIL"}\t${c.name}${c.detail ? `\t${c.detail}` : ""}`);
+        if (!res.passed) process.exit(1);
+        return;
+      }
+      if (opts.local) {
+        const res = hubEvalLocal(path.resolve(opts.local));
+        for (const c of res.checks) console.log(`${c.ok ? "PASS" : "FAIL"}\t${c.name}${c.detail ? `\t${c.detail}` : ""}`);
+        if (!res.passed) process.exit(1);
+        return;
+      }
+      const [id, version] = pkg.split("@");
+      if (!version) throw new Error("use <id>@<version>");
+      const res = hubEvalPackage(hubRoot, { id, version });
+      for (const c of res.checks) console.log(`${c.ok ? "PASS" : "FAIL"}\t${c.name}${c.detail ? `\t${c.detail}` : ""}`);
+      if (!res.passed) process.exit(1);
     });
 
   const adapter = program.command("adapter").description("Single-source adapter compilation (FR-032/033)");

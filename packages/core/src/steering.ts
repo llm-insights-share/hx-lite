@@ -3,6 +3,9 @@ import path from "node:path";
 import { Workspace, ensureDir, writeYaml } from "./paths.js";
 import { aggregatePatterns, readFailures, type FailurePattern } from "./failureCatalog.js";
 import { readRuns } from "./telemetry.js";
+import { backfillMetrics, loadAssetDir, promoteAsset } from "./assets.js";
+import { hubPromote, type PromoteOptions } from "./hub.js";
+import { hubEvalLocal, type HubEvalResult } from "./hubEval.js";
 
 /**
  * T-501/T-502/T-503 (FR-041/FR-042): the Steering loop.
@@ -174,4 +177,37 @@ export function coverageReport(ws: Workspace): CoverageReport {
       recurrentPatterns: patterns.filter((p) => p.count >= 3).length
     }
   };
+}
+
+export interface SteerPublishResult {
+  dest: string;
+  eval: HubEvalResult;
+  localStatus: string;
+}
+
+/**
+ * Steering → promote → Hub eval closed loop:
+ * backfill metrics → eval → local trial promotion → hub promote with evidence.
+ */
+export function steerPublish(ws: Workspace, assetDir: string, hubRoot: string, opts: PromoteOptions): SteerPublishResult {
+  const resolved = path.resolve(assetDir);
+  const asset = loadAssetDir(resolved, "local");
+  if (!asset) throw new Error(`no asset.yaml in ${resolved}`);
+
+  backfillMetrics(ws, asset);
+  const evalResult = hubEvalLocal(resolved);
+  if (!evalResult.passed && !opts.skipEval) {
+    const failed = evalResult.checks.filter((c) => !c.ok).map((c) => c.name).join(", ");
+    throw new Error(`hub eval failed before promote: ${failed}`);
+  }
+
+  if (asset.manifest.status === "draft") promoteAsset(resolved, "trial");
+
+  const metrics = loadAssetDir(resolved, "local")!.manifest.metrics;
+  const evidence =
+    opts.evidence ??
+    `runs=${metrics["runs"] ?? 0}, failures=${metrics["failures"] ?? 0}, evaluations=${metrics["evaluations"] ?? 0}`;
+
+  const { dest } = hubPromote(ws, hubRoot, resolved, { ...opts, evidence, skipEval: opts.skipEval });
+  return { dest, eval: evalResult, localStatus: loadAssetDir(resolved, "local")!.manifest.status };
 }

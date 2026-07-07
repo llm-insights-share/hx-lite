@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   Workspace,
   initWorkspace,
+  initFromHub,
   listBundles,
   applyBundle,
   createChange,
@@ -21,7 +22,19 @@ export function registerFoundationCommands(program: Command): void {
     .description("Initialize harnessX/ in the current repository")
     .option("--bundle <id>", "apply a topology bundle (api-service, frontend-2c, library-sdk, serverless-function, mobile-app, data-pipeline, …)")
     .option("--locale <id>", "scaffold locale: hx-cn for Chinese assets (default: English base)")
-    .action((opts: { bundle?: string; locale?: string }) => {
+    .option("--from-hub <pkg>", "initialize from a hub bundle/blueprint/package (requires --hub)")
+    .option("--hub <path>", "hub repo path (for --from-hub)")
+    .option("--adapter <target>", "adapter target to record in config (cursor, codex, …)")
+    .action((opts: { bundle?: string; locale?: string; fromHub?: string; hub?: string; adapter?: string }) => {
+      if (opts.fromHub) {
+        if (!opts.hub) throw new Error("--hub is required with --from-hub");
+        const res = initFromHub(process.cwd(), { hubRef: opts.fromHub, hubRoot: opts.hub, locale: opts.locale, adapter: opts.adapter });
+        console.log(`Initialized from hub ${opts.fromHub} → ${res.ws.base}`);
+        for (const c of res.created) console.log(`  + ${c}`);
+        console.log("\nNext steps:");
+        for (const s of res.nextSteps) console.log(`  ${s}`);
+        return;
+      }
       const res = initWorkspace(process.cwd(), { bundle: opts.bundle, locale: opts.locale });
       console.log(`Initialized ${res.ws.base}`);
       for (const c of res.created) console.log(`  + ${c}`);

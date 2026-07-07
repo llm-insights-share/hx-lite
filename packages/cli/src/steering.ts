@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import fs from "node:fs";
+import path from "node:path";
 import {
   Workspace,
   aggregatePatterns,
@@ -9,6 +10,7 @@ import {
   addRubricRule,
   recordRubricFeedback,
   janitorRun,
+  steerPublish,
   type ReviewComment
 } from "@harnessx/core";
 
@@ -68,6 +70,23 @@ export function registerSteeringCommands(program: Command): void {
       console.log(`  ${p.count}x ${p.signature} — covered by: ${p.coveredBy.join(", ") || "(nothing)"}`);
     }
   });
+
+  steer
+    .command("publish <dir>")
+    .requiredOption("--hub <path>")
+    .requiredOption("--by <name>")
+    .option("--evidence <ref>", "evidence string for provenance")
+    .option("--skip-eval", "skip pre-publish hub eval (not recommended)")
+    .description("Steering closed loop: metrics → eval → hub promote")
+    .action((dir: string, opts: { hub: string; by: string; evidence?: string; skipEval?: boolean }) => {
+      const res = steerPublish(ws(), path.resolve(dir), path.resolve(opts.hub), {
+        publishedBy: opts.by,
+        evidence: opts.evidence,
+        skipEval: opts.skipEval
+      });
+      console.log(`eval: ${res.eval.passed ? "PASS" : "FAIL"} (${res.eval.checks.length} checks)`);
+      console.log(`published to ${res.dest} (local ${res.localStatus}, hub review pending)`);
+    });
 
   const rubric = program.command("rubric").description("AI review rubric management");
   rubric

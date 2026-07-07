@@ -3,6 +3,7 @@ import path from "node:path";
 import { Workspace } from "@harnessx/core";
 import { compileTarget, checkGeneratedFile, type CompileResult, type DriftState, type TargetEmitter } from "./compiler.js";
 import { cursorEmitter, traeEmitter, qoderEmitter, claudeEmitter, genericEmitter, exportQoderQuest } from "./targets.js";
+import { computeTier } from "./capability.js";
 
 export * from "./capability.js";
 export * from "./compiler.js";
@@ -13,6 +14,8 @@ const EMITTERS: Record<string, TargetEmitter> = {
   trae: traeEmitter,
   qoder: qoderEmitter,
   claude: claudeEmitter,
+  codex: genericEmitter,
+  opencode: genericEmitter,
   generic: genericEmitter
 };
 
@@ -21,7 +24,10 @@ export function availableTargets(): string[] {
 }
 
 export function compileAdapters(ws: Workspace, targets: string[]): CompileResult[] {
-  return targets.map((t) => compileTarget(ws, t, EMITTERS[t] ?? genericEmitter));
+  const results = targets.map((t) => compileTarget(ws, t, EMITTERS[t] ?? genericEmitter));
+  const lowestTier = Math.min(...results.map((r) => r.tier)) as 0 | 1 | 2;
+  fs.writeFileSync(path.join(ws.root, ".harnessx-adapter-tier"), String(lowestTier), "utf8");
+  return results;
 }
 
 export interface DriftFindingFile {

@@ -12,9 +12,12 @@ export const BUILTIN_HUB_GOLDEN_DIR = path.resolve(HERE, "../../hub-golden");
 /**
  * T-602 (§11.5): Harness Hub — a directory/git repo of shared asset packages:
  *   hub/packages/<id>/<version>/{asset.yaml, content...}
+ *   hub/bundles/<id>/<version>/{bundle.yaml, assets/...}
+ *   hub/blueprints/<name>/<version>/{blueprint.yaml, ...}
  *   hub/packages/<id>/<version>/.review (publication review marker, T-603)
  * - add:     copy a hub package version into the repo's hub cache layer
  * - sync:    detect upstream updates vs local overrides (three-way-ish report)
+ * - sync --apply: three-way merge upstream vs local override vs baseline
  * - promote: publish a local asset to the hub with provenance/evidence
  */
 
@@ -23,12 +26,22 @@ export interface HubRef {
   version: string;
 }
 
+export interface HubSyncMeta {
+  version: string;
+  baselineHash: string;
+  syncedAt: string;
+}
+
 export function hubPackageDir(hubRoot: string, id: string, version: string): string {
   return path.join(hubRoot, "packages", id, version);
 }
 
-export function hubVersions(hubRoot: string, id: string): string[] {
-  const dir = path.join(hubRoot, "packages", id);
+export function hubBundleDir(hubRoot: string, id: string, version: string): string {
+  return path.join(hubRoot, "bundles", id, version);
+}
+
+export function hubVersions(hubRoot: string, id: string, category: "packages" | "bundles" | "blueprints" = "packages"): string[] {
+  const dir = path.join(hubRoot, category, id);
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir).sort();
 }
@@ -43,12 +56,133 @@ function copyDir(src: string, dest: string) {
   }
 }
 
+function syncMetaFile(cacheDir: string): string {
+  return path.join(cacheDir, ".sync-meta.yaml");
+}
+
+export function readSyncMeta(cacheDir: string): HubSyncMeta | null {
+  const f = syncMetaFile(cacheDir);
+  if (!fs.existsSync(f)) return null;
+  return readYaml<HubSyncMeta>(f);
+}
+
+export function writeSyncMeta(cacheDir: string, version: string, baselineHash: string): void {
+  writeYaml(syncMetaFile(cacheDir), { version, baselineHash, syncedAt: new Date().toISOString() });
+}
+
+/** Lists relative file paths in an asset directory (excluding manifests/meta). */
+export function listAssetContentFiles(dir: string): string[] {
+  const skip = new Set(["asset.yaml", ".sync-meta.yaml", ".review"]);
+  const out: string[] = [];
+  const visit = (d: string, prefix = "") => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      if (skip.has(e.name)) continue;
+      const rel = prefix ? `${prefix}/${e.name}` : e.name;
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) visit(p, rel);
+      else out.push(rel);
+    }
+  };
+  if (fs.existsSync(dir)) visit(dir);
+  return out;
+}
+
+/** Three-way text merge: base=baseline, local=override, remote=upstream. */
+export function threeWayMergeText(base: string, local: string, remote: string): { content: string; conflict: boolean } {
+  if (local === remote) return { content: local, conflict: false };
+  if (local === base) return { content: remote, conflict: false };
+  if (remote === base) return { content: local, conflict: false };
+
+  // additive line merge: both sides extended the same baseline with different lines
+  if (base && local.startsWith(base) && remote.startsWith(base)) {
+    const localSuffix = local.slice(base.length);
+    const remoteSuffix = remote.slice(base.length);
+    if (localSuffix && remoteSuffix && localSuffix !== remoteSuffix) {
+      const lines = [...new Set([...localSuffix.split("\n").filter((l) => l.length > 0), ...remoteSuffix.split("\n").filter((l) => l.length > 0)])];
+      return { content: base + lines.join("\n") + "\n", conflict: false };
+    }
+  }
+
+  return {
+    content: [`<<<<<<< local`, local, `=======`, remote, `>>>>>>> upstream`].join("\n"),
+    conflict: true
+  };
+}
+
+export interface MergeDirResult {
+  merged: string[];
+  conflicts: string[];
+}
+
+/** Merges content files from baseline/local/remote asset dirs into dest. */
+export function mergeAssetDirs(baselineDir: string, localDir: string, remoteDir: string, destDir: string): MergeDirResult {
+  const paths = new Set([
+    ...listAssetContentFiles(baselineDir),
+    ...listAssetContentFiles(localDir),
+    ...listAssetContentFiles(remoteDir)
+  ]);
+  const merged: string[] = [];
+  const conflicts: string[] = [];
+  fs.rmSync(destDir, { recursive: true, force: true });
+  ensureDir(destDir);
+
+  const read = (root: string, rel: string) => {
+    const p = path.join(root, rel);
+    return fs.existsSync(p) ? fs.readFileSync(p, "utf8") : "";
+  };
+
+  for (const rel of [...paths].sort()) {
+    const base = read(baselineDir, rel);
+    const local = read(localDir, rel);
+    const remote = read(remoteDir, rel);
+    const outPath = path.join(destDir, rel);
+    ensureDir(path.dirname(outPath));
+
+    if (!base && !local && remote) {
+      fs.copyFileSync(path.join(remoteDir, rel), outPath);
+      merged.push(rel);
+      continue;
+    }
+    if (!remote && local && !base) {
+      fs.copyFileSync(path.join(localDir, rel), outPath);
+      merged.push(rel);
+      continue;
+    }
+
+    const { content, conflict } = threeWayMergeText(base, local, remote);
+    fs.writeFileSync(outPath, content, "utf8");
+    merged.push(rel);
+    if (conflict) conflicts.push(rel);
+  }
+
+  const manifest = path.join(remoteDir, "asset.yaml");
+  if (fs.existsSync(manifest)) fs.copyFileSync(manifest, path.join(destDir, "asset.yaml"));
+  return { merged, conflicts };
+}
+
+/** Resolves a hub ref across packages/, bundles/, blueprints/. */
+export function resolveHubPackage(hubRoot: string, ref: HubRef): { kind: "package" | "bundle" | "blueprint"; dir: string } | null {
+  for (const [kind, category] of [
+    ["package", "packages"],
+    ["bundle", "bundles"],
+    ["blueprint", "blueprints"]
+  ] as const) {
+    const dir = path.join(hubRoot, category, ref.id, ref.version);
+    if (fs.existsSync(dir)) return { kind, dir };
+  }
+  return null;
+}
+
 /** hub add: install a package version into the repo hub cache (with injection scan, T-603). */
 export function hubAdd(ws: Workspace, hubRoot: string, ref: HubRef): { dir: string; asset: LoadedAsset } {
-  const src = hubPackageDir(hubRoot, ref.id, ref.version);
+  const resolved = resolveHubPackage(hubRoot, ref);
+  if (!resolved || resolved.kind !== "package") {
+    const src = hubPackageDir(hubRoot, ref.id, ref.version);
+    if (!fs.existsSync(path.join(src, "asset.yaml"))) throw new Error(`hub package ${ref.id}@${ref.version} not found in ${hubRoot}`);
+  }
+  const src = resolved?.kind === "package" ? resolved.dir : hubPackageDir(hubRoot, ref.id, ref.version);
   if (!fs.existsSync(path.join(src, "asset.yaml"))) throw new Error(`hub package ${ref.id}@${ref.version} not found in ${hubRoot}`);
 
-  // supply-chain: refuse assets containing instruction-hijack text
   const findings = scanAssetDir(src);
   if (findings.length > 0) {
     throw new Error(`hub package ${ref.id}@${ref.version} failed injection scan: ${findings[0]}`);
@@ -57,6 +191,8 @@ export function hubAdd(ws: Workspace, hubRoot: string, ref: HubRef): { dir: stri
   const dest = path.join(ws.base, ".hub-cache", ref.id);
   fs.rmSync(dest, { recursive: true, force: true });
   copyDir(src, dest);
+  const baselineHash = assetContentHash(dest);
+  writeSyncMeta(dest, ref.version, baselineHash);
   const asset = loadAssetDir(dest, "hub")!;
   return { dir: dest, asset };
 }
@@ -98,7 +234,9 @@ export function hubSync(ws: Workspace, hubRoot: string): HubSyncEntry[] {
     const versions = hubVersions(hubRoot, e.name);
     const latest = versions.at(-1) ?? installed.manifest.version;
     const upstreamDir = hubPackageDir(hubRoot, e.name, installed.manifest.version);
-    const locallyModified = fs.existsSync(upstreamDir) && assetContentHash(upstreamDir) !== installed.contentHash;
+    const meta = readSyncMeta(installedDir);
+    const baselineHash = meta?.baselineHash ?? installed.contentHash;
+    const locallyModified = assetContentHash(installedDir) !== baselineHash;
     const updateAvailable = latest !== installed.manifest.version;
     out.push({
       id: e.name,
@@ -110,9 +248,90 @@ export function hubSync(ws: Workspace, hubRoot: string): HubSyncEntry[] {
   return out;
 }
 
+export interface HubSyncApplyResult {
+  id: string;
+  action: "skipped" | "updated" | "merged" | "conflict";
+  fromVersion?: string;
+  toVersion?: string;
+  conflicts?: string[];
+  detail?: string;
+}
+
+export interface HubSyncApplyOptions {
+  /** Apply even when merge conflicts occur (conflict markers left in files). */
+  force?: boolean;
+  /** Only apply specific package ids. */
+  only?: string[];
+}
+
+/**
+ * hub sync --apply: three-way merge upstream vs local override vs baseline.
+ * - update-available (no local edits): fast-forward to latest
+ * - locally-modified: merge upstream refresh into local overrides
+ * - update-and-local-changes: full three-way merge
+ */
+export function hubSyncApply(ws: Workspace, hubRoot: string, opts: HubSyncApplyOptions = {}): HubSyncApplyResult[] {
+  const results: HubSyncApplyResult[] = [];
+  for (const entry of hubSync(ws, hubRoot)) {
+    if (opts.only?.length && !opts.only.includes(entry.id)) continue;
+    if (entry.state === "up-to-date") {
+      results.push({ id: entry.id, action: "skipped", detail: "up-to-date" });
+      continue;
+    }
+
+    const cacheDir = path.join(ws.base, ".hub-cache", entry.id);
+    const installed = loadAssetDir(cacheDir, "hub")!;
+    const meta = readSyncMeta(cacheDir);
+    const baselineVersion = meta?.version ?? installed.manifest.version;
+    const targetVersion = entry.state.includes("update") ? entry.latest : baselineVersion;
+
+    const baselineDir = hubPackageDir(hubRoot, entry.id, baselineVersion);
+    const remoteDir = hubPackageDir(hubRoot, entry.id, targetVersion);
+    if (!fs.existsSync(remoteDir)) {
+      results.push({ id: entry.id, action: "conflict", detail: `upstream ${entry.id}@${targetVersion} not found` });
+      continue;
+    }
+
+    if (entry.state === "update-available") {
+      hubAdd(ws, hubRoot, { id: entry.id, version: targetVersion });
+      results.push({ id: entry.id, action: "updated", fromVersion: entry.installed, toVersion: targetVersion });
+      continue;
+    }
+
+    const tmp = path.join(ws.base, ".hub-cache", `.merge-${entry.id}`);
+    const { conflicts } = mergeAssetDirs(
+      fs.existsSync(baselineDir) ? baselineDir : remoteDir,
+      cacheDir,
+      remoteDir,
+      tmp
+    );
+
+    if (conflicts.length && !opts.force) {
+      fs.rmSync(tmp, { recursive: true, force: true });
+      results.push({ id: entry.id, action: "conflict", conflicts, detail: "merge conflicts — use --force to apply with conflict markers" });
+      continue;
+    }
+
+    fs.rmSync(cacheDir, { recursive: true, force: true });
+    fs.renameSync(tmp, cacheDir);
+    writeSyncMeta(cacheDir, targetVersion, assetContentHash(remoteDir));
+    results.push({
+      id: entry.id,
+      action: conflicts.length ? "conflict" : "merged",
+      fromVersion: entry.installed,
+      toVersion: targetVersion,
+      conflicts: conflicts.length ? conflicts : undefined,
+      detail: conflicts.length ? "applied with conflict markers" : "merged cleanly"
+    });
+  }
+  return results;
+}
+
 export interface PromoteOptions {
   evidence?: string;
   publishedBy: string;
+  /** Skip pre-publish eval (not recommended). */
+  skipEval?: boolean;
 }
 
 /** hub promote: publish a local asset dir to the hub with provenance; review marker required before consumption. */
@@ -136,7 +355,6 @@ export function hubPromote(ws: Workspace, hubRoot: string, assetDir: string, opt
     ...(opts.evidence ? [{ type: "evidence", ref: opts.evidence }] : [])
   ];
   writeYaml(path.join(dest, "asset.yaml"), manifest);
-  // publication review marker: pending until a hub maintainer approves (T-603)
   writeYaml(path.join(dest, ".review"), { status: "pending", publishedBy: opts.publishedBy, at: new Date().toISOString() });
   return { dest };
 }
@@ -150,7 +368,7 @@ export function hubApproveReview(hubRoot: string, id: string, version: string, r
 export function hubReviewStatus(hubRoot: string, id: string, version: string): "pending" | "approved" | "missing" {
   const marker = path.join(hubPackageDir(hubRoot, id, version), ".review");
   if (!fs.existsSync(marker)) return "missing";
-  return (readYaml<{ status: "pending" | "approved" }>(marker)).status;
+  return readYaml<{ status: "pending" | "approved" }>(marker).status;
 }
 
 /** Lists package ids available in the built-in golden hub catalog. */
@@ -166,11 +384,26 @@ export function listGoldenHubPackages(goldenDir = BUILTIN_HUB_GOLDEN_DIR): HubRe
   return out.sort((a, b) => a.id.localeCompare(b.id) || a.version.localeCompare(b.version));
 }
 
+export function listGoldenHubBundles(goldenDir = BUILTIN_HUB_GOLDEN_DIR): HubRef[] {
+  const root = path.join(goldenDir, "bundles");
+  if (!fs.existsSync(root)) return [];
+  const out: HubRef[] = [];
+  for (const id of fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory())) {
+    for (const ver of hubVersions(goldenDir, id.name, "bundles")) {
+      out.push({ id: id.name, version: ver });
+    }
+  }
+  return out.sort((a, b) => a.id.localeCompare(b.id) || a.version.localeCompare(b.version));
+}
+
 /** Creates a hub repo from built-in golden packages (pre-approved for local consumption). */
 export function seedGoldenHub(targetRoot: string, goldenDir = BUILTIN_HUB_GOLDEN_DIR): HubRef[] {
-  const src = path.join(goldenDir, "packages");
-  if (!fs.existsSync(src)) throw new Error(`golden hub catalog not found at ${goldenDir}`);
-  const dest = path.join(targetRoot, "packages");
-  copyDir(src, dest);
-  return listGoldenHubPackages(goldenDir);
+  const seeded: HubRef[] = [];
+  for (const sub of ["packages", "bundles", "blueprints", "evals"] as const) {
+    const src = path.join(goldenDir, sub);
+    if (!fs.existsSync(src)) continue;
+    copyDir(src, path.join(targetRoot, sub));
+  }
+  seeded.push(...listGoldenHubPackages(goldenDir), ...listGoldenHubBundles(goldenDir));
+  return seeded;
 }

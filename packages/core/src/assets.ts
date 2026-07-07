@@ -30,7 +30,7 @@ export function assetContentHash(dir: string): string {
     for (const e of fs.readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       const p = path.join(d, e.name);
       if (e.isDirectory()) visit(p);
-      else if (e.name !== "asset.yaml") files.push(p);
+      else if (e.name !== "asset.yaml" && e.name !== ".sync-meta.yaml" && e.name !== ".review") files.push(p);
     }
   };
   visit(dir);

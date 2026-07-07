@@ -1,0 +1,10 @@
+name: standard-delivery
+extends: standard
+hub_deps:
+  - prd-writing@1.0.0
+  - prototype-wireframe@1.0.0
+phases:
+  propose:
+    guides: [prd-writing]
+  design:
+    guides: [prototype-wireframe]

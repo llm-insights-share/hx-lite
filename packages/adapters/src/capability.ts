@@ -45,6 +45,14 @@ export const TARGETS: Record<string, TargetSpec> = {
     name: "Claude Code",
     capabilities: { commands: true, skills: true, rules: true, hooks: true, agents: true, mcp: true, permissions: true }
   },
+  codex: {
+    name: "Codex CLI",
+    capabilities: { commands: true, skills: false, rules: true, hooks: false, agents: false, mcp: false, permissions: false }
+  },
+  opencode: {
+    name: "OpenCode",
+    capabilities: { commands: true, skills: false, rules: true, hooks: false, agents: false, mcp: false, permissions: false }
+  },
   generic: {
     name: "Generic (AGENTS.md)",
     capabilities: { commands: false, skills: false, rules: true, hooks: false, agents: false, mcp: false, permissions: false }

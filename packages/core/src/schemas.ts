@@ -68,8 +68,9 @@ export const SENSOR_KINDS = [
 ] as const;
 
 export const ORCH_KINDS = ["orch.profile", "orch.waiver", "orch.pattern"] as const;
+export const HUB_KINDS = ["harness.bundle", "harness.blueprint"] as const;
 
-export const AssetKind = z.enum([...GUIDE_KINDS, ...SENSOR_KINDS, ...ORCH_KINDS]);
+export const AssetKind = z.enum([...GUIDE_KINDS, ...SENSOR_KINDS, ...ORCH_KINDS, ...HUB_KINDS]);
 export type AssetKind = z.infer<typeof AssetKind>;
 
 export const Execution = z.enum(["computational", "inferential"]);
@@ -143,9 +144,36 @@ export const ConfigYaml = z.object({
   profile: z.string().default("standard"),
   locale: z.enum(["en", "zh-CN"]).default("en"),
   compat_mode: z.enum(["openspec"]).optional(),
-  hub: z.string().optional()
+  hub: z.string().optional(),
+  adapter: z
+    .object({
+      target: z.string().optional(),
+      tier: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional()
+    })
+    .optional(),
+  compensation: z
+    .object({
+      enabled: z.boolean().default(true),
+      extra_verify_sensors: z.array(z.string()).optional(),
+      escalate_warn_to_block: z.boolean().optional()
+    })
+    .optional()
 });
 export type ConfigYaml = z.infer<typeof ConfigYaml>;
+
+/** Delivery blueprint — composes profile, phase assets, and hub dependencies. */
+export const BlueprintPhaseDef = z.object({
+  guides: z.array(z.string()).optional(),
+  sensors: z.array(z.string()).optional()
+});
+
+export const BlueprintYaml = z.object({
+  name: z.string(),
+  extends: z.string().optional(),
+  hub_deps: z.array(z.string()).default([]),
+  phases: z.record(BlueprintPhaseDef).optional()
+});
+export type BlueprintYaml = z.infer<typeof BlueprintYaml>;
 
 /* ── meta.yaml: phase state, approvals, waivers, gate history — CLI-exclusive writes (FR-050) ── */
 

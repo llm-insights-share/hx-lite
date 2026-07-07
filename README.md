@@ -79,6 +79,9 @@ node bin/hx.js init --bundle api-service   # scaffold harnessX/ in your repo
 node bin/hx.js init --locale hx-cn --bundle api-service-cn   # Chinese scaffold (hx-cn)
 node bin/hx.js bundle list                 # api-service | frontend-2c | library-sdk | ...
 node bin/hx.js hub seed ./harness-hub       # golden Hub packages (api-conventions, common-review-rubrics)
+node bin/hx.js hub sync --hub ./harness-hub --apply   # three-way merge upstream updates
+node bin/hx.js init --from-hub api-service@1.0.0 --hub ./harness-hub   # init from hub bundle
+node bin/hx.js steer publish ./harnessX/assets/guides/my-skill --hub ./harness-hub --by alice
 node bin/hx.js change create add-auth --domains auth
 node bin/hx.js propose add-auth --title "Session expiry"
 node bin/hx.js gate advance add-auth       # gates advance only when sensors pass
