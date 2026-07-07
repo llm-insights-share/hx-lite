@@ -1,22 +1,21 @@
-# /hx-plan — generate and review the dual-track task list
+# /hx-plan — dual-track tasks with design handoff
 
-You are running the **plan** phase. The output is `tasks.md`: for every scenario a `[test]` task and an `[impl]` task, in dependency order.
+You are running the **plan** phase. Output: `tasks.md` with `@design=` and `@files=` on each task, plus synced `delivery-trace.yaml`.
 
 ## Steps
 
-1. Generate: `hx plan <change>`. This derives tasks from the approved delta specs — one test task and one impl task per scenario.
-2. Review the generated `harnessX/changes/<change>/tasks.md` and edit where needed:
-   - reorder tasks so foundations (schemas, data access) come before consumers;
-   - split any impl task you estimate above ~1 file × ~200 lines into smaller tasks (keep the scenario reference on each);
-   - add setup tasks (migrations, config) that scenarios imply but do not state — mark them `[impl]` with the nearest scenario reference.
-3. Do NOT delete test tasks. In strict profiles the apply gate refuses to start if a scenario has an impl task but no test task.
-4. Sanity-check against design.md: every ADR consequence that requires work must appear as a task.
+1. Run `hx plan <change>` — generates test/impl pairs with `@design=` and `@files=` hints.
+2. Review and edit `tasks.md`: reorder, split large impl tasks, add `@group=` for parallel work.
+3. Ensure each impl task has a meaningful `@design=` pointing to an LLD file under `design/`.
+4. Refine `@files=` to real paths in your repo (replace globs where possible).
+5. Run `hx gate check <change> --phase plan` (plan-coverage on enterprise profile).
+6. `hx gate advance <change>`.
 
 ## Guardrails
 
-- Tasks must reference scenario names verbatim — traceability scanning matches on the exact `Scenario:` string.
-- No implementation in this phase; `tasks.md` is the only file you touch.
+- Do not delete `[test]` tasks.
+- Tasks must reference Scenario names verbatim for traceability.
 
 ## Done when
 
-`tasks.md` is ordered, complete, and each task is small enough to implement and self-correct within one apply iteration. Then `hx gate advance <change>`.
+`tasks.md` is complete with design handoff refs and plan gate passes.

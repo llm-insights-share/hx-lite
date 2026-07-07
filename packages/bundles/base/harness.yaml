@@ -18,14 +18,52 @@ profiles:
       spec: fast
       apply: fast
       verify: verification-strict
+  enterprise:
+    phases: [explore, propose, design, spec, plan, apply, verify, archive]
+    suites:
+      propose: propose-enterprise
+      design: design-enterprise
+      spec: fast
+      plan: plan-enterprise
+      apply: fast
+      verify: verification-enterprise
 
 suites:
   fast-lite: [spec-validate]
   fast: [spec-validate, typecheck, lint, unit-changed]
   verification: [spec-validate, spec-trace]
   verification-strict: [spec-validate, spec-trace, unit-changed, mutation-probe, ai-spec-review]
+  propose-enterprise: [requirements-complete, spec-validate, typecheck, lint, unit-changed]
+  design-enterprise: [design-hld-complete, design-lld-complete, design-spec-align]
+  plan-enterprise: [plan-coverage]
+  verification-enterprise: [spec-validate, spec-trace, design-drift, unit-changed, mutation-probe, ai-spec-review]
 
 guides:
+  - id: requirements-template
+    kind: guide.template
+    execution: computational
+    phase: [propose]
+    source: assets/guides/requirements-template/template.md
+  - id: ui-pages-template
+    kind: guide.template
+    execution: computational
+    phase: [design]
+    source: assets/guides/ui-pages-template/template.md
+  - id: prd-writing
+    kind: guide.skill
+    execution: inferential
+    phase: [propose, spec]
+    source: assets/guides/prd-writing/SKILL.md
+  - id: fe-layout
+    kind: guide.skill
+    execution: inferential
+    phase: [design, apply]
+    source: assets/guides/fe-layout/SKILL.md
+  - id: design-tokens
+    kind: guide.skill
+    execution: inferential
+    phase: [design, apply]
+    source: assets/guides/design-tokens/SKILL.md
   - id: proposal-template
     kind: guide.template
     execution: computational
@@ -143,3 +181,45 @@ sensors:
     builtin: mutation-probe
     on_fail: block
     fix_hint: "Strengthen scenario tests — avoid stubs and tautological assertions"
+  - id: requirements-complete
+    kind: sensor.script
+    execution: computational
+    phase: [propose]
+    builtin: requirements-complete
+    on_fail: block
+    fix_hint: "Fill requirements/ artifacts and link PRD in proposal.md"
+  - id: design-hld-complete
+    kind: sensor.script
+    execution: computational
+    phase: [design]
+    builtin: design-hld-complete
+    on_fail: block
+    fix_hint: "Complete design/overview.md HLD sections (API, ADR, Observability, Rollback)"
+  - id: design-lld-complete
+    kind: sensor.script
+    execution: computational
+    phase: [design]
+    builtin: design-lld-complete
+    on_fail: warn
+    fix_hint: "Add design/ui/pages.md and per-page LLD under design/ui/components/"
+  - id: design-spec-align
+    kind: sensor.script
+    execution: computational
+    phase: [design, spec]
+    builtin: design-spec-align
+    on_fail: warn
+    fix_hint: "Ensure API paths in design appear in delta specs"
+  - id: plan-coverage
+    kind: sensor.script
+    execution: computational
+    phase: [plan]
+    builtin: plan-coverage
+    on_fail: warn
+    fix_hint: "Run hx plan to generate @design= and delivery-trace.yaml handoff"
+  - id: design-drift
+    kind: sensor.script
+    execution: computational
+    phase: [verify]
+    builtin: design-drift
+    on_fail: warn
+    fix_hint: "Implement files listed in delivery-trace code_hints or update the trace"

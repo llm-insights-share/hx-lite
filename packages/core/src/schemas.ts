@@ -231,6 +231,25 @@ export const TraceabilityYaml = z.object({
 });
 export type TraceabilityYaml = z.infer<typeof TraceabilityYaml>;
 
+/* ── delivery-trace.yaml: PRD AC → requirement → design → tasks → code ── */
+
+export const DeliveryTraceEntry = z.object({
+  prd_ref: z.string().optional(),
+  requirement: z.string().optional(),
+  design_refs: z.array(z.string()).default([]),
+  scenarios: z.array(z.string()).default([]),
+  tasks: z.array(z.string()).default([]),
+  code_hints: z.array(z.string()).default([])
+});
+export type DeliveryTraceEntry = z.infer<typeof DeliveryTraceEntry>;
+
+export const DeliveryTraceYaml = z.object({
+  version: z.literal(1).default(1),
+  acceptance_criteria: z.record(DeliveryTraceEntry).default({}),
+  requirements: z.record(DeliveryTraceEntry).default({})
+});
+export type DeliveryTraceYaml = z.infer<typeof DeliveryTraceYaml>;
+
 /* ── harness.lock (§11.2 / NFR-009): exact versions + content hashes ── */
 
 export const HarnessLock = z.object({

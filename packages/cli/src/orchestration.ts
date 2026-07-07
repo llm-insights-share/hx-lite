@@ -18,6 +18,7 @@ import {
   collectWatchSnapshot,
   applyLoop,
   gitChangedFiles,
+  writeTaskPack,
   type RunnerOptions
 } from "@harnessx/core";
 import { builtinSensors } from "@harnessx/sensors";
@@ -25,12 +26,20 @@ import { builtinSensors } from "@harnessx/sensors";
 const ws = () => Workspace.locate(process.cwd());
 const runnerOpts = (w: Workspace): RunnerOptions => ({ builtins: builtinSensors, changedFiles: gitChangedFiles(w.root) });
 
-function makeExecutor(runner?: string, w?: Workspace) {
+function makeExecutor(runner?: string, w?: Workspace, change?: string) {
   const root = w ?? ws();
   return ({ task, attempt, fixHints }: { task: { id: string; track: string; title: string; requirement: string }; attempt: number; fixHints: string[] }) => {
     if (!runner) {
       console.log(`task ${task.id} [${task.track}] ${task.title} (attempt ${attempt}) — no --runner given`);
       return;
+    }
+    let taskPack = "";
+    if (change) {
+      try {
+        taskPack = writeTaskPack(root, change, task.id).file;
+      } catch {
+        /* task pack optional */
+      }
     }
     const env = {
       ...process.env,
@@ -38,7 +47,8 @@ function makeExecutor(runner?: string, w?: Workspace) {
       HX_TASK_TRACK: task.track,
       HX_TASK_TITLE: task.title,
       HX_TASK_REQUIREMENT: task.requirement,
-      HX_FIX_HINTS: fixHints.join("\n")
+      HX_FIX_HINTS: fixHints.join("\n"),
+      HX_TASK_PACK: taskPack
     };
     const r = spawnSync(runner, { shell: true, cwd: root.root, stdio: "inherit", env });
     if (r.status !== 0) throw new Error(`runner exited ${r.status}`);
@@ -139,7 +149,7 @@ export async function runApplyCommand(
   opts: { runner?: string; maxRetries: string; limit?: string; parallel?: string; fanOut?: string }
 ): Promise<void> {
   const w = ws();
-  const executor = makeExecutor(opts.runner, w);
+  const executor = makeExecutor(opts.runner, w, change);
   const runner = runnerOpts(w);
 
   if (opts.fanOut) {

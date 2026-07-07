@@ -309,8 +309,8 @@ describe("T-605..T-608 target emitters", () => {
       expect(propose).toContain("hx gate check");
       expect(propose).toContain("Guardrails");
       const apply = fs.readFileSync(path.join(ws.root, dir, "hx-apply.md"), "utf8");
-      expect(apply).toContain("hx guide pack");
-      expect(apply).toContain("Never weaken a test");
+      expect(apply).toMatch(/hx guide (task-pack|pack)/);
+      expect(apply).toMatch(/never weaken tests/i);
     }
 
     // the spec-writing skill ships to tools alongside commands

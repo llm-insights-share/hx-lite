@@ -38,3 +38,19 @@
 ## Rollback Plan
 
 <!-- Feature flags, migration rollback, data repair steps -->
+
+## UI Layout & Information Architecture
+
+<!-- See design/ui/pages.md for page inventory; fe-layout Skill for shells -->
+
+| Page | Route | Layout shell | Notes |
+|------|-------|--------------|-------|
+| | | | |
+
+## Design Tokens
+
+<!-- Token changes for this change; see design-tokens Skill and packages/design-tokens -->
+
+| Token | Value / role | Usage in this change |
+|-------|--------------|----------------------|
+| | | |

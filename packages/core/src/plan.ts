@@ -2,11 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { Workspace } from "./paths.js";
 import { listDeltaFiles, parseDelta } from "./artifactStore.js";
+import { inferCodeHints } from "./designLayout.js";
+import { syncDeliveryTraceFromTasks } from "./deliveryTrace.js";
 
 /**
  * T-203 (FR-006): generates tasks.md from delta specs as a dual-track list —
  * a test task and an implementation task per requirement, each annotated with
- * the requirement it covers. Requirements lacking a test task need a waiver.
+ * the requirement it covers. Enterprise handoff adds @design= and @files= refs.
  */
 
 export interface Task {
@@ -20,6 +22,31 @@ export interface Task {
   parallelGroup?: string;
   /** v0.2: task ids that must complete before this one starts. */
   dependsOn?: string[];
+  /** LLD file relative to change dir for apply handoff. */
+  designRef?: string;
+  /** Comma-separated target file paths for apply handoff. */
+  filesHint?: string;
+}
+
+function pickDesignRef(ws: Workspace, change: string, capability: string, requirement: string): string | undefined {
+  const designDir = ws.designDir(change);
+  if (!fs.existsSync(designDir)) return undefined;
+  const slug = requirement
+    .toLowerCase()
+    .replace(/requirement:\s*/i, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  const candidates = [
+    path.join("design", "ui", "components", `${slug}.md`),
+    path.join("design", "api", `${slug}.yaml`),
+    path.join("design", "data", `${slug}.sql`)
+  ];
+  for (const rel of candidates) {
+    if (fs.existsSync(path.join(ws.changeDir(change), rel))) return rel;
+  }
+  if (fs.existsSync(ws.designOverviewFile(change))) return "design/overview.md";
+  if (fs.existsSync(ws.designFile(change))) return "design.md";
+  return undefined;
 }
 
 export function generateTasks(ws: Workspace, change: string): { file: string; tasks: Task[] } {
@@ -31,13 +58,18 @@ export function generateTasks(ws: Workspace, change: string): { file: string; ta
       if (section.op === "REMOVED") continue;
       for (const req of section.requirements) {
         const base = String(n).padStart(2, "0");
+        const designRef = pickDesignRef(ws, change, capability, req.name);
+        const testHints = inferCodeHints(ws, capability, req.name, "test").join(",");
+        const implHints = inferCodeHints(ws, capability, req.name, "impl").join(",");
         tasks.push({
           id: `${base}a`,
           track: "test",
           requirement: req.name,
           capability,
           title: `Write failing test(s) for scenarios of "${req.name}"`,
-          done: false
+          done: false,
+          designRef,
+          filesHint: testHints
         });
         tasks.push({
           id: `${base}b`,
@@ -45,15 +77,19 @@ export function generateTasks(ws: Workspace, change: string): { file: string; ta
           requirement: req.name,
           capability,
           title: `Implement "${req.name}" until its tests pass`,
-          done: false
+          done: false,
+          designRef,
+          filesHint: implHints,
+          dependsOn: [`${base}a`]
         });
         n++;
       }
     }
   }
-  const file = path.join(ws.changeDir(change), "tasks.md");
-  fs.writeFileSync(file, serializeTasks(change, tasks), "utf8");
-  return { file, tasks };
+  const out = path.join(ws.changeDir(change), "tasks.md");
+  fs.writeFileSync(out, serializeTasks(change, tasks), "utf8");
+  syncDeliveryTraceFromTasks(ws, change, tasks);
+  return { file: out, tasks };
 }
 
 export function serializeTasks(change: string, tasks: Task[]): string {
@@ -61,11 +97,14 @@ export function serializeTasks(change: string, tasks: Task[]): string {
     `# Tasks: ${change}`,
     "",
     "> Dual-track plan (FR-006): every requirement has a test task (a) and an impl task (b).",
+    "> Handoff: @design= LLD path, @files= target paths. Run `hx guide task-pack <change> <taskId>` during apply.",
     "> A requirement without a test task requires a waiver (`hx waiver add`).",
     ""
   ];
   for (const t of tasks) {
     let line = `- [${t.done ? "x" : " "}] ${t.id} [${t.track}] (${t.capability} / Requirement: ${t.requirement}) ${t.title}`;
+    if (t.designRef) line += ` @design=${t.designRef}`;
+    if (t.filesHint) line += ` @files=${t.filesHint}`;
     if (t.parallelGroup) line += ` @group=${t.parallelGroup}`;
     if (t.dependsOn?.length) line += ` @depends=${t.dependsOn.join(",")}`;
     lines.push(line);
@@ -74,7 +113,7 @@ export function serializeTasks(change: string, tasks: Task[]): string {
 }
 
 const TASK_RE =
-  /^- \[( |x)\] (\S+) \[(test|impl)\] \(([^/]+) \/ Requirement: (.+?)\) (.+?)(?: @group=(\S+))?(?: @depends=([\d\w,]+))?$/;
+  /^- \[( |x)\] (\S+) \[(test|impl)\] \(([^/]+) \/ Requirement: (.+?)\) (.+?)(?: @design=([^\s]+))?(?: @files=([^\s]+))?(?: @group=(\S+))?(?: @depends=([\d\w,]+))?$/;
 
 export function parseTasks(md: string): Task[] {
   const tasks: Task[] = [];
@@ -88,8 +127,10 @@ export function parseTasks(md: string): Task[] {
         capability: m[4].trim(),
         requirement: m[5].trim(),
         title: m[6].trim(),
-        parallelGroup: m[7],
-        dependsOn: m[8] ? m[8].split(",").map((s) => s.trim()).filter(Boolean) : undefined
+        designRef: m[7],
+        filesHint: m[8],
+        parallelGroup: m[9],
+        dependsOn: m[10] ? m[10].split(",").map((s) => s.trim()).filter(Boolean) : undefined
       });
   }
   return tasks;
@@ -127,4 +168,8 @@ export function missingTestTasks(tasks: Task[]): string[] {
   const reqs = new Set(tasks.filter((t) => t.track === "impl").map((t) => `${t.capability}/${t.requirement}`));
   const tested = new Set(tasks.filter((t) => t.track === "test").map((t) => `${t.capability}/${t.requirement}`));
   return [...reqs].filter((r) => !tested.has(r));
+}
+
+export function findTask(ws: Workspace, change: string, taskId: string): Task | undefined {
+  return readTasks(ws, change).find((t) => t.id === taskId);
 }

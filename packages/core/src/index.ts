@@ -10,6 +10,8 @@ export * from "./archive.js";
 export * from "./sensorRunner.js";
 export * from "./gate.js";
 export * from "./guideEngine.js";
+export * from "./designLayout.js";
+export * from "./deliveryTrace.js";
 export * from "./plan.js";
 export * from "./applyLoop.js";
 export * from "./traceability.js";

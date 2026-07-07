@@ -158,6 +158,7 @@ hx archive add-refund        # 合并 delta 至主规格并归档
 | `hx gate advance <id>` | 推进至下一阶段（须全绿 + 前置条件） |
 | `hx gate approve <id> --gate spec --approver <name>` | 记录人工规格批准 |
 | `hx guide pack <id> --phase <p>` | 组装该阶段 Context Pack |
+| `hx guide task-pack <id> <taskId>` | 组装单任务交接包（apply 用；`HX_TASK_PACK`） |
 | `hx harness lint` | 检测宪法与 Skill 冲突 |
 | `hx bundle list` | 列出拓扑包（`api-service`、`frontend-dashboard`、`frontend-2c`、`library-sdk`、`serverless-function`、`mobile-app`、`data-pipeline` 及 `*-cn`） |
 | `hx bundle add <id>` | 初始化后追加拓扑包 |
@@ -177,7 +178,7 @@ hx archive add-refund        # 合并 delta 至主规格并归档
 
 ## 7. 进一步阅读
 
-- [使用场景示例（14 个）](examples/README.md)
+- [使用场景示例（15 个）](examples/README.md)
 - [系统设计文档](harness-delivery-system-design.html)
 - [构建计划与状态](build-plan.csv)
 - 仓库根目录 [README.md](../README.md)

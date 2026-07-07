@@ -1,0 +1,8 @@
+id: requirements-template
+kind: guide.template
+category: behaviour
+phase: [propose]
+version: 1.0.0
+origin: builtin
+status: enforced
+execution: computational
