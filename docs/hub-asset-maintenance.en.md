@@ -29,6 +29,7 @@ hub:
 - **maintainer**: `hx hub promote`, `hx hub contributions accept`, `hx hub push`
 
 Hub repo `hub-policy.yaml` lists maintainers and `installRequiresApproval`. See [Scenario 21 (zh)](examples/21-hub-双角色与贡献审核.md).
+For ops-focused workflows, use the dedicated `hxhub` CLI (coexists with `hx hub`).
 
 **Existing remote Hub — ops project init (Plan A)**: see [Chinese guide §9.2](hub-asset-maintenance.zh-CN.md#92-已有远程-hub运维项目初始化方案-a推荐).
 

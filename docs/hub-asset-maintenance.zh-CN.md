@@ -2,7 +2,7 @@
 
 **适用角色**：总架构师、平台组 Hub 维护者、资产作者、业务仓库负责人  
 **版本**：HarnessX v0.4+  
-**关联场景**：[08 Hub 资产共享与供应链](examples/08-hub-资产共享与供应链.md) · [16 Hub 蓝图初始化](examples/16-v0.3-hub-blueprint-init.md) · [17 平台治理与仪表盘](examples/17-v0.4-平台治理与仪表盘.md) · [21 Hub 双角色与贡献审核](examples/21-hub-双角色与贡献审核.md)
+**关联场景**：[08 Hub 资产共享与供应链](examples/08-hub-资产共享与供应链.md) · [16 Hub 蓝图初始化](examples/16-v0.3-hub-blueprint-init.md) · [17 平台治理与仪表盘](examples/17-v0.4-平台治理与仪表盘.md) · [21 Hub 双角色与贡献审核](examples/21-hub-双角色与贡献审核.md) · [hxhub 使用手册](hxhub-usage.zh-CN.md)
 
 ---
 
@@ -45,7 +45,8 @@ hub:
 | `consumer` | 检索、安装、同步；`hx hub submit` 提交到 `contributions/` |
 | `maintainer` | 正式发布 `hx hub promote`、审核 `hx hub contributions accept`、策略检查、`hx hub push` |
 
-配置 `hub` 后，多数 `hx hub *` 命令**无需再传 `--hub`**。Hub 仓库根目录的 `hub-policy.yaml` 定义维护者白名单与 `installRequiresApproval` 等策略。
+配置 `hub` 后，多数 `hx hub *` 命令**无需再传 `--hub`**。Hub 仓库根目录的 `hub-policy.yaml` 定义维护者白名单与 `installRequiresApproval` 等策略。  
+运维场景推荐使用独立 CLI **`hxhub`**（与 `hx hub` 并存）。
 
 **已有远程 Hub 时**，运维项目初始化见 [§9.2 已有远程 Hub：运维项目初始化](#92-已有远程-hub运维项目初始化方案-a推荐)。
 
