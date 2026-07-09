@@ -1,0 +1,61 @@
+import { describe, it, expect } from "vitest";
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const hxhubBin = path.join(repoRoot, "bin", "hxhub.js");
+
+function makeRepo(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hxhub-e2e-"));
+  execFileSync("git", ["init", "-q"], { cwd: dir });
+  return dir;
+}
+
+function hxhub(cwd: string, args: string[], opts: { expectFail?: boolean } = {}): string {
+  try {
+    return execFileSync("node", [hxhubBin, ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (e) {
+    const err = e as { status?: number; stdout?: string; stderr?: string };
+    if (opts.expectFail) return `${err.stdout ?? ""}${err.stderr ?? ""}`;
+    throw new Error(`hxhub ${args.join(" ")} failed (${err.status}):\n${err.stdout}\n${err.stderr}`);
+  }
+}
+
+describe("hxhub e2e", () => {
+  it("initializes lightweight ops workspace and doctor works", () => {
+    const repo = makeRepo();
+    const out = hxhub(repo, ["init", ".", "--hub", "./hub", "--actor", "ops"]);
+    expect(out).toContain("initialized");
+    expect(fs.existsSync(path.join(repo, "harnessX/config.yaml"))).toBe(true);
+    expect(fs.existsSync(path.join(repo, "harnessX/roles.yaml"))).toBe(true);
+    expect(fs.existsSync(path.join(repo, "harnessX/harness.yaml"))).toBe(false);
+  });
+
+  it("creates asset scaffold and prints AI help", () => {
+    const repo = makeRepo();
+    hxhub(repo, ["init", ".", "--hub", "./hub", "--actor", "ops"]);
+    const created = hxhub(repo, [
+      "asset",
+      "create",
+      "--kind",
+      "guide.skill",
+      "--id",
+      "clock-safety",
+      "--asset-version",
+      "1.0.0",
+      "--status",
+      "draft",
+      "--out",
+      "./assets/clock-safety"
+    ]);
+    expect(created).toContain("created");
+    expect(fs.existsSync(path.join(repo, "assets/clock-safety/asset.yaml"))).toBe(true);
+    expect(fs.existsSync(path.join(repo, "assets/clock-safety/SKILL.md"))).toBe(true);
+
+    const help = hxhub(repo, ["help", "general", "--json"]);
+    expect(help).toContain("suggestions");
+  });
+});

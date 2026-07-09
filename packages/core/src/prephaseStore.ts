@@ -14,7 +14,7 @@ export function readPrephaseApprovals(ws: Workspace): PrephaseApprovals {
   if (!fs.existsSync(file)) {
     return PrephaseApprovals.parse({ version: "1.1", prd: {}, arch: undefined, archLld: {} });
   }
-  const raw = readYaml(file);
+  const raw = readYaml<Record<string, unknown>>(file) as Record<string, unknown> & { archLld?: unknown };
   if (!raw.archLld) raw.archLld = {};
   return PrephaseApprovals.parse(raw);
 }
