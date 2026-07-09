@@ -5,6 +5,10 @@ process — requirements → design → coding → testing — with spec-driven 
 feedforward **Guides**, feedback **Sensors**, fail-closed **Gates**, and a **Steering loop**
 that continuously improves the harness itself.
 
+**v0.3** completes organization **Pre-phase** (M18–M20): `/hx-prd`, `/hx-arch`, `/hx-arch-lld`, `hx approve prd|arch`,
+Context Pack org injection, `hx arch promote` (structured design → module LLD), `arch-drift` / archive gates,
+and synced operation/usage guides with **19** scenario walkthroughs ([19](docs/examples/19-组织级PRD与架构设计.md) → [15](docs/examples/15-企业级需求到交付交接.md)).
+Also includes v0.3 layered upgrade: `imports:` minimal harness, Hub `sync --apply`, blueprint init, gate compensation.
 **v0.2** adds orchestration: parallel apply (`--parallel`), best-of-N worktree fan-out (`--fan-out`),
 diff review annotations → fix hints, guide behavior evals, GitHub issue scaffolding, and `hx notify`.
 **Enterprise delivery** adds `requirements/` analysis artifacts, `design/` HLD+LLD packages,
