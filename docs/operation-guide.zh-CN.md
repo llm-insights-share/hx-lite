@@ -560,6 +560,8 @@ hx meta verify --all
 
 当你把 Hub 作为组织级资产仓时，建议使用以下命令完成生命周期、评审、策略与完整性治理。
 
+**专项手册**（资产清单 + 各类维护样例）：[Hub 资产维护手册](hub-asset-maintenance.zh-CN.md) · [English](hub-asset-maintenance.en.md)
+
 #### `hx hub sync`
 
 ```bash

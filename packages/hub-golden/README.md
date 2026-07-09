@@ -11,6 +11,8 @@ Built-in example packages for `hx hub seed`. Teams can publish this directory as
 | `prd-writing@1.0.0` | guide.skill | PRD → Harness distillation |
 | `requirements-research-outline@1.0.0` | guide.skill | Explore-phase research outline |
 | `prototype-wireframe@1.0.0` | guide.skill | Low-fidelity wireframe guidance |
+| `prd-authoring@1.0.0` | guide.skill | Org PRD authoring (Pre-phase) |
+| `arch-authoring@1.0.0` | guide.skill | Global HLD authoring |
 | `uat-checklist@1.0.0` | guide.template | User acceptance testing sign-off |
 
 ## Bundles (`bundles/`)
@@ -26,5 +28,8 @@ Built-in example packages for `hx hub seed`. Teams can publish this directory as
 | Blueprint | Purpose |
 |-----------|---------|
 | `enterprise-delivery@1.0.0` | Full enterprise path with hub deps |
+| `enterprise-sdlc@1.0.0` | Enterprise SDLC profile + work orders |
 
 Packages ship with `.review` status `approved` so they are consumable immediately after seeding.
+
+**Maintenance guide**: [docs/hub-asset-maintenance.zh-CN.md](../../docs/hub-asset-maintenance.zh-CN.md) (中文) · [docs/hub-asset-maintenance.en.md](../../docs/hub-asset-maintenance.en.md) (English)
