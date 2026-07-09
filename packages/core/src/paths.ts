@@ -90,6 +90,31 @@ export class Workspace {
     return path.join(this.changeDir(id), "traces", "delivery-trace.yaml");
   }
 
+  /** Organization-level PRD artifacts (pre-phase). */
+  prdDir() {
+    return path.join(this.root, "docs", "prd");
+  }
+  prdFile(slug: string) {
+    return path.join(this.prdDir(), `${slug}.md`);
+  }
+
+  /** Organization-level architecture artifacts (pre-phase). */
+  archDir() {
+    return path.join(this.root, "docs", "architecture");
+  }
+  archOverviewFile() {
+    return path.join(this.archDir(), "overview.md");
+  }
+  archRegistryFile() {
+    return path.join(this.archDir(), "registry.yaml");
+  }
+  archModuleDir(moduleId: string) {
+    return path.join(this.archDir(), "modules", moduleId);
+  }
+  archModuleLld(moduleId: string) {
+    return path.join(this.archModuleDir(moduleId), "lld.md");
+  }
+
   readConfig(): ConfigYaml {
     return ConfigYaml.parse(YAML.parse(fs.readFileSync(this.configFile, "utf8")) ?? {});
   }

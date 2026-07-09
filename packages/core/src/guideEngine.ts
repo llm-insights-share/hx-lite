@@ -28,6 +28,9 @@ const PHASE_ARTIFACTS: Record<string, string[]> = {
 
 const PHASE_PERMISSIONS: Record<string, string> = {
   explore: "READ-ONLY. You may read any file; you must not modify code or specs.",
+  prd: "You may edit docs/prd/** only. Do not create change artifacts or code.",
+  arch: "You may edit docs/architecture/overview.md, registry.yaml, and adr/**. No change artifacts or code.",
+  "arch-lld": "You may edit docs/architecture/modules/<module>/** for the target module only.",
   propose: "You may edit changes/<id>/proposal.md, requirements/**, and changes/<id>/specs/**.",
   design: "You may edit changes/<id>/design/**, design.md, and changes/<id>/specs/**.",
   spec: "You may edit only changes/<id>/specs/**.",
@@ -198,6 +201,68 @@ export function renderContextPack(pack: ContextPack): string {
     parts.push("", `## ${s.title}`, `<!-- source: ${s.source} -->`, s.content.trim());
   }
   return parts.join("\n") + "\n";
+}
+
+function guidesForPhase(ws: Workspace, phaseCmd: string): GuideDef[] {
+  const harness = ws.readHarness();
+  return harness.guides
+    .filter((g) => g.phase.length === 0 || g.phase.includes(phaseCmd))
+    .sort((a: GuideDef, b: GuideDef) => (b.priority ?? 0) - (a.priority ?? 0));
+}
+
+function pushGuides(ws: Workspace, phaseCmd: string, sections: ContextPack["sections"]) {
+  for (const g of guidesForPhase(ws, phaseCmd)) {
+    pushArtifact(sections, `Guide: ${g.id} (${g.kind})`, path.join(ws.base, g.source));
+  }
+}
+
+/** Pre-phase context pack for organization PRD authoring. */
+export function buildPrdPack(ws: Workspace, slug: string): ContextPack {
+  const t0 = Date.now();
+  const sections: ContextPack["sections"] = [];
+  pushArtifact(sections, "Constitution (highest priority)", ws.constitutionFile);
+  pushGuides(ws, "prd", sections);
+  pushArtifact(sections, "PRD document", ws.prdFile(slug));
+  return {
+    phase: "prd",
+    change: slug,
+    persona: `You are the PRD authoring agent for "${slug}".`,
+    permissions: PHASE_PERMISSIONS.prd,
+    sections,
+    assembledInMs: Date.now() - t0
+  };
+}
+
+/** Pre-phase context pack for global HLD or a specific module LLD. */
+export function buildArchPack(ws: Workspace, moduleId?: string): ContextPack {
+  const t0 = Date.now();
+  const sections: ContextPack["sections"] = [];
+  pushArtifact(sections, "Constitution (highest priority)", ws.constitutionFile);
+  if (moduleId) {
+    pushGuides(ws, "arch-lld", sections);
+    pushArtifact(sections, "Global HLD", ws.archOverviewFile());
+    pushArtifact(sections, "Module registry", ws.archRegistryFile());
+    pushArtifact(sections, `Module LLD: ${moduleId}`, ws.archModuleLld(moduleId));
+    return {
+      phase: "arch-lld",
+      change: moduleId,
+      persona: `You are the module LLD agent for "${moduleId}".`,
+      permissions: PHASE_PERMISSIONS["arch-lld"],
+      sections,
+      assembledInMs: Date.now() - t0
+    };
+  }
+  pushGuides(ws, "arch", sections);
+  pushArtifact(sections, "Global HLD", ws.archOverviewFile());
+  pushArtifact(sections, "Module registry", ws.archRegistryFile());
+  return {
+    phase: "arch",
+    change: "-",
+    persona: "You are the global architecture (HLD) agent.",
+    permissions: PHASE_PERMISSIONS.arch,
+    sections,
+    assembledInMs: Date.now() - t0
+  };
 }
 
 export function writeTaskPack(ws: Workspace, change: string, taskId: string): { file: string; pack: ContextPack } {

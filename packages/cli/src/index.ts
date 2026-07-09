@@ -7,6 +7,8 @@ import { registerSteeringCommands } from "./steering.js";
 import { registerAssetCommands } from "./assets.js";
 import { registerOrchestrationCommands } from "./orchestration.js";
 import { registerMcpCommand } from "./mcp.js";
+import { registerPrdCommands } from "./prd.js";
+import { registerArchCommands } from "./arch.js";
 import { VERSION } from "@harnessx/core";
 
 export const program = new Command("hx")
@@ -19,6 +21,8 @@ registerBehaviourCommands(program);
 registerSteeringCommands(program);
 registerAssetCommands(program);
 registerOrchestrationCommands(program);
+registerPrdCommands(program);
+registerArchCommands(program);
 registerMcpCommand(program);
 
 program.parseAsync(process.argv).catch((e) => {

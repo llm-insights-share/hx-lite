@@ -21,6 +21,8 @@ import {
   type RunnerOptions
 } from "@harnessx/core";
 import { builtinSensors } from "@harnessx/sensors";
+import { registerPrdGuidePack } from "./prd.js";
+import { registerArchGuidePack } from "./arch.js";
 
 const ws = () => Workspace.locate(process.cwd());
 const runnerOpts = (w: Workspace): RunnerOptions => ({
@@ -128,6 +130,9 @@ export function registerGateCommands(program: Command): void {
       }
       console.log(`wrote ${dest} (${res.pack.sections.length} sections, ${res.pack.assembledInMs}ms)`);
     });
+
+  registerPrdGuidePack(guide);
+  registerArchGuidePack(guide);
 
   program
     .command("plan <change>")

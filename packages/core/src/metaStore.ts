@@ -63,12 +63,20 @@ export function verifyMeta(ws: Workspace, change: string): MetaVerifyResult {
   return { ok: problems.length === 0, problems };
 }
 
-export function initMeta(ws: Workspace, change: string, profile: string, domains: string[]): MetaYaml {
+export function initMeta(
+  ws: Workspace,
+  change: string,
+  profile: string,
+  domains: string[],
+  opts?: { prdRef?: string; archModules?: string[] }
+): MetaYaml {
   const meta = MetaYaml.parse({
     change,
     status: "proposed",
     profile,
-    touchedDomains: domains
+    touchedDomains: domains,
+    ...(opts?.prdRef ? { prdRef: opts.prdRef } : {}),
+    ...(opts?.archModules?.length ? { archModules: opts.archModules } : {})
   });
   ensureDir(ws.changeDir(change));
   writeMeta(ws, meta);

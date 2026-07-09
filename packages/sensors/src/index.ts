@@ -16,8 +16,18 @@ import {
 } from "./delivery.js";
 import { prototypeComplete, uatComplete } from "./prototypeUat.js";
 import { driftSensor, integrationSmoke } from "./drift.js";
+import { prdComplete } from "./prd.js";
+import {
+  archHldComplete,
+  archRegistryComplete,
+  archLldComplete,
+  archModuleBoundary,
+  archChangeAlign
+} from "./arch.js";
 
 export * from "./delivery.js";
+export * from "./prd.js";
+export { archHldComplete, archRegistryComplete, archLldComplete, archModuleBoundary, archChangeAlign } from "./arch.js";
 export { prototypeComplete, uatComplete } from "./prototypeUat.js";
 export { driftSensor, integrationSmoke } from "./drift.js";
 
@@ -61,7 +71,13 @@ export const builtinSensors: Record<string, BuiltinSensor> = {
   "prototype-complete": prototypeComplete,
   "uat-complete": uatComplete,
   drift: driftSensor,
-  "integration-smoke": integrationSmoke
+  "integration-smoke": integrationSmoke,
+  "prd-complete": prdComplete,
+  "arch-hld-complete": archHldComplete,
+  "arch-registry-complete": archRegistryComplete,
+  "arch-lld-complete": archLldComplete,
+  "arch-module-boundary": archModuleBoundary,
+  "arch-change-align": archChangeAlign
 };
 
 export function registerBuiltin(name: string, sensor: BuiltinSensor): void {

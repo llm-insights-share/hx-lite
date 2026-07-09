@@ -76,7 +76,9 @@ export function registerFoundationCommands(program: Command): void {
     .option("--domains <list>", "comma-separated touched domains (FR-011); inferred from issue labels with --from-issue")
     .option("--profile <name>", "workflow profile override")
     .option("--from-issue <url>", "scaffold from a GitHub issue URL (v0.2)")
-    .action(async (id: string, opts: { domains?: string; profile?: string; fromIssue?: string }) => {
+    .option("--prd <slug>", "link organization PRD slug (docs/prd/)")
+    .option("--arch-modules <list>", "comma-separated arch module ids")
+    .action(async (id: string, opts: { domains?: string; profile?: string; fromIssue?: string; prd?: string; archModules?: string }) => {
       if (opts.fromIssue) {
         const res = await scaffoldFromIssue(ws(), { issueUrl: opts.fromIssue, id, profile: opts.profile, domains: opts.domains?.split(",").map((s) => s.trim()).filter(Boolean) });
         console.log(`Created change "${res.changeId}" from issue #${res.issue.number}`);
@@ -88,7 +90,11 @@ export function registerFoundationCommands(program: Command): void {
       }
       if (!opts.domains) throw new Error("--domains required (or use --from-issue)");
       const domains = opts.domains.split(",").map((s) => s.trim()).filter(Boolean);
-      const res = createChange(ws(), id, domains, opts.profile);
+      const archModules = opts.archModules?.split(",").map((s) => s.trim()).filter(Boolean);
+      const res = createChange(ws(), id, domains, opts.profile, {
+        prdRef: opts.prd,
+        archModules: archModules?.length ? archModules : undefined
+      });
       console.log(`Created change "${id}" (profile: ${res.meta.profile}, domains: ${domains.join(", ")})`);
       for (const w of res.warnings)
         console.warn(`WARNING: overlaps with active change "${w.otherChange}" on domains: ${w.domains.join(", ")}`);

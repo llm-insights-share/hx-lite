@@ -33,10 +33,13 @@ suites:
   fast: [spec-validate, typecheck, lint, unit-changed]
   verification: [spec-validate, spec-trace, drift]
   verification-strict: [spec-validate, spec-trace, unit-changed, mutation-probe, ai-spec-review]
-  propose-enterprise: [requirements-complete, spec-validate, typecheck, lint, unit-changed]
-  design-enterprise: [design-hld-complete, design-lld-complete, design-spec-align, prototype-complete]
+  propose-enterprise: [prd-complete, requirements-complete, spec-validate, typecheck, lint, unit-changed]
+  design-enterprise: [arch-change-align, design-hld-complete, design-lld-complete, design-spec-align, prototype-complete]
   plan-enterprise: [plan-coverage]
   verification-enterprise: [spec-validate, spec-trace, design-drift, drift, uat-complete, unit-changed, mutation-probe, ai-spec-review]
+  prd-check: [prd-complete]
+  arch-check: [arch-hld-complete, arch-registry-complete]
+  arch-lld-check: [arch-lld-complete, arch-module-boundary]
 
 guides:
   - id: requirements-template
@@ -124,6 +127,51 @@ guides:
     execution: inferential
     phase: [archive]
     source: assets/commands/archive.md
+  - id: prd-template
+    kind: guide.template
+    execution: computational
+    phase: [prd]
+    source: assets/guides/prd-template/template.md
+  - id: prd-authoring
+    kind: guide.skill
+    execution: inferential
+    phase: [prd]
+    source: assets/guides/prd-authoring/SKILL.md
+  - id: cmd-prd
+    kind: guide.command
+    execution: inferential
+    phase: [prd]
+    source: assets/commands/prd.md
+  - id: arch-hld-template
+    kind: guide.template
+    execution: computational
+    phase: [arch]
+    source: assets/guides/arch-hld-template/template.md
+  - id: arch-authoring
+    kind: guide.skill
+    execution: inferential
+    phase: [arch]
+    source: assets/guides/arch-authoring/SKILL.md
+  - id: cmd-arch
+    kind: guide.command
+    execution: inferential
+    phase: [arch]
+    source: assets/commands/arch.md
+  - id: arch-lld-template
+    kind: guide.template
+    execution: computational
+    phase: [arch-lld]
+    source: assets/guides/arch-lld-template/template.md
+  - id: arch-module-boundary
+    kind: guide.skill
+    execution: inferential
+    phase: [arch-lld]
+    source: assets/guides/arch-module-boundary/SKILL.md
+  - id: cmd-arch-lld
+    kind: guide.command
+    execution: inferential
+    phase: [arch-lld]
+    source: assets/commands/arch-lld.md
 
 sensors:
   - id: spec-validate
@@ -252,3 +300,45 @@ sensors:
     on_fail: warn
     timeout_ms: 120000
     fix_hint: "Add npm run test:integration or fix failing integration tests"
+  - id: prd-complete
+    kind: sensor.script
+    execution: computational
+    phase: [prd, propose]
+    builtin: prd-complete
+    on_fail: block
+    fix_hint: "Complete docs/prd/<slug>.md per prd-template"
+  - id: arch-hld-complete
+    kind: sensor.script
+    execution: computational
+    phase: [arch]
+    builtin: arch-hld-complete
+    on_fail: block
+    fix_hint: "Complete docs/architecture/overview.md HLD sections"
+  - id: arch-registry-complete
+    kind: sensor.script
+    execution: computational
+    phase: [arch]
+    builtin: arch-registry-complete
+    on_fail: block
+    fix_hint: "Fix registry.yaml and ensure active modules have LLD paths"
+  - id: arch-lld-complete
+    kind: sensor.script
+    execution: computational
+    phase: [arch-lld]
+    builtin: arch-lld-complete
+    on_fail: block
+    fix_hint: "Complete module LLD under docs/architecture/modules/<id>/lld.md"
+  - id: arch-module-boundary
+    kind: sensor.script
+    execution: computational
+    phase: [arch-lld]
+    builtin: arch-module-boundary
+    on_fail: warn
+    fix_hint: "Resolve duplicate capability ownership in registry.yaml"
+  - id: arch-change-align
+    kind: sensor.script
+    execution: computational
+    phase: [design]
+    builtin: arch-change-align
+    on_fail: block
+    fix_hint: "Ensure touched domains map to module LLD in docs/architecture/"

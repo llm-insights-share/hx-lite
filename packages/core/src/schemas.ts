@@ -209,11 +209,30 @@ export const GateHistoryEntry = z.object({
 });
 export type GateHistoryEntry = z.infer<typeof GateHistoryEntry>;
 
+export const ArchModule = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  owner: z.string().optional(),
+  lld: z.string(),
+  capabilities: z.array(z.string()).default([]),
+  status: z.enum(["draft", "active", "deprecated"]).default("active")
+});
+export type ArchModule = z.infer<typeof ArchModule>;
+
+export const ArchRegistry = z.object({
+  version: z.string().default("1.0"),
+  updated_at: z.string().optional(),
+  modules: z.array(ArchModule).default([])
+});
+export type ArchRegistry = z.infer<typeof ArchRegistry>;
+
 export const MetaYaml = z.object({
   change: z.string(),
   status: z.enum(PHASE_STATES),
   profile: z.string(),
   touchedDomains: z.array(z.string()).default([]),
+  prdRef: z.string().optional(),
+  archModules: z.array(z.string()).optional(),
   profileRecommendation: z
     .object({
       recommended: z.string(),

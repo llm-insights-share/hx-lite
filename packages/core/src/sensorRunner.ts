@@ -9,6 +9,8 @@ export type BuiltinSensorFn = (ctx: {
   change?: string;
   def: SensorDef;
   changedFiles?: string[];
+  prdSlug?: string;
+  archModule?: string;
 }) => Promise<SensorReport> | SensorReport;
 
 export interface RunnerOptions {
@@ -16,6 +18,8 @@ export interface RunnerOptions {
   changedFiles?: string[];
   /** Sensor ids waived for this run (valid, unexpired waivers). */
   waivedSensors?: string[];
+  prdSlug?: string;
+  archModule?: string;
 }
 
 /**
@@ -51,7 +55,7 @@ async function runOnce(ws: Workspace, def: SensorDef, change: string | undefined
     if (def.builtin) {
       const fn = opts.builtins[def.builtin];
       if (!fn) return errorReport(def, `builtin sensor "${def.builtin}" is not registered`);
-      const r = await fn({ ws, change, def, changedFiles: opts.changedFiles });
+      const r = await fn({ ws, change, def, changedFiles: opts.changedFiles, prdSlug: opts.prdSlug, archModule: opts.archModule });
       return SensorReport.parse(r);
     }
     if (def.run) {

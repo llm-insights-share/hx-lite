@@ -3,6 +3,7 @@ import { phaseByCommand, type HarnessYaml, type MetaYaml, type PhaseState, type 
 import { readMeta, recordGate, setStatus, activeWaivers } from "./metaStore.js";
 import { runSensor, type RunnerOptions } from "./sensorRunner.js";
 import { proposalProblems } from "./change.js";
+import { resolvePrdSlug } from "./prd.js";
 import { augmentSuiteIds, resolveCompensation } from "./gateCompensation.js";
 import { appendRun } from "./telemetry.js";
 import fs from "node:fs";
@@ -67,8 +68,14 @@ export async function gateCheck(
     if (!fs.existsSync(tasksFile)) blockers.push("tasks.md missing — run hx plan first (FR-006)");
   }
 
-  // gate suite (with tier compensation for weaker IDE adapters)
+  // Pre-phase PRD check on propose when not already in suite (standard → warn)
   const suiteName = harness.profiles[meta.profile]?.suites?.[phaseCmd];
+  const suiteHasPrd = suiteName && (harness.suites[suiteName] ?? []).includes("prd-complete");
+  if (phaseCmd === "propose" && !suiteHasPrd) {
+    await appendPrephaseSensor(ws, harness, "prd-complete", change, runnerOpts, meta.profile, blockers, warnings);
+  }
+
+  // gate suite (with tier compensation for weaker IDE adapters)
   const compensation = resolveCompensation(ws);
   let suite: SuiteResult | undefined;
   if (suiteName) {
@@ -143,4 +150,37 @@ async function runCompensatedSuite(
   result.passed = result.blockers.length === 0;
   appendRun(ws, { kind: "suite", change, name: suiteName, status: result.passed ? "pass" : "fail", detail: { blockers: result.blockers, tier: compensation.tier } });
   return result;
+}
+
+async function appendPrephaseSensor(
+  ws: Workspace,
+  harness: HarnessYaml,
+  sensorId: string,
+  change: string,
+  opts: RunnerOptions,
+  profile: string,
+  blockers: string[],
+  warnings: string[]
+): Promise<void> {
+  const def = harness.sensors.find((s) => s.id === sensorId);
+  if (!def) return;
+  const prdSlug = sensorId === "prd-complete" ? resolvePrdSlug(ws, change) : undefined;
+  const report = await runSensor(ws, def, change, { ...opts, prdSlug });
+  const label = `${def.id}: ${report.summary}`;
+  const strict = profile === "enterprise" || profile === "strict";
+  if (report.status === "pass") return;
+  if (report.status === "error" || (def.on_fail === "block" && strict)) blockers.push(label);
+  else warnings.push(label);
+}
+
+/** Run a named sensor suite (pre-phase or diagnostics). */
+export async function runHarnessSuite(
+  ws: Workspace,
+  suiteName: string,
+  runnerOpts: RunnerOptions,
+  change?: string
+): Promise<SuiteResult> {
+  const harness = ws.readHarness();
+  const compensation = resolveCompensation(ws);
+  return runCompensatedSuite(ws, harness, suiteName, change, runnerOpts, compensation, "verify");
 }

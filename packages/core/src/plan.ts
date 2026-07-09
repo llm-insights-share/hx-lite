@@ -3,6 +3,8 @@ import path from "node:path";
 import { Workspace } from "./paths.js";
 import { listDeltaFiles, parseDelta } from "./artifactStore.js";
 import { inferCodeHints } from "./designLayout.js";
+import { archModuleLldRel } from "./archLayout.js";
+import { resolveModuleByCapability, readArchRegistry } from "./archRegistry.js";
 import { syncDeliveryTraceFromTasks } from "./deliveryTrace.js";
 
 /**
@@ -29,6 +31,15 @@ export interface Task {
 }
 
 function pickDesignRef(ws: Workspace, change: string, capability: string, requirement: string): string | undefined {
+  try {
+    const registry = readArchRegistry(ws);
+    const mod = resolveModuleByCapability(registry, capability);
+    if (mod && fs.existsSync(path.join(ws.root, "docs", "architecture", mod.lld))) {
+      return archModuleLldRel(ws, mod.id);
+    }
+  } catch {
+    /* no arch registry */
+  }
   const designDir = ws.designDir(change);
   if (!fs.existsSync(designDir)) return undefined;
   const slug = requirement

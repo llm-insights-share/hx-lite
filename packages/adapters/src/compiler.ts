@@ -48,14 +48,31 @@ export function standardCommands(): CommandDef[] {
 export function collectCommands(ws: Workspace): CommandDef[] {
   const harness = ws.readHarness();
   const commands = standardCommands();
+  const phaseCommands = new Set(PHASES.map((p) => p.command));
+  const prePhaseRuns: Record<string, string> = {
+    prd: "hx prd init <slug> --title \"...\"",
+    arch: "hx arch init --title \"...\"",
+    "arch-lld": "hx arch lld init <module> --title \"...\""
+  };
   for (const g of harness.guides) {
     if (g.kind !== "guide.command") continue;
     const f = path.join(ws.base, g.source);
     if (!fs.existsSync(f)) continue;
     const content = fs.readFileSync(f, "utf8");
     for (const phase of g.phase) {
-      const cmd = commands.find((c) => c.name === `hx-${phase}`);
-      if (cmd) cmd.prompt = content;
+      const existing = commands.find((c) => c.name === `hx-${phase}`);
+      if (existing) {
+        existing.prompt = content;
+        continue;
+      }
+      if (!phaseCommands.has(phase)) {
+        commands.push({
+          name: `hx-${phase}`,
+          description: `Pre-phase workflow: ${phase}`,
+          run: prePhaseRuns[phase] ?? `hx ${phase}`,
+          prompt: content
+        });
+      }
     }
   }
   return commands;

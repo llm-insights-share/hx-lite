@@ -38,7 +38,7 @@ import {
   type SensorDef
 } from "@harnessx/core";
 import { builtinSensors } from "@harnessx/sensors";
-import { compileAdapters, adapterDrift, checkGeneratedFile, computeTier, TARGETS, exportQoderQuest, standardCommands } from "@harnessx/adapters";
+import { compileAdapters, adapterDrift, checkGeneratedFile, computeTier, TARGETS, exportQoderQuest, collectCommands } from "@harnessx/adapters";
 import YAML from "yaml";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "hx-m6-"));
@@ -214,9 +214,9 @@ describe("T-605..T-608 target emitters", () => {
   it("compiles the same command set consistently across cursor/trae/qoder/claude/generic", () => {
     const ws = initWorkspace(tmp()).ws;
     const results = compileAdapters(ws, ["cursor", "trae", "qoder", "claude", "generic"]);
-    const cmds = standardCommands();
+    const cmds = collectCommands(ws);
 
-    // cursor: one command file per phase command
+    // cursor: one command file per registered command
     const cursorCmds = results[0].files.filter((f) => f.startsWith(".cursor/commands/"));
     expect(cursorCmds).toHaveLength(cmds.length);
     expect(fs.existsSync(path.join(ws.root, ".cursor/skills/coding-conventions/SKILL.md"))).toBe(true);
@@ -438,7 +438,7 @@ describe("T-612 M6 acceptance", () => {
     const results = compileAdapters(wsB, ["cursor", "trae", "qoder", "claude"]);
     expect(results.every((r) => r.tier === 1)).toBe(true);
     for (const target of [".cursor/commands", ".claude/commands"]) {
-      expect(fs.readdirSync(path.join(wsB.root, target)).length).toBe(standardCommands().length);
+      expect(fs.readdirSync(path.join(wsB.root, target)).length).toBe(collectCommands(wsB).length);
     }
 
     // malicious hub package is rejected at add time

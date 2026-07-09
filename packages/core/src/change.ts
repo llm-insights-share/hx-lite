@@ -32,14 +32,20 @@ export interface CreateChangeResult {
   warnings: OverlapWarning[];
 }
 
-export function createChange(ws: Workspace, id: string, domains: string[], profile?: string): CreateChangeResult {
+export function createChange(
+  ws: Workspace,
+  id: string,
+  domains: string[],
+  profile?: string,
+  opts?: { prdRef?: string; archModules?: string[] }
+): CreateChangeResult {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) throw new Error(`invalid change id "${id}" (use kebab-case)`);
   if (fs.existsSync(ws.changeDir(id))) throw new Error(`change "${id}" already exists`);
   if (domains.length === 0) throw new Error("declare touched domains with --domains (FR-011)");
 
   const warnings = detectOverlaps(ws, domains);
   const config = ws.readConfig();
-  const meta = initMeta(ws, id, profile ?? config.profile, domains);
+  const meta = initMeta(ws, id, profile ?? config.profile, domains, opts);
   for (const sub of ["specs", "traces", "runs", "requirements", "design"]) ensureDir(path.join(ws.changeDir(id), sub));
   for (const sub of ["api", "ui/components", "data", "sequences"]) ensureDir(path.join(ws.changeDir(id), "design", sub));
   return { meta, warnings };
