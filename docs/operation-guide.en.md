@@ -265,10 +265,21 @@ Rule of thumb: **agent work in Cursor; human accountability actions in terminal*
 
 | Stage | Goal | Typical commands |
 | --- | --- | --- |
-| Requirements | produce reviewable change intent and delta specs | `change create`, `propose`, `gate check --phase spec`, `gate approve` |
-| Design | produce implementable technical design | `design`, `guide pack --phase design`, `gate advance` |
-| Implementation | implement tasks with self-correction loop | `plan`, `apply`, `guide task-pack`, `fix` |
-| Testing | verify quality, traceability, and archive | `verify`, `trace check`, `fixture verify`, `archive` |
+| **Pre-phase (org)** | PRD, global HLD, module LLD | `hx prd`, `hx arch`, `hx approve prd/arch` |
+| Requirements | reviewable intent + delta specs | `change create`, `propose`, `gate check --phase propose`, `gate approve` |
+| Design | implementable technical design | `design`, `gate check --phase design`, `gate advance` |
+| Implementation | task-by-task coding + self-correction | `plan`, `apply`, `guide task-pack`, `fix` |
+| Testing | verify, trace, promote, archive | `verify`, `trace check`, `arch promote`, `archive` |
+
+### 4.3 Pre-phase commands (org-level)
+
+| Command | Purpose |
+| --- | --- |
+| `hx prd init/check <slug>` | Org PRD |
+| `hx approve prd <slug> --approver <name>` | PRD sign-off |
+| `hx arch init/check`, `hx approve arch` | Global HLD sign-off |
+| `hx arch lld init/check <module>` | Module LLD |
+| `hx arch promote <change>` | Structured design沉淀 into module LLD |
 
 ---
 

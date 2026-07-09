@@ -2,7 +2,7 @@
 
 **中文**: [场景选择指南](../00-场景选择指南.md)
 
-Use this guide to pick the right entry among **18 end-to-end scenarios** — not by version number or numeric order.
+Use this guide to pick the right entry among **19 end-to-end scenarios** — not by version number or numeric order.
 
 ## Step 1: What do you need to accomplish?
 
@@ -24,6 +24,7 @@ flowchart TD
   J2 --> S05[05 Hotfix]
   J2 --> S04[04 Concurrent]
 
+  J3 --> S19[19 Org PRD/arch]
   J3 --> S14[14 Full-stack roles]
   J3 --> S15[15 Enterprise handoff]
 

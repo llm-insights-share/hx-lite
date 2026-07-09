@@ -8,7 +8,7 @@ You are running the **PRD** pre-phase. Deliverable: `docs/prd/<slug>.md`.
 2. Read user context and any `@docs/prd/` or business references per **prd-authoring** Skill.
 3. Fill user stories, acceptance criteria (GWT), In/Out Scope, NFR, review conclusion.
 4. `hx prd check <slug>` — do not finish until green.
-5. Human reviewer: `hx gate approve --gate prd --prd <slug> --approver <name>`.
+5. Human reviewer: `hx approve prd <slug> --approver <name>` (or `hx gate approve --gate prd --prd <slug> ...`).
 
 ## Guardrails
 
