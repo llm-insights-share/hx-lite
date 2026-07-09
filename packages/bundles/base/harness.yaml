@@ -33,12 +33,12 @@ suites:
   fast: [spec-validate, typecheck, lint, unit-changed]
   verification: [spec-validate, spec-trace, drift]
   verification-strict: [spec-validate, spec-trace, unit-changed, mutation-probe, ai-spec-review]
-  propose-enterprise: [prd-complete, requirements-complete, spec-validate, typecheck, lint, unit-changed]
+  propose-enterprise: [prd-complete, prd-approved, requirements-complete, spec-validate, typecheck, lint, unit-changed]
   design-enterprise: [arch-change-align, design-hld-complete, design-lld-complete, design-spec-align, prototype-complete]
   plan-enterprise: [plan-coverage]
-  verification-enterprise: [spec-validate, spec-trace, design-drift, drift, uat-complete, unit-changed, mutation-probe, ai-spec-review]
+  verification-enterprise: [spec-validate, spec-trace, design-drift, arch-drift, drift, uat-complete, unit-changed, mutation-probe, ai-spec-review]
   prd-check: [prd-complete]
-  arch-check: [arch-hld-complete, arch-registry-complete]
+  arch-check: [arch-hld-complete, arch-registry-complete, arch-approved]
   arch-lld-check: [arch-lld-complete, arch-module-boundary]
 
 guides:
@@ -307,6 +307,13 @@ sensors:
     builtin: prd-complete
     on_fail: block
     fix_hint: "Complete docs/prd/<slug>.md per prd-template"
+  - id: prd-approved
+    kind: sensor.script
+    execution: computational
+    phase: [prd, propose]
+    builtin: prd-approved
+    on_fail: block
+    fix_hint: "Human approves PRD: hx gate approve --gate prd --prd <slug> --approver <name>"
   - id: arch-hld-complete
     kind: sensor.script
     execution: computational
@@ -342,3 +349,17 @@ sensors:
     builtin: arch-change-align
     on_fail: block
     fix_hint: "Ensure touched domains map to module LLD in docs/architecture/"
+  - id: arch-approved
+    kind: sensor.script
+    execution: computational
+    phase: [arch]
+    builtin: arch-approved
+    on_fail: block
+    fix_hint: "Human approves global HLD: hx gate approve --gate arch --approver <name>"
+  - id: arch-drift
+    kind: sensor.script
+    execution: computational
+    phase: [verify]
+    builtin: arch-drift
+    on_fail: warn
+    fix_hint: "Run hx arch promote <change> to沉淀 design into module LLD"

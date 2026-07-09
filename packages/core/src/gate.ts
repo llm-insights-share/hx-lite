@@ -71,8 +71,12 @@ export async function gateCheck(
   // Pre-phase PRD check on propose when not already in suite (standard → warn)
   const suiteName = harness.profiles[meta.profile]?.suites?.[phaseCmd];
   const suiteHasPrd = suiteName && (harness.suites[suiteName] ?? []).includes("prd-complete");
+  const suiteHasPrdApproved = suiteName && (harness.suites[suiteName] ?? []).includes("prd-approved");
   if (phaseCmd === "propose" && !suiteHasPrd) {
     await appendPrephaseSensor(ws, harness, "prd-complete", change, runnerOpts, meta.profile, blockers, warnings);
+  }
+  if (phaseCmd === "propose" && !suiteHasPrdApproved && meta.profile === "enterprise") {
+    await appendPrephaseSensor(ws, harness, "prd-approved", change, runnerOpts, meta.profile, blockers, warnings);
   }
 
   // gate suite (with tier compensation for weaker IDE adapters)
@@ -164,7 +168,7 @@ async function appendPrephaseSensor(
 ): Promise<void> {
   const def = harness.sensors.find((s) => s.id === sensorId);
   if (!def) return;
-  const prdSlug = sensorId === "prd-complete" ? resolvePrdSlug(ws, change) : undefined;
+  const prdSlug = sensorId === "prd-complete" || sensorId === "prd-approved" ? resolvePrdSlug(ws, change) : undefined;
   const report = await runSensor(ws, def, change, { ...opts, prdSlug });
   const label = `${def.id}: ${report.summary}`;
   const strict = profile === "enterprise" || profile === "strict";

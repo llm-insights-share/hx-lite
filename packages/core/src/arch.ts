@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Workspace, ensureDir } from "./paths.js";
-import { readMeta } from "./metaStore.js";
+import { readMeta, writeMeta } from "./metaStore.js";
+import { readDesignOverview, listDesignLldFiles } from "./designLayout.js";
 import { readArchRegistry, writeArchRegistry, resolveModuleByCapability } from "./archRegistry.js";
 import type { ArchModule } from "./schemas.js";
 import { ArchRegistry } from "./schemas.js";
@@ -89,3 +90,61 @@ export function resolveModulesForChange(ws: Workspace, change: string): ArchModu
 }
 
 export { resolveModuleByCapability, readArchRegistry, writeArchRegistry };
+
+export interface PromoteArchResult {
+  modules: string[];
+  files: string[];
+  dryRun: boolean;
+}
+
+/** Promote change-level design into module LLD under docs/architecture/modules/. */
+export function promoteArchFromChange(
+  ws: Workspace,
+  change: string,
+  opts?: { by?: string; dryRun?: boolean }
+): PromoteArchResult {
+  const meta = readMeta(ws, change);
+  const modules = resolveModulesForChange(ws, change);
+  if (modules.length === 0) throw new Error(`no arch modules resolved for change "${change}" — set meta.archModules or registry capabilities`);
+
+  const overview = readDesignOverview(ws, change);
+  const lldFiles = listDesignLldFiles(ws, change);
+  const changeDir = ws.changeDir(change);
+  const snippets: string[] = [];
+  if (overview.trim()) snippets.push(overview.trim());
+  for (const rel of lldFiles) {
+    const abs = path.join(changeDir, rel);
+    if (fs.existsSync(abs)) snippets.push(`### ${rel}\n\n${fs.readFileSync(abs, "utf8").trim()}`);
+  }
+  if (snippets.length === 0) throw new Error(`no design artifacts to promote for change "${change}"`);
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  const block = `\n\n---\n\n## Promoted from change \`${change}\` (${stamp})\n\n${snippets.join("\n\n")}\n`;
+  const written: string[] = [];
+
+  for (const mod of modules) {
+    const lld = ws.archModuleLld(mod.id);
+    if (!fs.existsSync(lld)) scaffoldArchLld(ws, mod.id, mod.name ?? mod.id);
+    if (opts?.dryRun) {
+      written.push(lld);
+      continue;
+    }
+    const existing = fs.readFileSync(lld, "utf8");
+    const marker = `## Promoted from change \`${change}\``;
+    const next = existing.includes(marker) ? existing.replace(new RegExp(`${marker}[\\s\\S]*$`), block.trim()) : `${existing.trimEnd()}${block}`;
+    fs.writeFileSync(lld, next, "utf8");
+    written.push(lld);
+    const registry = readArchRegistry(ws);
+    const entry = registry.modules.find((m) => m.id === mod.id);
+    if (entry && entry.status === "draft") {
+      entry.status = "active";
+      writeArchRegistry(ws, registry);
+    }
+  }
+
+  if (!opts?.dryRun) {
+    meta.archPromoted = { at: new Date().toISOString(), by: opts?.by, modules: modules.map((m) => m.id) };
+    writeMeta(ws, meta);
+  }
+  return { modules: modules.map((m) => m.id), files: written, dryRun: Boolean(opts?.dryRun) };
+}

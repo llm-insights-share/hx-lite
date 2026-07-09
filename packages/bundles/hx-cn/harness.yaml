@@ -33,12 +33,12 @@ suites:
   fast: [spec-validate, typecheck, lint, unit-changed]
   verification: [spec-validate, spec-trace]
   verification-strict: [spec-validate, spec-trace, unit-changed, mutation-probe, ai-spec-review]
-  propose-enterprise: [prd-complete, requirements-complete, spec-validate, typecheck, lint, unit-changed]
+  propose-enterprise: [prd-complete, prd-approved, requirements-complete, spec-validate, typecheck, lint, unit-changed]
   design-enterprise: [arch-change-align, design-hld-complete, design-lld-complete, design-spec-align, prototype-complete]
   plan-enterprise: [plan-coverage]
-  verification-enterprise: [spec-validate, spec-trace, design-drift, unit-changed, mutation-probe, ai-spec-review]
+  verification-enterprise: [spec-validate, spec-trace, design-drift, arch-drift, unit-changed, mutation-probe, ai-spec-review]
   prd-check: [prd-complete]
-  arch-check: [arch-hld-complete, arch-registry-complete]
+  arch-check: [arch-hld-complete, arch-registry-complete, arch-approved]
   arch-lld-check: [arch-lld-complete, arch-module-boundary]
 
 guides:
@@ -281,6 +281,13 @@ sensors:
     builtin: prd-complete
     on_fail: block
     fix_hint: "补全 docs/prd/<slug>.md"
+  - id: prd-approved
+    kind: sensor.script
+    execution: computational
+    phase: [prd, propose]
+    builtin: prd-approved
+    on_fail: block
+    fix_hint: "人工批准 PRD：hx gate approve --gate prd --prd <slug> --approver <姓名>"
   - id: arch-hld-complete
     kind: sensor.script
     execution: computational
@@ -316,3 +323,17 @@ sensors:
     builtin: arch-change-align
     on_fail: block
     fix_hint: "确保 touched domains 映射到模块 LLD"
+  - id: arch-approved
+    kind: sensor.script
+    execution: computational
+    phase: [arch]
+    builtin: arch-approved
+    on_fail: block
+    fix_hint: "人工批准全局架构：hx gate approve --gate arch --approver <姓名>"
+  - id: arch-drift
+    kind: sensor.script
+    execution: computational
+    phase: [verify]
+    builtin: arch-drift
+    on_fail: warn
+    fix_hint: "运行 hx arch promote <change> 将 design 沉淀到模块 LLD"

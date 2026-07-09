@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import type { Finding, SensorReport } from "@harnessx/core/schemas.js";
-import { resolvePrdSlug } from "@harnessx/core";
+import { resolvePrdSlug, isPrephaseApproved } from "@harnessx/core";
 import type { SensorContext } from "./types.js";
+import { hasPlaceholderContent, isPlaceholderTableRow } from "./placeholder.js";
 
 function block(findings: Finding[], ctx: SensorContext, summary: string): SensorReport {
   const blockers = findings.filter((f) => f.severity === "block");
@@ -17,11 +18,6 @@ function block(findings: Finding[], ctx: SensorContext, summary: string): Sensor
 
 function hasSection(text: string, patterns: RegExp[]): boolean {
   return patterns.some((p) => p.test(text));
-}
-
-function isPlaceholderLine(line: string): boolean {
-  const t = line.trim();
-  return !t || /^[-|:\s]*$/.test(t) || /<\w+>|TODO|TBD|待填写|占位/.test(t);
 }
 
 /** prd-complete: organization PRD at docs/prd/<slug>.md */
@@ -68,5 +64,35 @@ export const prdComplete = (ctx: SensorContext): SensorReport => {
   if (/##\s*风险/.test(text) && !/\bR-\d+/.test(text)) {
     findings.push({ severity: "warn", message: "risk section present but no R-xxx entries" });
   }
+  if (hasPlaceholderContent(text)) {
+    findings.push({ severity: "block", message: "PRD still contains template placeholders — replace TODO/TBD/empty table rows" });
+  }
+  for (const line of text.split("\n")) {
+    if (isPlaceholderTableRow(line) && /\bUS-\d+|\bAC-\d+/i.test(line) === false) {
+      findings.push({ severity: "warn", message: `placeholder table row: ${line.trim().slice(0, 60)}` });
+      break;
+    }
+  }
   return block(findings, ctx, findings.length ? `${findings.length} PRD issue(s)` : "PRD complete");
+};
+
+/** prd-approved: human sign-off recorded for linked PRD slug */
+export const prdApproved = (ctx: SensorContext): SensorReport => {
+  const slug = ctx.prdSlug ?? (ctx.change ? resolvePrdSlug(ctx.ws, ctx.change) : undefined);
+  if (!slug) {
+    return block([{ severity: "block", message: "PRD slug unknown for approval check" }], ctx, "PRD not linked");
+  }
+  if (!isPrephaseApproved(ctx.ws, "prd", slug)) {
+    return block(
+      [
+        {
+          severity: "block",
+          message: `PRD "${slug}" not approved — run: hx gate approve --gate prd --prd ${slug} --approver <name>`
+        }
+      ],
+      ctx,
+      "PRD not approved"
+    );
+  }
+  return block([], ctx, `PRD "${slug}" approved`);
 };

@@ -8,11 +8,12 @@
 
 ## 流程概览
 
-1. `/hx-prd` → `docs/prd/<slug>.md` → `hx prd check`
-2. `/hx-arch` → `docs/architecture/overview.md` + `registry.yaml` → `hx arch check`
+1. `/hx-prd` → `docs/prd/<slug>.md` → `hx prd check` → `hx gate approve --gate prd --prd <slug> --approver <name>`
+2. `/hx-arch` → `docs/architecture/overview.md` + `registry.yaml` → `hx arch check` → `hx gate approve --gate arch --approver <name>`
 3. `/hx-arch-lld <module>` → `docs/architecture/modules/<module>/lld.md` → `hx arch lld check <module>`
 4. `hx change create <id> --domains ... --prd <slug> --arch-modules <module>`
 5. `/hx-propose` → `/hx-design`（enterprise 下 `arch-change-align` 门禁）
+6. 验证后：`hx arch promote <change>` 将 change design 沉淀到模块 LLD
 
 ## 示例命令
 
@@ -28,5 +29,6 @@ hx change create member-badge --domains member --profile enterprise --prd member
 
 ## 门禁（enterprise）
 
-- propose：`prd-complete` + `requirements-complete`
+- propose：`prd-complete` + `prd-approved` + `requirements-complete`
 - design：`arch-change-align` + `design-enterprise`
+- verify：`arch-drift`（未 promote 时 warn）

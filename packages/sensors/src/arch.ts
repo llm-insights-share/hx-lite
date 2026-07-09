@@ -2,9 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { listDeltaFiles } from "@harnessx/core/artifactStore.js";
 import { readDesignOverview, extractApiPaths } from "@harnessx/core/designLayout.js";
-import { readArchRegistry, resolveModuleByCapability, resolveModulesForChange } from "@harnessx/core";
+import { readArchRegistry, resolveModuleByCapability, resolveModulesForChange, isPrephaseApproved } from "@harnessx/core";
+import { readMeta } from "@harnessx/core/metaStore.js";
 import type { Finding, SensorReport } from "@harnessx/core/schemas.js";
 import type { SensorContext } from "./types.js";
+import { hasPlaceholderContent } from "./placeholder.js";
 
 function block(findings: Finding[], ctx: SensorContext, summary: string): SensorReport {
   const blockers = findings.filter((f) => f.severity === "block");
@@ -53,7 +55,20 @@ export const archHldComplete = (ctx: SensorContext): SensorReport => {
     findings.push({ severity: "warn", message: "module table appears empty in overview" });
   }
   if (!/Decision:/i.test(text)) findings.push({ severity: "warn", message: "ADR Decision field not filled" });
+  if (hasPlaceholderContent(text)) findings.push({ severity: "block", message: "overview still contains template placeholders" });
   return block(findings, ctx, findings.length ? `${findings.length} HLD issue(s)` : "global HLD complete");
+};
+
+/** arch-approved: human sign-off for global architecture */
+export const archApproved = (ctx: SensorContext): SensorReport => {
+  if (!isPrephaseApproved(ctx.ws, "arch")) {
+    return block(
+      [{ severity: "block", message: "global architecture not approved — run: hx gate approve --gate arch --approver <name>" }],
+      ctx,
+      "arch not approved"
+    );
+  }
+  return block([], ctx, "global architecture approved");
 };
 
 /** arch-registry-complete: registry.yaml valid; active modules have LLD paths */
@@ -100,6 +115,7 @@ export const archLldComplete = (ctx: SensorContext): SensorReport => {
     if (!pat.test(text)) findings.push({ severity: "block", message: `LLD missing section matching ${pat}` });
   }
   if (!/\bIF-\d+/i.test(text)) findings.push({ severity: "block", message: "no interface contract IDs (IF-xxx)" });
+  if (hasPlaceholderContent(text)) findings.push({ severity: "block", message: "LLD still contains template placeholders" });
   return block(findings, ctx, findings.length ? `${findings.length} LLD issue(s)` : "module LLD complete");
 };
 
@@ -142,4 +158,37 @@ export const archChangeAlign = (ctx: SensorContext): SensorReport => {
     }
   }
   return block(findings, ctx, findings.length ? `${findings.length} arch alignment issue(s)` : "arch aligned");
+};
+
+/** arch-drift: change design vs module LLD; unpromoted design after verify */
+export const archDrift = (ctx: SensorContext): SensorReport => {
+  if (!ctx.change) return { sensor: ctx.def.id, status: "error", summary: "requires change id", findings: [] };
+  const findings: Finding[] = [];
+  const meta = readMeta(ctx.ws, ctx.change);
+  const designText = readDesignOverview(ctx.ws, ctx.change);
+  const designApis = extractApiPaths(designText);
+  const modules = resolveModulesForChange(ctx.ws, ctx.change);
+
+  if (designText.trim() && !meta.archPromoted) {
+    findings.push({
+      severity: "warn",
+      message: `change design not promoted to module LLD — run: hx arch promote ${ctx.change}`
+    });
+  }
+
+  for (const mod of modules) {
+    const lldPath = ctx.ws.archModuleLld(mod.id);
+    if (!fs.existsSync(lldPath)) continue;
+    const lldText = fs.readFileSync(lldPath, "utf8");
+    for (const api of designApis) {
+      const fragment = api.split("/").pop() ?? api;
+      if (!lldText.includes(api) && !lldText.includes(fragment)) {
+        findings.push({ severity: "warn", message: `API ${api} in change design not reflected in module ${mod.id} LLD` });
+      }
+    }
+    if (meta.archPromoted && !lldText.includes(`## Promoted from change \`${ctx.change}\``)) {
+      findings.push({ severity: "block", message: `archPromoted recorded but module ${mod.id} LLD missing promotion marker` });
+    }
+  }
+  return block(findings, ctx, findings.length ? `${findings.length} arch drift issue(s)` : "no arch drift");
 };

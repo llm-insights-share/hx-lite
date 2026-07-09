@@ -8,7 +8,8 @@ import {
   runSensor,
   runHarnessSuite,
   buildArchPack,
-  renderContextPack
+  renderContextPack,
+  promoteArchFromChange
 } from "@harnessx/core";
 import { builtinSensors } from "@harnessx/sensors";
 
@@ -38,6 +39,22 @@ export function registerArchCommands(program: Command): void {
     const res = await runHarnessSuite(ws(), "arch-check", runnerOpts());
     exitOnSuite(res);
   });
+
+  arch
+    .command("promote <change>")
+    .option("--by <name>", "promoter name for audit trail")
+    .option("--dry-run", "show targets without writing")
+    .description("Promote change design into module LLD under docs/architecture/modules/")
+    .action((change: string, opts: { by?: string; dryRun?: boolean }) => {
+      const result = promoteArchFromChange(ws(), change, { by: opts.by, dryRun: opts.dryRun });
+      if (opts.dryRun) {
+        console.log(`dry-run: would promote to modules [${result.modules.join(", ")}]`);
+        for (const f of result.files) console.log(`  ${f}`);
+        return;
+      }
+      console.log(`promoted change "${change}" → modules [${result.modules.join(", ")}]`);
+      for (const f of result.files) console.log(`  updated ${f}`);
+    });
 
   arch.command("list").action(() => {
     const reg = readArchRegistry(ws());

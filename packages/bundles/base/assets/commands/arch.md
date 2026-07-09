@@ -8,6 +8,7 @@ You are running the **arch** pre-phase. Deliverables: `docs/architecture/overvie
 2. Fill global HLD: boundaries, modules, data flows, NFR, ADR, risks.
 3. Maintain `registry.yaml` — each module id, capabilities[], owner, lld path.
 4. `hx arch check` — do not finish until green.
+5. Human reviewer: `hx gate approve --gate arch --approver <name>`.
 
 ## Guardrails
 
@@ -16,4 +17,4 @@ You are running the **arch** pre-phase. Deliverables: `docs/architecture/overvie
 
 ## Done when
 
-`hx arch check` passes; modules are ready for `/hx-arch-lld`.
+`hx arch check` passes and global HLD is human-approved; modules are ready for `/hx-arch-lld`.

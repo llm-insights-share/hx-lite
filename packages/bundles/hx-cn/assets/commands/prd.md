@@ -8,6 +8,7 @@ You are running the **PRD** pre-phase. Deliverable: `docs/prd/<slug>.md`.
 2. Read user context and any `@docs/prd/` or business references per **prd-authoring** Skill.
 3. Fill user stories, acceptance criteria (GWT), In/Out Scope, NFR, review conclusion.
 4. `hx prd check <slug>` — do not finish until green.
+5. 人工评审：`hx gate approve --gate prd --prd <slug> --approver <姓名>`。
 
 ## Guardrails
 
@@ -16,4 +17,4 @@ You are running the **PRD** pre-phase. Deliverable: `docs/prd/<slug>.md`.
 
 ## Done when
 
-`hx prd check` passes and a human can approve the PRD for architecture work.
+`hx prd check` 通过且 PRD 已人工批准（`hx gate approve --gate prd`）。

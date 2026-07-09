@@ -79,3 +79,9 @@ T-816,M18-PrePhase,P1,"plan 模块 LLD 交接","pickDesignRef 优先 docs/archit
 T-817,M18-PrePhase,P1,"场景文档 19","中英文 Pre-phase 场景","M18","T-807,T-814",done
 T-818,M18-PrePhase,P2,"Hub prd/arch 包","prd-authoring/arch-authoring@1.0.0","M18","T-806,T-811",done
 T-819,M18-PrePhase,P0,"M18 验收","m18-prephase 测试；160 tests pass","M18 验收标准","T-800..T-818",done
+T-820,M19-PrePhase2,P0,"Pre-phase 人工批准存储","docs/.prephase-approvals.yaml；recordPrephaseApproval/isPrephaseApproved","M19","T-800",done
+T-821,M19-PrePhase2,P0,"PRD/Arch 人工批准门","hx gate approve --gate prd|arch；prd-approved/arch-approved 传感器","M19","T-820",done
+T-822,M19-PrePhase2,P0,"hx arch promote","change design 沉淀到模块 LLD；meta.archPromoted","M19","T-812",done
+T-823,M19-PrePhase2,P0,"arch-drift 传感器","verify 检测未 promote 与 API/LLD 漂移","M19","T-822",done
+T-824,M19-PrePhase2,P1,"占位符内容校验","prd/arch 传感器拒绝模板占位通过","M19","T-804,T-809",done
+T-825,M19-PrePhase2,P0,"M19 验收","m19-phase2 测试；enterprise propose 批准联动","M19 验收标准","T-820..T-824",done

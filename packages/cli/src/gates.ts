@@ -15,6 +15,7 @@ import {
   ciInit,
   verifyMeta,
   recordApproval,
+  recordPrephaseApproval,
   scaffoldDesign,
   readMeta,
   scaffoldFromIssue,
@@ -60,11 +61,20 @@ export function registerGateCommands(program: Command): void {
   });
 
   gate
-    .command("approve <change>")
-    .requiredOption("--gate <gate>", "gate being approved (e.g. spec)")
+    .command("approve [change]")
+    .requiredOption("--gate <gate>", "gate being approved (spec|prd|arch)")
     .requiredOption("--approver <name>")
-    .action((change: string, opts: { gate: string; approver: string }) => {
-      const rec = recordApproval(ws(), change, opts.gate, opts.approver);
+    .option("--prd <slug>", "PRD slug (required when --gate prd)")
+    .action((change: string | undefined, opts: { gate: string; approver: string; prd?: string }) => {
+      const w = ws();
+      if (opts.gate === "prd" || opts.gate === "arch") {
+        const rec = recordPrephaseApproval(w, opts.gate, opts.approver, opts.prd);
+        const target = opts.gate === "prd" ? `prd:${opts.prd}` : "arch:hld";
+        console.log(`approved gate "${opts.gate}" (${target}) by ${rec.approver} at ${rec.at} (artifact ${rec.artifactHash.slice(0, 12)})`);
+        return;
+      }
+      if (!change) throw new Error("change id required for gate spec (and other change-scoped gates)");
+      const rec = recordApproval(w, change, opts.gate, opts.approver);
       console.log(`approved gate "${rec.gate}" by ${rec.approver} at ${rec.at} (artifact ${rec.artifactHash.slice(0, 12)})`);
     });
 

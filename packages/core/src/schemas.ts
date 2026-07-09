@@ -226,6 +226,21 @@ export const ArchRegistry = z.object({
 });
 export type ArchRegistry = z.infer<typeof ArchRegistry>;
 
+/** Org-level pre-phase approvals at docs/.prephase-approvals.yaml */
+export const PrephaseApprovals = z.object({
+  version: z.string().default("1.0"),
+  prd: z.record(ApprovalRecord).default({}),
+  arch: ApprovalRecord.optional()
+});
+export type PrephaseApprovals = z.infer<typeof PrephaseApprovals>;
+
+export const ArchPromotedRecord = z.object({
+  at: z.string(),
+  by: z.string().optional(),
+  modules: z.array(z.string()).default([])
+});
+export type ArchPromotedRecord = z.infer<typeof ArchPromotedRecord>;
+
 export const MetaYaml = z.object({
   change: z.string(),
   status: z.enum(PHASE_STATES),
@@ -233,6 +248,7 @@ export const MetaYaml = z.object({
   touchedDomains: z.array(z.string()).default([]),
   prdRef: z.string().optional(),
   archModules: z.array(z.string()).optional(),
+  archPromoted: ArchPromotedRecord.optional(),
   profileRecommendation: z
     .object({
       recommended: z.string(),

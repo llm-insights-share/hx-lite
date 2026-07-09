@@ -52,6 +52,29 @@ p99 < 200ms
     const res = scaffoldArchHld(ws, "Shop");
     expect(fs.existsSync(res.overview)).toBe(true);
     expect(fs.existsSync(res.registry)).toBe(true);
+    fs.writeFileSync(
+      res.overview,
+      `# HLD
+## 系统边界与上下游
+boundary
+## 架构方案与模块划分
+arch
+### 模块职责
+| m | r | i | o | c |
+| shop | shop | api | db | none |
+## 数据流与关键流程
+flow
+## 非功能设计
+nfr
+## ADR
+### ADR-001
+- Decision: modular
+- Alternatives: none
+- Consequences: ok
+## 风险清单
+low
+`
+    );
     const report = archHldComplete({ ws, def: { id: "arch-hld-complete" } as never });
     expect(report.status).toBe("pass");
   });
