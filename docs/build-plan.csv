@@ -101,7 +101,7 @@ T-831,M20-Integration,P0,"enterprise design arch-approved","design gate + design
 T-832,M20-Integration,P0,"archive promote 阻断","archPromoteProblems enterprise archive","M20","T-822",done
 T-833,M20-Integration,P1,"结构化 arch promote","archPromote merge API/ADR 节","M20","T-822",done
 T-834,M20-Integration,P1,"文档与 operation-guide","场景19索引、15↔19、Pre-phase 命令表","M20","T-817",done
-T-835,M20-Integration,P1,"hx approve 别名 + process-upgrade","approve prd/arch；docs/process-upgrade 接线","M20","T-820",done
+T-835,M20-Integration,P1,"hx approve 别名","approve prd/arch 简写命令","M20","T-820",done
 T-836,M20-Integration,P0,"M20 验收","p0-p2-integration 测试","M20 验收标准","T-830..T-835",done
 T-837,M21-Backlog,P2,"模块 LLD 批准门","hx approve arch-lld <module>","M21 backlog","T-831",planned
 T-838,M21-Backlog,P2,"LLD 双向 sync","change design ↔ org LLD 增量同步","M21 backlog","T-833",planned
