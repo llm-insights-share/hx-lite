@@ -5,6 +5,9 @@ process — requirements → design → coding → testing — with spec-driven 
 feedforward **Guides**, feedback **Sensors**, fail-closed **Gates**, and a **Steering loop**
 that continuously improves the harness itself.
 
+**v0.4** adds native **enterprise SDLC** orchestration: `enterprise-sdlc` profile, work orders (`hx wo`),
+change requests (`hx cr`), test-design phase, bug/retest loop, `hx approve arch-lld`, and
+[scenario 20](docs/examples/20-企业SDLC工单全流程.md) walkthrough.
 **v0.3** completes organization **Pre-phase** (M18–M20): `/hx-prd`, `/hx-arch`, `/hx-arch-lld`, `hx approve prd|arch`,
 Context Pack org injection, `hx arch promote` (structured design → module LLD), `arch-drift` / archive gates,
 and synced operation/usage guides with **19** scenario walkthroughs ([19](docs/examples/19-组织级PRD与架构设计.md) → [15](docs/examples/15-企业级需求到交付交接.md)).
@@ -20,7 +23,7 @@ Design document: [`docs/harness-delivery-system-design.html`](docs/harness-deliv
 · Build plan & status: [`docs/build-plan.csv`](docs/build-plan.csv)
 · **Usage guides (by theme)**: [`docs/usage-guide.en.md`](docs/usage-guide.en.md) (English) · [`docs/usage-guide.zh-CN.md`](docs/usage-guide.zh-CN.md) (中文 — 核心概念、初始化配置、特殊项目定制)
 · **Operation guides (by phase)**: [`docs/operation-guide.en.md`](docs/operation-guide.en.md) (English) · [`docs/operation-guide.zh-CN.md`](docs/operation-guide.zh-CN.md) (中文)
-· **Usage scenario examples**: [`docs/examples/`](docs/examples/README.md) (中文) · [`docs/examples/en/`](docs/examples/en/README.md) (English) — **19 user-journey scenarios** ([picker](docs/examples/00-场景选择指南.md)) covering onboarding, daily delivery, enterprise pre-phase, platform governance, headless MCP, and more
+· **Usage scenario examples**: [`docs/examples/`](docs/examples/README.md) (中文) · [`docs/examples/en/`](docs/examples/en/README.md) (English) — **20 user-journey scenarios** ([picker](docs/examples/00-场景选择指南.md)) covering onboarding, daily delivery, enterprise pre-phase, platform governance, headless MCP, and more
 
 ## Advanced Features & Differentiation
 
