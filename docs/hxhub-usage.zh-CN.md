@@ -1,7 +1,7 @@
 # hxhub 使用手册
 
 **适用角色**：总架构师、平台组 Hub 维护者、资产作者、业务仓库负责人  
-**版本**：HarnessX v0.4+  
+**版本**：HarnessX v0.6+  
 **关联场景**：[08 Hub 资产共享与供应链](examples/08-hub-资产共享与供应链.md) · [16 Hub 蓝图初始化](examples/16-v0.3-hub-blueprint-init.md) · [17 平台治理与仪表盘](examples/17-v0.4-平台治理与仪表盘.md) · [21 Hub 双角色与贡献审核](examples/21-hub-双角色与贡献审核.md)
 
 ---
@@ -18,6 +18,8 @@
 **Harness Hub** 是组织级资产仓库（通常是一个 Git 仓库），用于分发 **Guide（前馈）**、**Sensor（反馈）**、拓扑 **Bundle** 与交付 **Blueprint**。业务仓库通过 `config.yaml` 的 `hub:` 字段引用 Hub，将资产安装到 `harnessX/.hub-cache/`，并用 `harness.lock` 锁定内容哈希。
 
 本文档合并了原「hxhub 使用手册」与「Hub 资产维护手册」，作为 Hub 运维与资产治理的**唯一中文参考**。
+
+**快速跳转**：资产从零创建到发布 → [§3.3 资产创建与发布（指南）](#33-资产创建与发布指南)；命令参数详情 → [§4.13 `hxhub asset`](#413-hxhub-asset--脚手架与-hub-侧生命周期)。
 
 ---
 
@@ -131,7 +133,8 @@ version: 1.0.0
 origin: local              # local | hub | builtin | team | change
 status: draft              # draft | trial | enforced | deprecated
 execution: inferential     # guide 必填：computational | inferential
-phase: [design, apply]     # 生效阶段
+stage: dev                 # 必填：req | arch | dev | test
+task: design               # 可选；省略则对该 stage 下所有 task 生效
 owner: platform-team       # 可选
 provenance:
   - type: repo
@@ -140,6 +143,16 @@ metrics:                   # 由 hx asset backfill 回填
   runs: 0
   failures: 0
 ```
+
+**stage / task 说明**（v0.6 四阶段模型）：
+
+| 字段 | 必填 | 含义 |
+| --- | --- | --- |
+| `stage` | 是 | 资产所属交付阶段（`req` / `arch` / `dev` / `test`） |
+| `task` | 否 | 阶段内具体任务（如 `propose`、`design`、`apply`、`verify`） |
+
+- **写了 `task`**：仅在对应 task 的 Context Pack 或 Gate 中生效（推荐用于模板、命令、任务专属 Skill）。
+- **省略 `task`**：该 stage 下所有 task 均会注入（适合跨 task 通用规范，但会增加上下文噪音）。
 
 Hub 侧额外元数据（由 `hxhub promote` 写入）包括 `category`（package/bundle/blueprint）与 `.review` 侧车。
 
@@ -186,6 +199,253 @@ hxhub init . --hub git@github.com:your-org/hx-hub.git --actor zhao.platform
 hxhub doctor --fix-hints
 hxhub search --category package
 hxhub policy check --strict
+```
+
+### 3.3 资产创建与发布（指南）
+
+本节说明如何用 `hxhub asset create` 从零创建资产，并通过 `promote` → `review` → `push` 发布到组织 Hub。等价命令 `hx hub asset create` 与 `hx hub promote` 行为相同。
+
+#### 3.3.1 流程总览
+
+```text
+创建脚手架          编辑内容           本地校验              发布到 Hub              评审与推送           业务仓库消费
+hxhub asset create → 编辑 SKILL.md 等 → hx asset scan     → hxhub promote/submit → review approve     → hxhub add
+                     完善 asset.yaml    hx asset backfill     hxhub asset promote      hxhub push           harness.yaml 注册
+                                                                 (→ enforced)                              hx lock write
+```
+
+| 步骤 | 命令 | 角色 | 说明 |
+| --- | --- | --- | --- |
+| 1. 创建 | `hxhub asset create` | 作者 | 生成 `asset.yaml` 与内容骨架 |
+| 2. 编辑 | （手工） | 作者 | 填写 Skill/模版/Rubric 正文，确认 `stage`/`task` |
+| 3. 校验 | `hx asset scan` / `hx asset backfill` | 作者 | 注入扫描；可选回填 metrics |
+| 4. 发布 | `hxhub promote` 或 `hxhub submit` | maintainer / consumer | 写入 Hub 正式目录或 `contributions/` |
+| 5. 评审 | `hxhub review approve` | maintainer | `.review` → `approved` |
+| 6. 提升 | `hxhub asset promote --to enforced` | maintainer | 组织级强制（可选，视策略） |
+| 7. 推送 | `hxhub push` | maintainer | 同步到远程 Git Hub |
+| 8. 消费 | `hxhub add` + `harness.yaml` | consumer | 安装到 `.hub-cache/` 并注册 |
+
+> **版本不可变**：同一 `id@version` 只能发布一次；升级须递增 `asset.yaml` 中的 `version` 后重新 `promote`。
+
+#### 3.3.2 创建脚手架：`hxhub asset create`
+
+**非交互式**（推荐 CI / 脚本）：
+
+```bash
+hxhub asset create \
+  --kind guide.skill \
+  --id clock-safety \
+  --asset-version 1.0.0 \
+  --status draft \
+  --stage dev \
+  --task apply \
+  --source-dir ./drafts/clock-safety \
+  --out ./assets/clock-safety
+```
+
+**交互式**（缺 `--kind` 或 `--id` 时也会自动进入）：
+
+```bash
+hxhub asset create --interactive
+```
+
+交互时会依次询问：asset id、kind、version、status、stage、task（可空）、源路径、输出目录。
+
+**`--source-dir` 用法**：
+
+| 传入类型 | 行为 |
+| --- | --- |
+| 目录 | 复制目录内已有 `SKILL.md` / `template.md` / `rules.yaml` 等 |
+| 单个文件 | 复制为对应 kind 的主文件名（如 `.md` → `template.md`） |
+| 省略 | 生成空白骨架文件 |
+
+**各 kind 自动生成文件**：
+
+| `--kind` | 主内容文件 | 典型 `stage.task` |
+| --- | --- | --- |
+| `guide.skill` | `SKILL.md` | `dev.apply`、`dev.design` |
+| `guide.template` | `template.md` | `dev.propose`、`dev.design` |
+| `sensor.rubric` | `rules.yaml` | `dev.verify` |
+| `harness.bundle` | `bundle.yaml` + `assets/` | （Bundle 内 guides 各自声明） |
+| `harness.blueprint` | `blueprint.yaml` | （Blueprint 按 `stages` 键 wiring） |
+
+创建成功后输出示例：
+
+```text
+created /path/to/assets/clock-safety
+  + asset.yaml
+  + SKILL.md
+```
+
+#### 3.3.3 按 kind 的完整样例
+
+**样例 A — `guide.skill`（编码规范）**
+
+```bash
+mkdir -p ./drafts/idempotency-keys
+cat > ./drafts/idempotency-keys/SKILL.md <<'EOF'
+# Idempotency Keys
+
+- Use client-supplied idempotency keys for all mutating POST endpoints.
+- Never compare absolute timestamps in assertions; inject a Clock.
+EOF
+
+hxhub asset create \
+  --kind guide.skill \
+  --id idempotency-keys \
+  --asset-version 1.0.0 \
+  --stage dev \
+  --task apply \
+  --source-dir ./drafts/idempotency-keys \
+  --out ./assets/idempotency-keys
+
+hx asset scan ./assets/idempotency-keys
+```
+
+**样例 B — `guide.template`（从单个 Markdown 导入）**
+
+```bash
+echo "# 功能需求模版\n\n## 目标\n\n## 验收标准" > ./功能需求模版.md
+
+hxhub asset create \
+  --kind guide.template \
+  --id feature-requirements-template \
+  --asset-version 1.0.0 \
+  --stage dev \
+  --task propose \
+  --source-dir ./功能需求模版.md \
+  --out ./assets/feature-requirements-template
+```
+
+**样例 C — `sensor.rubric`（verify 阶段评审规则）**
+
+```bash
+hxhub asset create \
+  --kind sensor.rubric \
+  --id ux-consistency-rubric \
+  --asset-version 1.0.0 \
+  --stage dev \
+  --task verify \
+  --out ./assets/ux-consistency-rubric
+
+# 编辑 rules.yaml 后，在 harness.yaml 的 profile.suites["dev.verify"] 中引用该 sensor id
+```
+
+**样例 D — `harness.bundle`（拓扑 Bundle）**
+
+```bash
+hxhub asset create \
+  --kind harness.bundle \
+  --id my-api-bundle \
+  --asset-version 1.0.0 \
+  --out ./assets/my-api-bundle
+
+# 编辑 bundle.yaml，声明 guides、sensors、suites；assets/ 下放置约束与 Skill 文件
+```
+
+**样例 E — `harness.blueprint`（交付蓝图）**
+
+```bash
+hxhub asset create \
+  --kind harness.blueprint \
+  --id my-blueprint \
+  --asset-version 1.0.0 \
+  --out ./assets/my-blueprint
+
+# 编辑 blueprint.yaml，示例：
+# name: my-blueprint
+# extends: standard
+# hub_deps:
+#   - prd-writing@1.0.0
+# stages:
+#   dev.propose:
+#     guides: [prd-writing]
+#   dev.design:
+#     guides: [prototype-wireframe]
+```
+
+#### 3.3.4 从业务仓库已有资产发布
+
+若 Skill 已在业务仓库 `harnessX/assets/guides/` 下沉淀，可跳过 `asset create`，直接走发布流程：
+
+```bash
+# === 作者在业务仓库 ===
+cd orders-service
+hx asset backfill harnessX/assets/guides/idempotency-keys
+hx asset scan harnessX/assets/guides/idempotency-keys
+hx asset promote harnessX/assets/guides/idempotency-keys --to trial
+
+# === 平台组在 hx-hub-ops（maintainer）===
+cd hx-hub-ops
+hxhub promote ../orders-service/harnessX/assets/guides/idempotency-keys \
+  --by wang.dev \
+  --evidence "8 weeks: flaky time tests 11/mo → 0"
+hxhub review approve idempotency-keys@1.0.0 --reviewer zhao.platform
+hxhub asset promote idempotency-keys@1.0.0 --to enforced
+hxhub policy check --strict
+hxhub push --message "publish: idempotency-keys@1.0.0"
+```
+
+Consumer 作者无 maintainer 权限时，将 `hxhub promote` 换为 `hxhub submit`（见 §6.5）。
+
+#### 3.3.5 Maintainer 发布 checklist（从零创建）
+
+在运维项目 `hx-hub-ops` 中执行：
+
+```bash
+# 1. 创建并编辑
+hxhub asset create --kind guide.skill --id my-skill --asset-version 1.0.0 \
+  --stage dev --task apply --out ./assets/my-skill
+# 编辑 ./assets/my-skill/SKILL.md 与 asset.yaml
+
+# 2. 本地校验
+hx asset scan ./assets/my-skill
+hxhub eval --local ./assets/my-skill    # 可选，发布前预检
+
+# 3. 写入 Hub 镜像（.review → pending）
+hxhub promote ./assets/my-skill --by zhao.platform --evidence "ci://runs/1820"
+
+# 4. 评审与提升
+hxhub review approve my-skill@1.0.0 --reviewer zhao.platform
+hxhub asset promote my-skill@1.0.0 --to enforced   # 视 hub-policy 策略可选 trial
+hxhub policy check --strict
+
+# 5. 推送到远程
+hxhub push --message "publish: my-skill@1.0.0"
+```
+
+#### 3.3.6 消费方安装与注册
+
+Package 发布并 `push` 后，业务仓库：
+
+```bash
+hxhub add my-skill@1.0.0
+```
+
+在 `harness.yaml` 注册（若未通过 Blueprint 自动 wiring）：
+
+```yaml
+guides:
+  - id: my-skill
+    kind: guide.skill
+    execution: inferential
+    stage: dev
+    task: apply
+    source: .hub-cache/my-skill/SKILL.md
+```
+
+随后：
+
+```bash
+hx lock write
+hx lock verify
+hx adapter sync
+```
+
+验证 Context Pack 是否包含该 Skill：
+
+```bash
+hx guide pack <change> --stage dev --task apply
 ```
 
 ---
@@ -435,6 +695,8 @@ hxhub contributions reject <ref> --reviewer <name> --reason <text>
 
 ### 4.13 `hxhub asset` — 脚手架与 Hub 侧生命周期
 
+> 端到端 walkthrough 见 **§3.3 资产创建与发布（指南）**。
+
 #### `hxhub asset create`
 
 ```bash
@@ -447,10 +709,17 @@ hxhub asset create [选项]
 | `--id` | 资产 ID |
 | `--asset-version` | 版本号（**不是** `--version`），默认 `0.1.0` |
 | `--status` | `draft` \| `trial` \| `enforced` \| `deprecated`，默认 `draft` |
-| `--phase` | 生效阶段，逗号分隔 |
-| `--out` | 输出目录 |
-| `--source-dir` | 已有源文件目录（如含 `SKILL.md` 的目录） |
+| `--stage` | 交付阶段：`req` \| `arch` \| `dev` \| `test`，默认 `dev` |
+| `--task` | 阶段内任务（可选）；省略则对该 stage 所有 task 生效 |
+| `--out` | 输出目录；默认以 `--id` 为目录名 |
+| `--source-dir` | 源路径（**目录或单个文件**），复制已有 SKILL/模版/Rubric 内容 |
 | `--interactive` | 交互式问答创建 |
+
+**行为说明**：
+
+- 缺少 `--kind` 或 `--id` 时自动进入交互模式。
+- 写入 `asset.yaml`（含 `stage`/`task`/`execution` 等）及 kind 对应骨架文件。
+- **不**连接 Hub、**不**发布；发布须另行执行 `hxhub promote` 或 `hxhub submit`。
 
 **自动生成文件**：
 
@@ -462,13 +731,28 @@ hxhub asset create [选项]
 | `harness.bundle` | `bundle.yaml` + `assets/` |
 | `harness.blueprint` | `blueprint.yaml` |
 
+**快速示例**：
+
+```bash
+# Skill：从目录导入
+hxhub asset create --kind guide.skill --id clock-safety --asset-version 1.0.0 \
+  --stage dev --task apply --source-dir ./drafts/clock-safety --out ./assets/clock-safety
+
+# 模版：从单个 Markdown 导入
+hxhub asset create --kind guide.template --id feature-template \
+  --stage dev --task propose --source-dir ./模版.md --out ./assets/feature-template
+
+# 交互式
+hxhub asset create --interactive
+```
+
 #### `hxhub asset info`
 
 ```bash
 hxhub asset info <id>@<version> [--hub <path>]
 ```
 
-输出 Hub 上已发布资产的元数据 JSON（kind、status、phase、review 状态等）。
+输出 Hub 上已发布资产的元数据 JSON（kind、status、stage、review 状态等）。
 
 #### `hxhub asset promote`
 
@@ -571,16 +855,16 @@ hxhub help [general|api|enterprise] [--json] [--hub <path>]
 
 ### 5.1 Packages
 
-| ID | 版本 | kind | 阶段 | 说明 |
+| ID | 版本 | kind | stage.task | 说明 |
 | --- | --- | --- | --- | --- |
-| `api-conventions` | 1.0.0 | guide.skill | design, apply | REST 错误体、命名等 API 约定 |
-| `common-review-rubrics` | 1.0.0 | sensor.rubric | verify | 通用 inferential 评审规则 |
-| `prd-writing` | 1.0.0 | guide.skill | propose, spec | PRD → change 需求蒸馏指引 |
-| `prd-authoring` | 1.0.0 | guide.skill | prd | 组织级 PRD 编写（Pre-phase） |
-| `arch-authoring` | 1.0.0 | guide.skill | arch | 全局 HLD 编写指引 |
-| `requirements-research-outline` | 1.0.0 | guide.skill | explore | 调研提纲 |
-| `prototype-wireframe` | 1.0.0 | guide.skill | design | 低保真线框与原型指引 |
-| `uat-checklist` | 1.0.0 | guide.template | verify | UAT 签收清单模版 |
+| `api-conventions` | 1.0.0 | guide.skill | dev.design, dev.apply | REST 错误体、命名等 API 约定 |
+| `common-review-rubrics` | 1.0.0 | sensor.rubric | dev.verify | 通用 inferential 评审规则 |
+| `prd-writing` | 1.0.0 | guide.skill | dev.propose | PRD → change 需求蒸馏指引 |
+| `prd-authoring` | 1.0.0 | guide.skill | req.prd-writing | 组织级 PRD 编写 |
+| `arch-authoring` | 1.0.0 | guide.skill | arch.subsystem-division | 全局 HLD 编写指引 |
+| `requirements-research-outline` | 1.0.0 | guide.skill | req.requirements-research | 调研提纲 |
+| `prototype-wireframe` | 1.0.0 | guide.skill | dev.design | 低保真线框与原型指引 |
+| `uat-checklist` | 1.0.0 | guide.template | dev.verify | UAT 签收清单模版 |
 
 ### 5.2 Bundles
 
@@ -740,7 +1024,7 @@ hxhub eval idempotency-keys@1.0.0 --out /tmp/idempotency-eval.json
 hxhub push --message "publish: idempotency-keys@1.0.0"
 ```
 
-**或使用脚手架从零创建**：
+**或使用脚手架从零创建**（完整步骤见 §3.3）：
 
 ```bash
 hxhub asset create \
@@ -748,12 +1032,15 @@ hxhub asset create \
   --id idempotency-keys \
   --asset-version 1.0.0 \
   --status draft \
-  --phase apply,verify \
+  --stage dev \
+  --task apply \
   --source-dir ./drafts/idempotency-keys \
   --out ./assets/idempotency-keys
 
+hx asset scan ./assets/idempotency-keys
 hxhub promote ./assets/idempotency-keys --by zhao.platform --evidence "ci://runs/1820"
 hxhub review approve idempotency-keys@1.0.0 --reviewer zhao.platform
+hxhub asset promote idempotency-keys@1.0.0 --to enforced
 hxhub push --message "publish: idempotency-keys@1.0.0"
 ```
 
@@ -783,7 +1070,8 @@ hx lock verify
 #   - id: prd-writing
 #     kind: guide.skill
 #     execution: inferential
-#     phase: [propose]
+#     stage: dev
+#     task: propose
 #     source: .hub-cache/prd-writing/SKILL.md
 
 hx adapter sync
@@ -864,9 +1152,18 @@ extends: enterprise-sdlc
 hub_deps:
   - prd-writing@1.0.0
   - uat-checklist@1.0.0
-phases:
-  explore:
+stages:
+  req.requirements-research:
     guides: [requirements-research-outline]
+  dev.propose:
+    guides: [prd-writing]
+  dev.design:
+    guides: [prototype-wireframe, design-template]
+  test.test-case-design:
+    guides: [design-template]
+  dev.verify:
+    guides: [uat-checklist]
+    sensors: [uat-complete, drift, bugs-closed]
 ```
 
 ```bash
@@ -931,7 +1228,7 @@ imports:
 | `hx bundle list [--hub <path>]` | 拓扑 Bundle 列表 |
 | `hx steer publish <dir> --hub <path>` | Steering → Hub 闭环 |
 
-本地资产发布到 Hub 前的典型路径：`hx asset promote --to trial` → `hx asset backfill` → `hx asset scan` → `hxhub promote`（或 `hxhub submit`）。
+本地资产发布到 Hub 前的典型路径：`hx asset promote --to trial` → `hx asset backfill` → `hx asset scan` → `hxhub promote`（或 `hxhub submit`）。完整说明见 [§3.3](#33-资产创建与发布指南)。
 
 ---
 
@@ -992,6 +1289,7 @@ imports:
 
 ## 12. 延伸阅读
 
+- [§3.3 资产创建与发布（指南）](#33-资产创建与发布指南)
 - [操作说明 §9.1 Hub 资产管理](operation-guide.zh-CN.md#91-hub-资产管理命令本次升级新增)
 - [场景 08：Hub 供应链](examples/08-hub-资产共享与供应链.md)
 - [场景 16：Hub 蓝图初始化](examples/16-v0.3-hub-blueprint-init.md)
