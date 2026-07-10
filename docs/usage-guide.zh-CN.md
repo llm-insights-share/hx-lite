@@ -98,7 +98,7 @@ HarnessX 不只约束「代码质量」，还约束架构与行为：
 propose → design → spec → plan → apply → verify → archive
 ```
 
-（`lite` 跳过 design/spec/plan/verify；`strict` / `enterprise` 增加 explore 或企业级检查，见 [1.6](#16-按风险选择-profile)）
+（`lite` 跳过 design/spec/plan/verify；`strict` / `enterprise` 增加 explore 或企业级检查，见 [1.9](#19-典型场景按风险选择-profile)）
 
 | 入口 | 适用 | 示例 |
 | --- | --- | --- |
@@ -165,7 +165,138 @@ Cursor 写 proposal + delta spec
 
 Delta spec 使用 OpenSpec 格式（ADDED/MODIFIED/REMOVED + GIVEN/WHEN/THEN），由 `spec-validate` 机械校验——**格式错误在 propose 阶段就会被拦住**，不必等到 PR。
 
-### 1.7 典型场景：按风险选择 profile
+### 1.7 典型场景：产品经理撰写与批准 PRD
+
+**角色**：产品经理（PM）  
+**目标**：在 enterprise 交付前，把组织级需求真相源写入 `docs/prd/`，经门禁与人工批准后供后续 change 自动引用  
+**前置**：项目已 `hx init`（建议 `profile: enterprise` 或 `enterprise-delivery` 蓝图）且已 `hx adapter sync`  
+**详细 walkthrough**：[场景 19 组织级 PRD 与架构设计](examples/19-组织级PRD与架构设计.md) · [场景 11 自定义需求产出模板](examples/11-自定义需求产出模板.md)
+
+PM 在 HarnessX 中的职责是维护**组织级 PRD**（跨多个 change 复用），而不是直接写 change 内的 `requirements/`——后者由研发在 propose 阶段从 PRD **蒸馏**而来。
+
+```text
+Cursor 写 PRD（/hx-prd）
+  → hx prd check <slug>（prd-complete 传感器）
+  → hx approve prd <slug> --approver <pm>（终端人工背书）
+  → 研发 hx change create ... --prd <slug>（change 自动链接 org PRD）
+```
+
+**典型命令流**：
+
+```bash
+# 1. 脚手架（也可在 Cursor 用 /hx-prd 触发）
+hx prd init member-badge --title "会员徽章"
+
+# 2. 在 Cursor 中按 prd-template / prd-writing Skill 填写：
+#    用户故事、AC（GWT）、In/Out Scope、NFR、评审结论
+#    文件落盘：docs/prd/member-badge.md
+
+# 3. 机械校验（格式与必填章节）
+hx prd check member-badge
+
+# 4. 人工批准（须在终端执行，写入 docs/.prephase-approvals.yaml）
+hx approve prd member-badge --approver chen.pm
+
+# 5. （可选）提交 PRD 审核工单（enterprise-sdlc）
+hx prd submit member-badge --by chen.pm
+```
+
+**PM 需要知道的机制**：
+
+| 机制 | 说明 |
+| --- | --- |
+| **Pre-phase 与 change 分离** | `docs/prd/` 是组织级制品；单次功能的增量在 `harnessX/changes/<id>/requirements/` |
+| **批准与内容绑定** | PRD 文件改动后，批准记录失效，须重新 `hx prd check` + `hx approve prd` |
+| **自动注入 Context Pack** | change 创建时带 `--prd <slug>`，`hx guide pack` 在 propose/design 阶段自动注入 org PRD，研发不必每次手动 `@` |
+| **enterprise 门禁** | propose 阶段检查 `prd-complete` + `prd-approved`；未批准则 change 无法推进 |
+| **模板定制** | 组织可改 `prd-template` 或 Hub 包 `prd-writing@1.0.0`（见场景 11） |
+
+**与研发的交接**：PRD 批准后，PM 通知研发创建 change：
+
+```bash
+hx change create member-badge \
+  --domains member \
+  --profile enterprise \
+  --prd member-badge \
+  --arch-modules member
+```
+
+完整 change 交付见 [场景 15 企业级需求到交付交接](examples/15-企业级需求到交付交接.md)。
+
+### 1.8 典型场景：架构师维护全局概要设计（HLD）
+
+**角色**：架构师（概要设计 / HLD 负责人）  
+**目标**：维护组织级全局架构与模块注册表，确保 change 级 design 与 org HLD 对齐，并在归档前沉淀回模块 LLD  
+**前置**：同 §1.7；建议 Hub 安装 `arch-authoring@1.0.0`（`hx hub add` 或蓝图 `hub_deps`）  
+**详细 walkthrough**：[场景 19](examples/19-组织级PRD与架构设计.md) · [场景 12 自定义概要设计产出模板](examples/12-自定义概要设计产出模板.md)
+
+架构师维护三层组织级制品：
+
+| 层级 | 路径 | 职责 |
+| --- | --- | --- |
+| 全局 HLD | `docs/architecture/overview.md` | 系统边界、技术选型、跨模块约束 |
+| 模块注册表 | `docs/architecture/registry.yaml` | 模块清单、`capabilities` 与 change `--domains` 对齐 |
+| 模块 LLD | `docs/architecture/modules/<module>/lld.md` | 模块级接口契约与 ADR（可逐步沉淀） |
+
+```text
+Cursor 写全局 HLD（/hx-arch）
+  → hx arch check（arch-approved 等传感器）
+  → hx approve arch --approver <architect>
+  → （按需）/hx-arch-lld <module> → hx arch lld check <module>
+  → change design 阶段 arch-change-align 校验对齐
+  → archive 前 hx arch promote <change> 沉淀回模块 LLD
+```
+
+**典型命令流**：
+
+```bash
+# 1. 初始化全局架构脚手架
+hx arch init --title "会员电商"
+# 产出：docs/architecture/overview.md、docs/architecture/registry.yaml
+
+# 2. 在 Cursor 用 /hx-arch 补全各章节（C4、数据流、NFR、模块划分…）
+hx arch check
+# 首次可能 BLOCKER：arch-approved（全局架构未批准）
+
+# 3. 人工批准全局 HLD
+hx approve arch --approver lin.arch
+
+# 4. 为关键模块初始化 LLD（与 registry.yaml 中模块 id 一致）
+hx arch lld init member --title "会员模块"
+hx arch lld check member
+
+# 5. 在 registry.yaml 声明 capabilities，与后续 change 对齐
+#    member: { capabilities: [member] }
+
+# 6. （可选）提交概要设计审核工单
+hx arch submit --by lin.arch
+```
+
+**change 交付中的架构师触点**：
+
+| 阶段 | 架构师动作 | 相关传感器 |
+| --- | --- | --- |
+| design | 审阅 change 的 `design/overview.md` 与 LLD 目录 | `arch-change-align`、`design-hld-complete`、`design-lld-complete` |
+| verify | 关注 `arch-drift`（未 promote 时 warn） | `design-drift`、`uat-complete` |
+| archive 前 | **必须**执行沉淀（enterprise） | `hx arch promote <change> --by lin.arch` |
+
+```bash
+# change 验证通过后，将 change design 结构化合并回组织模块 LLD
+hx arch promote member-badge --by lin.arch
+# 更新 docs/architecture/modules/member/lld.md 接口表与 ADR 节
+
+# 然后研发方可 archive
+hx archive member-badge
+```
+
+**架构师需要知道的机制**：
+
+- **双轨设计**：org HLD（`docs/architecture/`）描述「系统长什么样」；change `design/` 描述「本次改动如何融入系统」。
+- **`hx guide pack` 自动注入**：带 `--arch-modules` 的 change 在 propose/design 阶段自动注入模块 LLD，减少上下文遗漏。
+- **模板与 Hub 资产**：可定制 `arch-hld-template` 或消费 Hub `arch-authoring@1.0.0`（见场景 12）。
+- **与 PM 的协作顺序**：通常 PRD 批准 → 全局 HLD 批准 → 模块 LLD 就绪 → `change create --prd ... --arch-modules ...`。
+
+### 1.9 典型场景：按风险选择 profile
 
 | Profile | 阶段 | 何时选 | 场景 |
 | --- | --- | --- | --- |
@@ -196,7 +327,7 @@ hx change create <id> --prd <slug> --arch-modules <module> --profile enterprise
 
 `hx guide pack` 在 propose/design 阶段会**自动注入** `docs/prd/` 与 `docs/architecture/` 制品到 Context Pack。归档前执行 `hx arch promote <change>` 将 change design 沉淀回模块 LLD。
 
-### 1.8 典型场景：平台与组织视角
+### 1.10 典型场景：平台与组织视角
 
 | 目标 | 入口场景 |
 | --- | --- |
@@ -205,7 +336,7 @@ hx change create <id> --prd <slug> --arch-modules <module> --profile enterprise
 | 失败沉淀为新 Skill/Rubric | [07 Steering 质量治理](examples/07-steering-质量治理.md) |
 | 跨项目 coverage / 仪表盘 | [17 平台治理与仪表盘](examples/17-v0.4-平台治理与仪表盘.md) |
 
-### 1.9 典型场景：多工具与无头 Agent
+### 1.11 典型场景：多工具与无头 Agent
 
 | 目标 | 入口场景 |
 | --- | --- |
@@ -216,7 +347,7 @@ hx change create <id> --prd <slug> --arch-modules <module> --profile enterprise
 
 Tier 2 适配器（如 Codex、generic `AGENTS.md`）缺少 Cursor hooks 时，HarnessX 通过 **Gate 补偿**自动加强 L3 检查（追加 typecheck/lint，warn 升格为 block）。详见 [config.yaml 的 compensation](operation-guide.zh-CN.md#31-harnessxconfigyaml)。
 
-### 1.10 心智模型（六条）
+### 1.12 心智模型（六条）
 
 1. 行为改动在 **change 工作区**，用 delta spec 描述增量。
 2. **Gate** 全绿 + 前置条件（如人工批准）才 `advance`；sensor 崩溃视为阻断（fail-closed）。
@@ -487,6 +618,8 @@ hx hooks install && hx ci init && hx adapter sync
 **适用**：BA → 架构师 → 前后端多人协作  
 **详细 walkthrough**：[场景 19](examples/19-组织级PRD与架构设计.md)（组织 Pre-phase）→ [场景 15](examples/15-企业级需求到交付交接.md)、[场景 14](examples/14-企业全栈多角色交付.md)
 
+按角色速查：[§1.7 产品经理（PRD）](#17-典型场景产品经理撰写与批准-prd) · [§1.8 架构师（HLD）](#18-典型场景架构师维护全局概要设计hld)
+
 初始化：
 
 ```bash
@@ -654,6 +787,8 @@ harness-hub/
 | 存量 OpenSpec | `hx openspec import` | 06 |
 | 金融/支付核心域 | `profile: strict` + testfirst | 03 |
 | 企业 BA+架构+研发 | `enterprise-delivery` 蓝图 | [19](examples/19-组织级PRD与架构设计.md) → 15, 14 |
+| 产品经理（PRD Pre-phase） | `enterprise` + `hx prd` / `/hx-prd` | [19](examples/19-组织级PRD与架构设计.md) · §1.7 |
+| 架构师（HLD / 概要设计） | `enterprise` + `hx arch` / `/hx-arch` | [19](examples/19-组织级PRD与架构设计.md) · §1.8 |
 | 14+ 仓库统一规范 | 中央 Hub + lock | 08, 16 |
 | 无 Cursor、纯 CLI | imports + MCP + Tier 补偿 | 18 |
 | 安全合规扩展 | 自定义 sensor + file-save 触发 | 10 |
@@ -713,6 +848,10 @@ flowchart TD
   Q3 -->|是| S11[场景 11+12 模板定制]
   Q3 -->|否| S02[场景 02 第一个功能]
   S02 --> Q4{项目类型?}
+  Q4 -->|产品经理| S19PM[场景 19 PRD Pre-phase]
+  Q4 -->|架构师 HLD| S19Arch[场景 19 全局架构]
+  S19PM --> S15[场景 15]
+  S19Arch --> S15
   Q4 -->|企业多角色| S19[场景 19 Pre-phase]
   S19 --> S15[场景 15]
   Q4 -->|无 Cursor| S18[场景 18]

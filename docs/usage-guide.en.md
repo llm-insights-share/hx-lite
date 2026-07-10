@@ -100,7 +100,87 @@ Key mechanisms: change workspace + delta specs; three enforcement layers (IDE ru
 
 Delta specs use OpenSpec format; `spec-validate` blocks bad EARS/scenarios in the propose phase.
 
-### 1.7 Choose profile by risk
+### 1.7 Typical scenario: product manager — PRD authoring and approval
+
+**Role**: product manager (PM)  
+**Goal**: maintain org-level requirements in `docs/prd/`, pass gates and human approval before changes reference them  
+**Prerequisites**: `hx init` with `profile: enterprise` or `enterprise-delivery` blueprint; `hx adapter sync`  
+**Walkthrough**: [Scenario 19 — Org PRD and architecture](examples/en/19-org-prd-and-architecture.md) · [Scenario 11 — Custom requirements templates](examples/en/11-custom-requirements-output-template.md)
+
+PMs own **org-level PRDs** (reused across changes). Change-level `requirements/` are **distilled** by engineering during propose — not written directly by PM in the change workspace.
+
+```text
+Cursor writes PRD (/hx-prd)
+  → hx prd check <slug> (prd-complete sensor)
+  → hx approve prd <slug> --approver <pm> (terminal — human accountability)
+  → engineering: hx change create ... --prd <slug>
+```
+
+```bash
+hx prd init member-badge --title "Member badge"
+# Edit docs/prd/member-badge.md in Cursor (user stories, GWT AC, scope, NFR)
+hx prd check member-badge
+hx approve prd member-badge --approver chen.pm
+# Optional (enterprise-sdlc): hx prd submit member-badge --by chen.pm
+```
+
+| Mechanism | Notes |
+| --- | --- |
+| Pre-phase vs change | `docs/prd/` is org-level; per-feature deltas live in `changes/<id>/requirements/` |
+| Approval binding | Editing the PRD file invalidates approval — re-run check + approve |
+| Context Pack injection | `change create --prd <slug>` auto-injects org PRD in propose/design |
+| Enterprise gates | propose requires `prd-complete` + `prd-approved` |
+| Template customization | See Scenario 11 or Hub `prd-writing@1.0.0` |
+
+Handoff to engineering:
+
+```bash
+hx change create member-badge --domains member --profile enterprise \
+  --prd member-badge --arch-modules member
+```
+
+Full change delivery: [Scenario 15](examples/en/15-enterprise-delivery-handoff.md).
+
+### 1.8 Typical scenario: architect — global HLD (overview design)
+
+**Role**: architect (HLD / overview design owner)  
+**Goal**: maintain org-level architecture, align change designs, promote back to module LLD before archive  
+**Prerequisites**: same as §1.7; Hub `arch-authoring@1.0.0` recommended  
+**Walkthrough**: [Scenario 19](examples/en/19-org-prd-and-architecture.md) · [Scenario 12 — Custom design templates](examples/en/12-custom-design-output-template.md)
+
+| Layer | Path | Responsibility |
+| --- | --- | --- |
+| Global HLD | `docs/architecture/overview.md` | boundaries, tech choices, cross-module constraints |
+| Module registry | `docs/architecture/registry.yaml` | modules; `capabilities` align with change `--domains` |
+| Module LLD | `docs/architecture/modules/<module>/lld.md` | interface contracts, ADRs (incrementally promoted) |
+
+```text
+Cursor writes HLD (/hx-arch)
+  → hx arch check
+  → hx approve arch --approver <architect>
+  → (optional) /hx-arch-lld <module> → hx arch lld check <module>
+  → design phase: arch-change-align
+  → before archive: hx arch promote <change>
+```
+
+```bash
+hx arch init --title "Member commerce"
+hx arch check
+hx approve arch --approver lin.arch
+hx arch lld init member --title "Member module"
+hx arch lld check member
+# Optional: hx arch submit --by lin.arch
+```
+
+| Phase | Architect action | Sensors |
+| --- | --- | --- |
+| design | review change `design/overview.md` + LLD dirs | `arch-change-align`, `design-hld-complete`, `design-lld-complete` |
+| verify | watch `arch-drift` (warn if not promoted) | `design-drift`, `uat-complete` |
+| before archive | **required** promote (enterprise) | `hx arch promote <change> --by lin.arch` |
+
+Key mechanisms: org HLD vs change `design/` dual track; `hx guide pack` injects module LLD when `--arch-modules` set; customize via Scenario 12 or Hub `arch-authoring@1.0.0`. Typical order: PRD approved → global HLD approved → module LLD ready → `change create`.
+
+### 1.9 Choose profile by risk
 
 | Profile | When | Scenario |
 | --- | --- | --- |
@@ -122,7 +202,7 @@ hx change create <id> --prd <slug> --arch-modules <module> --profile enterprise
 
 `hx guide pack` **auto-injects** `docs/prd/` and `docs/architecture/` into Context Packs during propose/design. Before archive, run `hx arch promote <change>` to write change design back into module LLD.
 
-### 1.8 Platform / org scenarios
+### 1.10 Platform / org scenarios
 
 | Goal | Scenario |
 | --- | --- |
@@ -131,7 +211,7 @@ hx change create <id> --prd <slug> --arch-modules <module> --profile enterprise
 | Failure → new rules | [07 Steering quality](examples/en/07-steering-quality-governance.md) |
 | Dashboards / coverage | [17 Platform governance](examples/en/17-v0.4-platform-governance.md) |
 
-### 1.9 Multi-tool and headless agents
+### 1.11 Multi-tool and headless agents
 
 | Goal | Scenario |
 | --- | --- |
@@ -142,7 +222,7 @@ hx change create <id> --prd <slug> --arch-modules <module> --profile enterprise
 
 Tier 2 adapters trigger **gate compensation** (extra sensors, warn→block). See [config.yaml compensation](operation-guide.en.md#31-harnessxconfigyaml).
 
-### 1.10 Mental model (six points)
+### 1.12 Mental model (six points)
 
 1. Behaviour changes live in a **change workspace** with delta specs.
 2. **Gates** advance only when sensors pass + preconditions (e.g. human approval); crashes block (fail-closed).
@@ -262,6 +342,8 @@ Optional `compat_mode: openspec` in `config.yaml` for short-term parallel use.
 
 **Walkthrough**: [19](examples/en/19-org-prd-and-architecture.md) (org Pre-phase) → [15](examples/en/15-enterprise-delivery-handoff.md), [14](examples/en/14-enterprise-fullstack-multi-role.md)
 
+By role: [§1.7 PM (PRD)](#17-typical-scenario-product-manager--prd-authoring-and-approval) · [§1.8 Architect (HLD)](#18-typical-scenario-architect--global-hld-overview-design)
+
 ```bash
 hx init --from-hub enterprise-delivery@1.0.0 --hub ./harness-hub
 ```
@@ -335,6 +417,8 @@ Hub layout: `packages/`, `bundles/`, `blueprints/`, `evals/`. See built-in `pack
 | Legacy OpenSpec | `openspec import` | 06 |
 | Payments / core | `strict` + testfirst | 03 |
 | Enterprise BA+arch+dev | `enterprise-delivery` | [19](examples/en/19-org-prd-and-architecture.md) → 15, 14 |
+| Product manager (PRD Pre-phase) | `enterprise` + `hx prd` / `/hx-prd` | [19](examples/en/19-org-prd-and-architecture.md) · §1.7 |
+| Architect (HLD / overview) | `enterprise` + `hx arch` / `/hx-arch` | [19](examples/en/19-org-prd-and-architecture.md) · §1.8 |
 | Many repos | Central Hub + lock | 08, 16 |
 | No Cursor | imports + MCP | 18 |
 | Security extension | custom sensor | 10 |
