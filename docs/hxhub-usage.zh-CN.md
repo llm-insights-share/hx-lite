@@ -19,7 +19,7 @@
 
 本文档合并了原「hxhub 使用手册」与「Hub 资产维护手册」，作为 Hub 运维与资产治理的**唯一中文参考**。
 
-**快速跳转**：资产从零创建到发布 → [§3.3 资产创建与发布（指南）](#33-资产创建与发布指南)；命令参数详情 → [§4.13 `hxhub asset`](#413-hxhub-asset--脚手架与-hub-侧生命周期)。
+**快速跳转**：资产从零创建到发布 → [§3.3 资产创建与发布（指南）](#33-资产创建与发布指南)；**draft → trial → enforced** → [§3.4 生命周期状态管理](#34-资产生命周期状态管理draft--trial--enforced)；命令参数详情 → [§4.13 `hxhub asset`](#413-hxhub-asset--脚手架与-hub-侧生命周期)。
 
 ---
 
@@ -172,7 +172,27 @@ draft → trial → enforced → deprecated → archived
 | `deprecated` | 废弃，仍可读 | 已安装者可继续，不建议新装 |
 | `archived` | 归档 | 不可新装 |
 
-**Hub 评审状态**（`.review`）：`pending` → `approved` / `rejected`
+**合法状态转换**（本地 `asset.yaml` 与 Hub 元数据均遵循）：
+
+| 当前状态 | 可转换到 |
+| --- | --- |
+| `draft` | `trial`、`deprecated` |
+| `trial` | `enforced`、`deprecated`、`draft` |
+| `enforced` | `deprecated` |
+| `deprecated` | `archived`（Hub 侧） |
+
+> **不可跳级**：`draft` 不能直接变为 `enforced`，须先进入 `trial`。
+
+**两层状态管理**（易混淆，须区分）：
+
+| 层级 | 状态写在 | 变更命令 | 典型场景 |
+| --- | --- | --- | --- |
+| **本地** | 资产目录内 `asset.yaml` | `hx asset promote <dir> --to …` | `hxhub asset create` 后、发布到 Hub 前 |
+| **Hub** | Hub 包目录元数据 + `asset.yaml` | `hxhub asset promote <id>@<ver> --to …` | 已 `hxhub promote` 写入 Hub 之后 |
+
+**Hub 评审状态**（`.review`，与 lifecycle 独立）：`pending` → `approved` / `rejected`。`enforced` 资产通常要求 `.review` 为 `approved`（见 `hxhub policy check`）。
+
+详细操作见 [§3.4 资产生命周期状态管理](#34-资产生命周期状态管理draft--trial--enforced)。
 
 ---
 
@@ -219,6 +239,7 @@ hxhub asset create → 编辑 SKILL.md 等 → hx asset scan     → hxhub promo
 | 1. 创建 | `hxhub asset create` | 作者 | 生成 `asset.yaml` 与内容骨架 |
 | 2. 编辑 | （手工） | 作者 | 填写 Skill/模版/Rubric 正文，确认 `stage`/`task` |
 | 3. 校验 | `hx asset scan` / `hx asset backfill` | 作者 | 注入扫描；可选回填 metrics |
+| 3b. 本地状态 | `hx asset promote <dir> --to trial` | 作者 | **必须**：离开 `draft` 后才能 `hxhub promote`（见 §3.4） |
 | 4. 发布 | `hxhub promote` 或 `hxhub submit` | maintainer / consumer | 写入 Hub 正式目录或 `contributions/` |
 | 5. 评审 | `hxhub review approve` | maintainer | `.review` → `approved` |
 | 6. 提升 | `hxhub asset promote --to enforced` | maintainer | 组织级强制（可选，视策略） |
@@ -398,9 +419,9 @@ hxhub asset create --kind guide.skill --id my-skill --asset-version 1.0.0 \
   --stage dev --task apply --out ./assets/my-skill
 # 编辑 ./assets/my-skill/SKILL.md 与 asset.yaml
 
-# 2. 本地校验
+# 2. 本地校验 + 本地状态提升（draft 不能直接 publish）
 hx asset scan ./assets/my-skill
-hxhub eval --local ./assets/my-skill    # 可选，发布前预检
+hx asset promote ./assets/my-skill --to trial    # 或 --to enforced（须满足 metrics 门槛，见 §3.4）
 
 # 3. 写入 Hub 镜像（.review → pending）
 hxhub promote ./assets/my-skill --by zhao.platform --evidence "ci://runs/1820"
@@ -447,6 +468,134 @@ hx adapter sync
 ```bash
 hx guide pack <change> --stage dev --task apply
 ```
+
+#### 3.3.7 与状态提升的关系
+
+`hxhub asset create` 默认生成 `status: draft`。在调用 `hxhub promote` 发布到 Hub **之前**，须用 `hx asset promote` 将本地状态至少提升到 `trial`（详见 **§3.4**）。若跳过此步，`hxhub promote` 会报错：`draft assets cannot be promoted to the hub`。
+
+---
+
+### 3.4 资产生命周期状态管理（draft → trial → enforced）
+
+本节说明 `hxhub asset create` 创建的资产（默认 `draft`）如何提升到 `trial` 或 `enforced`，以及本地与 Hub 两层命令的区别。
+
+#### 3.4.1 命令对照（最易混淆）
+
+| 目的 | 命令 | 作用对象 |
+| --- | --- | --- |
+| 改**本地目录**内 `asset.yaml` 的 `status` | `hx asset promote <dir> --to trial\|enforced\|deprecated` | `./assets/my-skill/` 等本地路径 |
+| 将本地资产**写入 Hub 仓库** | `hxhub promote <dir> --by <name>` | 同上本地目录 → Hub `packages/` 等 |
+| 改 **Hub 已发布包**的生命周期状态 | `hxhub asset promote <id>@<version> --to …` | Hub 中已存在的 `id@version` |
+
+等价写法：`hx hub asset promote` = `hxhub asset promote`；`hx hub promote` = `hxhub promote`。
+
+> **记忆口诀**：带**目录路径**的 `promote` 是「发布」或「改本地」；带 **`id@version`** 的 `asset promote` 是「改 Hub 上已发布包的状态」。
+
+#### 3.4.2 本地：draft → trial
+
+`hxhub asset create` 完成后，资产处于本地 `draft`，**不能**直接 `hxhub promote`。
+
+```bash
+# 1. 编辑 SKILL.md / template.md 等内容
+
+# 2. 注入扫描（建议）
+hx asset scan ./assets/my-skill
+
+# 3. 本地状态：draft → trial
+hx asset promote ./assets/my-skill --to trial
+```
+
+成功后 `./assets/my-skill/asset.yaml` 中 `status` 变为 `trial`。可用以下命令确认：
+
+```bash
+hx asset list    # 或 cat ./assets/my-skill/asset.yaml | grep status
+```
+
+#### 3.4.3 本地：trial → enforced
+
+```bash
+# 可选：从 harnessX/runs/ 遥测回填 runs/failures 等指标
+hx asset backfill ./assets/my-skill
+
+hx asset promote ./assets/my-skill --to enforced
+```
+
+**数据驱动门槛**（`trial` → `enforced` 时 CLI 强制校验）：
+
+| 条件 | 要求 |
+| --- | --- |
+| `metrics.evaluations` | ≥ 5 |
+| 误报率 `metrics.falsePositives / metrics.evaluations` | ≤ 20% |
+
+指标不足时命令失败，提示类似 `needs >=5 recorded evaluations`。应在 `trial` 阶段让资产在真实 change 中运行足够次数，通过 `hx asset backfill` 回填；**不要**在生产流程中手工伪造 metrics。
+
+若暂时只需在少数仓库试用，**停在 `trial` 即可**，不必升到 `enforced`。
+
+#### 3.4.4 发布到 Hub（须已离开 draft）
+
+本地状态为 `trial` 或 `enforced` 后：
+
+```bash
+hxhub eval --local ./assets/my-skill    # 可选预检
+hxhub promote ./assets/my-skill \
+  --by zhao.platform \
+  --evidence "ci://runs/1820"
+```
+
+`hxhub promote` 还会执行：注入扫描、结构校验、写入 `.review`（初始 `pending`）。**不会**自动把 Hub 侧状态设为 `enforced`——发布时 Hub 元数据继承本地 `asset.yaml` 中的 `status`。
+
+#### 3.4.5 Hub 侧：trial → enforced
+
+资产已在 Hub（`packages/<id>/<version>/`）后，由 maintainer 执行：
+
+```bash
+# 1. 评审通过（policy 要求 enforced 须 approved）
+hxhub review approve my-skill@1.0.0 --reviewer zhao.platform
+
+# 2. Hub 生命周期提升
+hxhub asset promote my-skill@1.0.0 --to enforced
+
+# 3. 策略检查 + 推送
+hxhub policy check --strict
+hxhub push --message "promote: my-skill@1.0.0 to enforced"
+```
+
+查看当前 Hub 包状态与评审：
+
+```bash
+hxhub asset info my-skill@1.0.0
+```
+
+#### 3.4.6 端到端示例（create → trial → 发布 → enforced）
+
+```bash
+# --- 本地：创建 ---
+hxhub asset create --kind guide.skill --id my-skill --asset-version 1.0.0 \
+  --stage dev --task apply --out ./assets/my-skill
+# 编辑 ./assets/my-skill/SKILL.md
+
+# --- 本地：draft → trial ---
+hx asset scan ./assets/my-skill
+hx asset promote ./assets/my-skill --to trial
+
+# --- 发布到 Hub ---
+hxhub promote ./assets/my-skill --by zhao.platform --evidence "pilot in 2 repos"
+
+# --- Hub：评审 + enforced ---
+hxhub review approve my-skill@1.0.0 --reviewer zhao.platform
+hxhub asset promote my-skill@1.0.0 --to enforced
+hxhub push --message "publish: my-skill@1.0.0 enforced"
+```
+
+#### 3.4.7 常见错误
+
+| 现象 | 原因 | 处理 |
+| --- | --- | --- |
+| `draft assets cannot be promoted to the hub` | 本地仍为 `draft` 就执行了 `hxhub promote` | 先 `hx asset promote <dir> --to trial` |
+| `illegal transition draft → enforced` | 本地跳级 | 先 `--to trial`，再 `--to enforced` |
+| `promotion blocked: needs >=5 recorded evaluations` | trial→enforced 指标不足 | 在 trial 阶段多运行并 `hx asset backfill` |
+| `enforced asset is not approved` | Hub policy 检查失败 | `hxhub review approve` 后再 `asset promote --to enforced` |
+| `already published — bump the version` | 同版本重复 publish | 递增 `asset.yaml` 的 `version` 后重新发布 |
 
 ---
 
@@ -589,6 +738,8 @@ hxhub promote <dir> --by <name> [选项]
 | `--skip-eval` | 跳过发布前 eval |
 
 **作用**：将资产写入 Hub 正式目录（`packages/` / `bundles/` / `blueprints/`，按 `kind` 自动识别）。创建 `.review` 侧车，初始状态为 `pending`。发布前默认执行策略检查与 eval。
+
+**前置条件**：本地 `asset.yaml` 的 `status` **不能为 `draft`**——须先用 `hx asset promote <dir> --to trial`（或 `enforced`）提升本地状态，否则报错 `draft assets cannot be promoted to the hub`。详见 [§3.4](#34-资产生命周期状态管理draft--trial--enforced)。
 
 **角色要求**：`maintainer`。
 
@@ -760,7 +911,24 @@ hxhub asset info <id>@<version> [--hub <path>]
 hxhub asset promote <id>@<version> --to <status> [--hub <path>]
 ```
 
-在 Hub 侧提升生命周期状态：`draft` \| `trial` \| `enforced` \| `deprecated` \| `archived`。`enforced` 通常要求 `.review` 为 `approved`。
+在 **Hub 已发布包**上变更生命周期状态：`draft` \| `trial` \| `enforced` \| `deprecated` \| `archived`。
+
+| 要点 | 说明 |
+| --- | --- |
+| 作用对象 | Hub 中的 `id@version`，**不是**本地目录 |
+| 与 `hxhub promote <dir>` 区别 | 后者是「发布本地目录到 Hub」；本命令是「改 Hub 上已有包的状态」 |
+| `enforced` 前置 | 通常须先 `hxhub review approve`；`hxhub policy check --strict` 会校验 |
+| 合法转换 | 见 [§2.6](#26-资产生命周期)、[§3.4.5](#345-hub-侧trial--enforced) |
+
+**示例**：
+
+```bash
+hxhub review approve my-skill@1.0.0 --reviewer zhao.platform
+hxhub asset promote my-skill@1.0.0 --to enforced
+hxhub push --message "promote: my-skill@1.0.0 to enforced"
+```
+
+> 本地目录状态变更用 `hx asset promote <dir> --to …`，见 [§3.4](#34-资产生命周期状态管理draft--trial--enforced)。
 
 #### `hxhub asset deprecate`
 
@@ -1220,15 +1388,24 @@ imports:
 | 命令 | 说明 |
 | --- | --- |
 | `hx asset list [--change <id>]` | 列出已解析资产及层级 |
-| `hx asset promote <dir> --to <status>` | **本地**生命周期提升 |
-| `hx asset backfill <dir>` | 遥测回填 metrics |
+| `hx asset promote <dir> --to <status>` | **本地**生命周期提升（`draft`→`trial`→`enforced`）；发布 Hub 前必用 |
+| `hx asset backfill <dir>` | 遥测回填 metrics（`trial`→`enforced` 门槛依赖 evaluations） |
 | `hx asset scan <dir>` | 注入扫描 |
 | `hx lock write` / `hx lock verify` | 锁定 / 校验哈希 |
 | `hx adapter sync` | Hub/本地资产 → IDE 适配器 |
 | `hx bundle list [--hub <path>]` | 拓扑 Bundle 列表 |
 | `hx steer publish <dir> --hub <path>` | Steering → Hub 闭环 |
 
-本地资产发布到 Hub 前的典型路径：`hx asset promote --to trial` → `hx asset backfill` → `hx asset scan` → `hxhub promote`（或 `hxhub submit`）。完整说明见 [§3.3](#33-资产创建与发布指南)。
+**本地状态提升示例**：
+
+```bash
+hx asset scan ./assets/my-skill
+hx asset promote ./assets/my-skill --to trial
+hx asset backfill ./assets/my-skill
+hx asset promote ./assets/my-skill --to enforced   # 须 metrics 达标
+```
+
+本地资产发布到 Hub 前的典型路径：`hx asset promote --to trial` → `hx asset scan` → `hxhub promote`（或 `hxhub submit`）→ `hxhub review approve` → `hxhub asset promote --to enforced` → `hxhub push`。完整说明见 [§3.3](#33-资产创建与发布指南)、[§3.4](#34-资产生命周期状态管理draft--trial--enforced)。
 
 ---
 
@@ -1255,6 +1432,9 @@ imports:
 
 | 现象 | 原因 | 处理 |
 | --- | --- | --- |
+| `draft assets cannot be promoted to the hub` | 本地仍为 draft | 先 `hx asset promote <dir> --to trial`（见 §3.4.2） |
+| `illegal transition draft → enforced` | 状态跳级 | 经 `trial` 再升 `enforced`（见 §3.4.3） |
+| `promotion blocked: needs >=5 recorded evaluations` | trial→enforced 指标不足 | `hx asset backfill` 或在 trial 阶段多运行（见 §3.4.3） |
 | `hub package failed injection scan` | SKILL 含劫持指令 | `hx asset scan` 定位并删除 |
 | `already published — bump the version` | 版本不可变 | 递增 `asset.yaml` version |
 | `LOCK content changed since lock` | 改了 .hub-cache 未重锁 | 恢复文件或走 overrides + `hx lock write` |
@@ -1290,6 +1470,7 @@ imports:
 ## 12. 延伸阅读
 
 - [§3.3 资产创建与发布（指南）](#33-资产创建与发布指南)
+- [§3.4 资产生命周期状态管理（draft → trial → enforced）](#34-资产生命周期状态管理draft--trial--enforced)
 - [操作说明 §9.1 Hub 资产管理](operation-guide.zh-CN.md#91-hub-资产管理命令本次升级新增)
 - [场景 08：Hub 供应链](examples/08-hub-资产共享与供应链.md)
 - [场景 16：Hub 蓝图初始化](examples/16-v0.3-hub-blueprint-init.md)
