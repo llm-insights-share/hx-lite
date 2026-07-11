@@ -475,5 +475,6 @@ hx asset promote harnessX/assets/rubrics/team-review --to enforced
 | [hxhub 使用手册 §3.4 样例 C](hxhub-usage.zh-CN.md) | Hub rubric 脚手架 |
 | [产品经理需求文档编写使用手册](pm-req-manual.zh-CN.md) | req 阶段（script 门禁） |
 | [架构师概要设计使用手册](arch-hld-manual.zh-CN.md) | arch 阶段（script 门禁） |
+| [开发人员应用交付使用手册](dev-manual.zh-CN.md) | dev 阶段（apply/verify 门禁） |
 | `packages/core/src/rubric.ts` | 规则模型与 Judge |
 | `packages/sensors/src/rubricSensor.ts` | Sensor 执行器 |

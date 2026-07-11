@@ -439,4 +439,5 @@ hx req prd list
 | [场景 11：自定义需求模板](examples/11-自定义需求产出模板.md) | 定制 `prd-template` |
 | [操作说明 §4](operation-guide.zh-CN.md) | req 阶段命令参数详情 |
 | [架构师概要设计使用手册](arch-hld-manual.zh-CN.md) | PRD 批准后的架构阶段 |
+| [开发人员应用交付使用手册](dev-manual.zh-CN.md) | change 创建后的 dev 交付 |
 | [使用说明 §1.7](usage-guide.zh-CN.md) | PM 典型场景摘要 |

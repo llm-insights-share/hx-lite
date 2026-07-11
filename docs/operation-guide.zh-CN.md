@@ -373,7 +373,8 @@ Cursor 斜杠命令：`/hx-arch`、`/hx-arch-lld`。
 
 ## 6. 开发阶段（dev）
 
-> `dev` 为 **change 级**阶段。标准 profile 任务序列：`plan → propose → design → apply → verify → archive`。
+> `dev` 为 **change 级**阶段。标准 profile 任务序列：`plan → propose → design → apply → verify → archive`。  
+> **角色专项手册**：[开发人员应用交付使用手册](dev-manual.zh-CN.md)
 
 ### 6.1 目标与产物
 

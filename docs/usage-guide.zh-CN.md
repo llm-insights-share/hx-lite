@@ -109,6 +109,8 @@ plan → propose → design → apply → verify → archive
 
 经验法则：**Agent 能自己完成的走 Cursor；必须人工背书的走终端**（审计留痕）。
 
+**开发人员专项手册**：[开发人员应用交付使用手册](dev-manual.zh-CN.md)（单人交付、全栈多人协同、并发 change）。
+
 使用前须执行 `hx adapter sync`，将 `harnessX/assets/` 编译到 IDE 目录。
 
 ### 1.5 典型场景：从零到第一个 PR
@@ -787,6 +789,8 @@ harness-hub/
 | 金融/支付核心域 | `profile: strict` + testfirst | 03 |
 | 企业 BA+架构+研发 | `enterprise-delivery` 蓝图 | [19](examples/19-组织级PRD与架构设计.md) → 15, 14 |
 | 产品经理（req 阶段） | `enterprise` + `hx req prd` / `/hx-prd` | [产品经理需求文档编写使用手册](pm-req-manual.zh-CN.md) · [19](examples/19-组织级PRD与架构设计.md) |
+| 日常功能开发 | `standard` + `/hx-dev-propose` … `/hx-dev-archive` | **[开发人员应用交付使用手册](dev-manual.zh-CN.md)** · [02](examples/02-标准功能开发全流程.md) |
+| 全栈多人协同 | Monorepo 多 bundle + `@group` 并行 apply | [开发人员应用交付使用手册](dev-manual.zh-CN.md) · [14](examples/14-企业全栈多角色交付.md) |
 | 架构师（HLD / 概要设计） | `enterprise` + `hx arch` / `/hx-arch` | [架构师概要设计使用手册](arch-hld-manual.zh-CN.md) · [19](examples/19-组织级PRD与架构设计.md) |
 | 14+ 仓库统一规范 | 中央 Hub + lock | 08, 16 |
 | 无 Cursor、纯 CLI | imports + MCP + Tier 补偿 | 18 |
@@ -827,6 +831,9 @@ harness-hub/
 | 文档 | 说明 |
 | --- | --- |
 | [操作说明](operation-guide.zh-CN.md) | 按阶段查命令与配置字段 |
+| [开发人员应用交付使用手册](dev-manual.zh-CN.md) | dev 阶段交付与多人协同 |
+| [产品经理需求文档编写使用手册](pm-req-manual.zh-CN.md) | req 阶段 PRD |
+| [架构师概要设计使用手册](arch-hld-manual.zh-CN.md) | arch 阶段 HLD/LLD |
 | [场景选择指南](examples/00-场景选择指南.md) | 19 个场景快速选型 |
 | [概念词表](glossary.zh-CN.md) | 术语定义 |
 | [系统设计](harness-delivery-system-design.html) | 完整设计文档 |

@@ -13,11 +13,12 @@
 | 你此刻的目标 | 从这里开始 |
 | --- | --- |
 | 第一次接入 HarnessX | [01 新项目接入](01-新项目接入.md) |
-| 交付一个常规功能 | [02 标准功能全流程](02-标准功能开发全流程.md)（需先 01） |
+| 交付一个常规功能 | **[开发人员应用交付使用手册](../dev-manual.zh-CN.md)** · [02 标准功能全流程](02-标准功能开发全流程.md)（需先 01） |
 | 从组织 Hub 初始化 | [16 Hub 蓝图初始化](16-v0.3-hub-blueprint-init.md) · **[hxhub 使用手册](../hxhub-usage.zh-CN.md)** |
 | 企业级需求→编码交接 | [19 req/arch 阶段](19-组织级PRD与架构设计.md) → [15 enterprise 交接](15-企业级需求到交付交接.md) |
 | 产品经理撰写组织级 PRD | [产品经理需求文档编写使用手册](../pm-req-manual.zh-CN.md) |
 | 架构师维护组织级 HLD/LLD | [架构师概要设计使用手册](../arch-hld-manual.zh-CN.md) |
+| 开发人员应用交付与多人协同 | [开发人员应用交付使用手册](../dev-manual.zh-CN.md) |
 | 企业 SDLC 工单全流程 | [20 企业 SDLC 工单全流程](20-企业SDLC工单全流程.md)（profile: `enterprise-sdlc`） |
 | Hub 双角色与贡献审核 | [21 Hub 双角色与贡献审核](21-hub-双角色与贡献审核.md) |
 | Codex/脚本无头交付 | [18 精简 harness + MCP](18-精简配置与无头Agent-MCP.md) |
@@ -34,6 +35,7 @@
 | --- | --- | --- |
 | [01 新项目接入](01-新项目接入.md) | 技术负责人 | init、宪法、hooks/CI、adapter、验证 Cursor 约束 |
 | [02 标准功能全流程](02-标准功能开发全流程.md) | 后端开发 | propose→archive 完整循环 |
+| [开发人员应用交付使用手册](../dev-manual.zh-CN.md) | 前后端/全栈开发 | 单人交付与多人协同 Runbook |
 | [18 精简 harness + MCP](18-精简配置与无头Agent-MCP.md) | 效能/平台 | `imports:` 最小 harness、无头 apply、MCP L1 |
 
 ### 旅程 2 · 日常交付：按风险选路径

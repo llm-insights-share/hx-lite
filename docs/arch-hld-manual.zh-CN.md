@@ -542,4 +542,5 @@ hx arch promote <change> --by lin.arch
 | [场景 15：enterprise 交接](examples/15-企业级需求到交付交接.md) | change 内 design 与 `hx arch promote` |
 | [操作说明 §5](operation-guide.zh-CN.md) | arch 阶段命令参数详情 |
 | [产品经理需求文档编写使用手册](pm-req-manual.zh-CN.md) | PRD 阶段（arch 前置） |
+| [开发人员应用交付使用手册](dev-manual.zh-CN.md) | arch 完成后的 change 交付 |
 | [使用说明 §1.8](usage-guide.zh-CN.md) | 架构师典型场景摘要 |

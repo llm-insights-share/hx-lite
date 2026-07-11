@@ -69,6 +69,9 @@ hx gate check my-feature --stage dev --task propose
 | --- | --- |
 | [使用说明（中文）](docs/usage-guide.zh-CN.md) | 概念、初始化、定制 |
 | [操作说明（中文）](docs/operation-guide.zh-CN.md) | 按 stage 的命令与配置 |
+| [开发人员应用交付使用手册](docs/dev-manual.zh-CN.md) | dev 阶段交付、前后端多人协同 |
+| [产品经理需求文档编写使用手册](docs/pm-req-manual.zh-CN.md) | 组织级 PRD 编写与批准 |
+| [架构师概要设计使用手册](docs/arch-hld-manual.zh-CN.md) | 组织级 HLD/LLD |
 | [hxhub 使用手册](docs/hxhub-usage.zh-CN.md) | Hub 资产创建、发布与治理 |
 | [20 个场景示例](docs/examples/README.md) | 从入门到企业 SDLC 的 walkthrough |
 | [四阶段模型权威定义](docs/delivery-stages.zh-CN.md) | stage / task 清单 |

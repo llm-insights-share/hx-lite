@@ -69,6 +69,7 @@ hx gate check my-feature --stage dev --task propose
 | --- | --- |
 | [Usage guide (EN)](docs/usage-guide.en.md) | Concepts, init, customization |
 | [Operation guide (EN)](docs/operation-guide.en.md) | Commands by stage |
+| [Developer manual (ZH)](docs/dev-manual.zh-CN.md) | Dev delivery and multi-role collaboration |
 | [hxhub manual (ZH)](docs/hxhub-usage.zh-CN.md) | Hub asset create, publish, governance |
 | [20 scenario walkthroughs](docs/examples/en/README.md) | Onboarding → enterprise SDLC |
 | [Four-stage model (ZH)](docs/delivery-stages.zh-CN.md) | Authoritative stage/task list |
