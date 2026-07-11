@@ -330,7 +330,7 @@ hx change create <id> --prd <slug> --arch-modules <module> --profile enterprise
 | --- | --- |
 | 中央 Hub 分发规范资产 | [08 Hub 供应链](examples/08-hub-资产共享与供应链.md) |
 | 从 Hub 蓝图初始化新项目 | [16 Hub 蓝图初始化](examples/16-v0.3-hub-blueprint-init.md) |
-| 失败沉淀为新 Skill/Rubric | [07 Steering 质量治理](examples/07-steering-质量治理.md) |
+| 失败沉淀为新 Skill/Rubric | [07 Steering 质量治理](examples/07-steering-质量治理.md) · [Rubric 手册](rubric-manual.zh-CN.md) |
 | 跨项目 coverage / 仪表盘 | [17 平台治理与仪表盘](examples/17-v0.4-平台治理与仪表盘.md) |
 
 ### 1.11 典型场景：多工具与无头 Agent
@@ -747,7 +747,7 @@ Hub 包须过注入扫描；`harness.lock` 防供应链篡改。
 ### 3.10 Steering：从失败到规则
 
 **适用**：同一类 agent 错误反复出现  
-**详细 walkthrough**：[场景 07](examples/07-steering-质量治理.md)
+**详细 walkthrough**：[场景 07](examples/07-steering-质量治理.md) · **[Rubric 编写与维护使用手册](rubric-manual.zh-CN.md)**
 
 ```bash
 hx steer report <change>           # 失败报告

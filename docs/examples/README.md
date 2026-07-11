@@ -21,6 +21,7 @@
 | 企业 SDLC 工单全流程 | [20 企业 SDLC 工单全流程](20-企业SDLC工单全流程.md)（profile: `enterprise-sdlc`） |
 | Hub 双角色与贡献审核 | [21 Hub 双角色与贡献审核](21-hub-双角色与贡献审核.md) |
 | Codex/脚本无头交付 | [18 精简 harness + MCP](18-精简配置与无头Agent-MCP.md) |
+| Rubric 编写与维护 | [Rubric 编写与维护使用手册](../rubric-manual.zh-CN.md) · [07 Steering 质量](07-steering-质量治理.md) |
 | 不确定 | [00 场景选择指南](00-场景选择指南.md) |
 
 ---
