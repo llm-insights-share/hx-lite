@@ -66,6 +66,8 @@ export interface InitFromHubOptions extends InitOptions {
   hubRef: string;
   hubRoot: string;
   adapter?: string;
+  /** Consumer identity for config.yaml hub.actor (optional but recommended for hub.submit). */
+  actor?: string;
 }
 
 function parseHubRef(ref: string): HubRef {
@@ -92,8 +94,16 @@ export function initFromHub(root: string, opts: InitFromHubOptions): InitResult 
   const res = initWorkspace(root, { locale: opts.locale, bundlesDir: opts.bundlesDir });
 
   const config = res.ws.readConfig();
-  const hubConfig = isGitHubHubRef(opts.hubRoot) ? opts.hubRoot : path.resolve(opts.hubRoot);
-  writeYaml(res.ws.configFile, { ...config, hub: hubConfig, ...(opts.adapter ? { adapter: { target: opts.adapter } } : {}) });
+  const hubSource = isGitHubHubRef(opts.hubRoot) ? opts.hubRoot : path.resolve(opts.hubRoot);
+  writeYaml(res.ws.configFile, {
+    ...config,
+    hub: {
+      source: hubSource,
+      role: "consumer",
+      ...(opts.actor ? { actor: opts.actor } : {})
+    },
+    ...(opts.adapter ? { adapter: { target: opts.adapter } } : {})
+  });
 
   if (resolved.kind === "bundle") {
     applyBundle(res.ws, ref.id, resolved.dir);

@@ -42,6 +42,7 @@ hx init [options]
 | `--locale <id>` | No | Scaffold locale. `hx-cn` = Chinese assets (constitution, command prompts, templates, fix_hint strings) |
 | `--from-hub <id>@<ver>` | No | Install from a Hub package/bundle/blueprint (**requires** `--hub`) |
 | `--hub <path>` | With `--from-hub` | Hub source: local directory or GitHub repo URL (private repos supported; SSH recommended: `git@github.com:<org>/<repo>.git`) |
+| `--actor <name>` | No | Writes `hub.actor` in `config.yaml` (consumer identity; needed for `hx hub submit` and similar) |
 | `--adapter <target>` | No | Default adapter target written to `config.yaml` (`cursor`, `codex`, `trae`, …) |
 
 **Example — English default + API topology:**
