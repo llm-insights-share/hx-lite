@@ -30,14 +30,26 @@ export function registerFoundationCommands(program: Command): void {
     .option("--locale <id>", "scaffold locale: hx-cn for Chinese assets (default: English base)")
     .option("--from-hub <pkg>", "initialize from a hub bundle/blueprint/package (requires --hub)")
     .option("--hub <path>", "hub source: local path or GitHub URL (for --from-hub)")
+    .option("--actor <name>", "hub consumer identity (written to config.yaml hub.actor)")
     .option("--adapter <target>", "adapter target to record in config (cursor, codex, …)")
-    .action((opts: { bundle?: string; locale?: string; fromHub?: string; hub?: string; adapter?: string }) => {
+    .action((opts: { bundle?: string; locale?: string; fromHub?: string; hub?: string; actor?: string; adapter?: string }) => {
       if (opts.fromHub) {
-        const w = ws();
-        const conn = resolveHubContext(w, { hubRef: opts.hub, action: "hub.add" });
-        const hubRef = opts.hub ?? conn.connection?.source;
+        let hubRef = opts.hub;
+        if (!hubRef) {
+          try {
+            hubRef = hubConfigSource(ws().readConfig().hub);
+          } catch {
+            /* fresh repo — no config yet */
+          }
+        }
         if (!hubRef) throw new Error("--hub is required with --from-hub (or set config.yaml hub)");
-        const res = initFromHub(process.cwd(), { hubRef: opts.fromHub, hubRoot: hubRef, locale: opts.locale, adapter: opts.adapter });
+        const res = initFromHub(process.cwd(), {
+          hubRef: opts.fromHub,
+          hubRoot: hubRef,
+          locale: opts.locale,
+          adapter: opts.adapter,
+          actor: opts.actor
+        });
         console.log(`Initialized from hub ${opts.fromHub} → ${res.ws.base}`);
         for (const c of res.created) console.log(`  + ${c}`);
         console.log("\nNext steps:");

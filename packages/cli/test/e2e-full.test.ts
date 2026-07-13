@@ -184,4 +184,15 @@ describe("overall verification: full delivery cycle through the CLI", () => {
     const metaOut = hx(repo, ["meta", "verify", "risky"], { expectFail: true });
     expect(metaOut).toContain("TAMPERED");
   }, 120000);
+
+  it("init --from-hub does not require hub.actor on a fresh repo", () => {
+    const repo = makeRepo();
+    const hub = path.join(repo, "harness-hub");
+    hx(repo, ["hub", "seed", hub]);
+    const out = hx(repo, ["init", "--from-hub", "enterprise-delivery@1.0.0", "--hub", hub, "--adapter", "cursor"]);
+    expect(out).toContain("Initialized from hub enterprise-delivery@1.0.0");
+    const config = YAML.parse(fs.readFileSync(path.join(repo, "harnessX/config.yaml"), "utf8"));
+    expect(config.hub).toEqual({ source: path.resolve(hub), role: "consumer" });
+    expect(config.adapter).toEqual({ target: "cursor" });
+  }, 60000);
 });

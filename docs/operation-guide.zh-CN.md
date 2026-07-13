@@ -42,6 +42,7 @@ hx init [选项]
 | `--locale <id>` | 否 | 脚手架语言。`hx-cn` = 中文资产（宪法、命令提示词、模板、fix_hint） |
 | `--from-hub <id>@<ver>` | 否 | 从 Hub 安装包/Bundle/蓝图（**须同时** `--hub`） |
 | `--hub <path>` | 与 `--from-hub` 联用 | Hub 主仓来源：本地目录，或 GitHub 仓库 URL（支持私有库，建议 SSH：`git@github.com:<org>/<repo>.git`） |
+| `--actor <name>` | 否 | 写入 `config.yaml` 的 `hub.actor`（consumer 身份；后续 `hx hub submit` 等命令需要） |
 | `--adapter <target>` | 否 | 写入 `config.yaml` 的默认适配器目标（`cursor`、`codex`、`trae` 等） |
 
 **示例 — 英文默认 + API 拓扑：**
@@ -62,6 +63,7 @@ hx init --locale hx-cn --bundle api-service-cn
 hx hub seed ./harness-hub
 hx init --from-hub api-service@1.0.0 --hub ./harness-hub
 hx init --from-hub enterprise-delivery@1.0.0 --hub ./harness-hub --adapter cursor
+hx init --from-hub enterprise-delivery@1.0.0 --hub git@github.com:your-org/hx-hub.git --adapter cursor --actor chen.pm
 hx init --locale hx-cn --from-hub api-service@1.0.0 --hub ./harness-hub
 ```
 

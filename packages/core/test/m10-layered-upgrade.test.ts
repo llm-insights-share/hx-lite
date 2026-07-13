@@ -78,11 +78,20 @@ describe("v0.3 layered upgrade", () => {
     const root = tmp();
     const hub = path.join(root, "hub");
     seedGoldenHub(hub);
-    const res = initFromHub(root, { hubRef: "api-service@1.0.0", hubRoot: hub });
+    const res = initFromHub(root, { hubRef: "api-service@1.0.0", hubRoot: hub, actor: "dev.user" });
     expect(res.created.some((c) => c.includes("hub bundle"))).toBe(true);
     expect(fs.existsSync(path.join(res.ws.bundlesDir, "api-service"))).toBe(true);
     const config = res.ws.readConfig();
-    expect(config.hub).toBe(hub);
+    expect(config.hub).toEqual({ source: hub, role: "consumer", actor: "dev.user" });
+  });
+
+  it("init --from-hub writes consumer hub config without actor", () => {
+    const root = tmp();
+    const hub = path.join(root, "hub");
+    seedGoldenHub(hub);
+    const res = initFromHub(root, { hubRef: "api-service@1.0.0", hubRoot: hub });
+    const config = res.ws.readConfig();
+    expect(config.hub).toEqual({ source: hub, role: "consumer" });
   });
 
   it("tier compensation strengthens gates for tier-2 adapters", () => {

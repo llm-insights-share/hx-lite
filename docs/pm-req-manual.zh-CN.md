@@ -79,7 +79,14 @@ npm install
 通常由技术负责人完成；PM 需确认仓库存在 `harnessX/` 目录：
 
 ```bash
-hx init --bundle frontend-dashboard   # 示例；亦可 enterprise 蓝图
+# 从组织 GitHub Hub 初始化（PM / 企业 req 阶段推荐 enterprise-delivery 蓝图）
+hx init --from-hub enterprise-delivery@1.0.0 \
+  --hub git@github.com:your-org/hx-hub.git \
+  --adapter cursor \
+  --actor chen.pm
+
+# 或内置 Bundle（不连远程 Hub）
+hx init --bundle frontend-dashboard
 ```
 
 `config.yaml` 建议：
