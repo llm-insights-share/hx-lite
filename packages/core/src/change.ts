@@ -4,6 +4,7 @@ import { Workspace, ensureDir } from "./paths.js";
 import { initMeta, readMeta } from "./metaStore.js";
 import { scaffoldDeliveryTrace } from "./deliveryTrace.js";
 import { checkReqReviewForPrd } from "./workorder.js";
+import { workordersRequired } from "./roles.js";
 import type { MetaYaml } from "./schemas.js";
 
 export interface OverlapWarning {
@@ -46,7 +47,7 @@ export function createChange(
 
   const config = ws.readConfig();
   const chosenProfile = profile ?? config.profile;
-  if (chosenProfile === "enterprise-sdlc" && opts?.prdRef && !checkReqReviewForPrd(ws, opts.prdRef)) {
+  if (workordersRequired(ws) && opts?.prdRef && !checkReqReviewForPrd(ws, opts.prdRef)) {
     throw new Error(
       `PRD "${opts.prdRef}" requires an approved req-review work order before change create (hx prd submit ${opts.prdRef})`
     );

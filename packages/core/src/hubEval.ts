@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import { AssetManifest } from "./schemas.js";
-import { scanAssetDir, hubBundleDir, resolveHubPackage, type HubRef } from "./hub.js";
+import { scanAssetDir, resolveHubPackage, type HubRef } from "./hub.js";
 import { resolveHubPackageDir } from "./hubPackagePaths.js";
 import { loadAssetDir } from "./assets.js";
 import { resolveSkillRoot, SKILL_ENTRY } from "./skill.js";
@@ -63,10 +63,6 @@ function evalDir(dir: string, label: string): HubEvalResult {
     checks.push({ name: "template.md present", ok: fs.existsSync(path.join(dir, "template.md")) });
   } else if (manifest.kind === "sensor.rubric") {
     checks.push({ name: "rules.yaml present", ok: fs.existsSync(path.join(dir, "rules.yaml")) });
-  } else if (manifest.kind === "harness.bundle") {
-    checks.push({ name: "bundle.yaml present", ok: fs.existsSync(path.join(dir, "bundle.yaml")) });
-  } else if (manifest.kind === "harness.blueprint") {
-    checks.push({ name: "blueprint.yaml present", ok: fs.existsSync(path.join(dir, "blueprint.yaml")) });
   }
 
   if (manifest.metrics) {
@@ -92,29 +88,11 @@ export function hubEvalPackage(hubRoot: string, ref: HubRef): HubEvalResult {
   return evalDir(dir, `${ref.id}@${ref.version}`);
 }
 
-export function hubEvalBundle(hubRoot: string, ref: HubRef): HubEvalResult {
-  const dir = hubBundleDir(hubRoot, ref.id, ref.version);
-  return evalDir(dir, `bundle:${ref.id}@${ref.version}`);
-}
-
-export function hubEvalBlueprint(hubRoot: string, ref: HubRef): HubEvalResult {
-  const resolved = resolveHubPackage(hubRoot, ref);
-  const dir = resolved?.kind === "blueprint" ? resolved.dir : path.join(hubRoot, "blueprints", ref.id, ref.version);
-  return evalDir(dir, `blueprint:${ref.id}@${ref.version}`);
-}
-
-/** Route eval to the correct hub category directory. */
+/** Route eval to package directory. */
 export function hubEvalAsset(hubRoot: string, ref: HubRef): HubEvalResult {
   const resolved = resolveHubPackage(hubRoot, ref);
   if (!resolved) return { package: `${ref.id}@${ref.version}`, passed: false, checks: [{ name: "asset exists", ok: false, detail: "not found in hub" }] };
-  switch (resolved.kind) {
-    case "bundle":
-      return hubEvalBundle(hubRoot, ref);
-    case "blueprint":
-      return hubEvalBlueprint(hubRoot, ref);
-    default:
-      return hubEvalPackage(hubRoot, ref);
-  }
+  return hubEvalPackage(hubRoot, ref);
 }
 
 /** Runs eval sets under hub/evals/golden-repos/<name>/checks.yaml if present. */

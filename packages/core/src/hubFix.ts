@@ -38,7 +38,7 @@ export function runHubFix(
   });
   const actions: HubFixAction[] = [];
 
-  for (const dir of ["packages", "bundles", "blueprints", "evals"] as const) {
+  for (const dir of ["packages", "evals"] as const) {
     const target = path.join(hubRoot, dir);
     if (!fs.existsSync(target)) {
       ensureDir(target);

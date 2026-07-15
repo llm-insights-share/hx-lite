@@ -2,7 +2,7 @@
 
 **适用角色**：总架构师、平台组 Hub 维护者、资产作者、业务仓库负责人  
 **版本**：HarnessX v0.6+  
-**关联场景**：[08 Hub 资产共享与供应链](examples/08-hub-资产共享与供应链.md) · [16 Hub 蓝图初始化](examples/16-v0.3-hub-blueprint-init.md) · [17 平台治理与仪表盘](examples/17-v0.4-平台治理与仪表盘.md) · [21 Hub 双角色与贡献审核](examples/21-hub-双角色与贡献审核.md)
+**关联场景**：[08 Hub 资产共享与供应链](examples/08-hub-资产共享与供应链.md) · [17 平台治理与仪表盘](examples/17-v0.4-平台治理与仪表盘.md) · [21 Hub 双角色与贡献审核](examples/21-hub-双角色与贡献审核.md)
 
 ---
 
@@ -15,11 +15,11 @@
 | `hx` | 项目交付流程 + 兼容 `hx hub` 入口 |
 | `hxhub` | Hub 运维、资产创建、诊断（doctor）、建议（help） |
 
-**Harness Hub** 是组织级资产仓库（通常是一个 Git 仓库），用于分发 **Guide（前馈）**、**Sensor（反馈）**、拓扑 **Bundle** 与交付 **Blueprint**。业务仓库通过 `config.yaml` 的 `hub:` 字段引用 Hub，将资产安装到 `harnessX/.hub-cache/`，并用 `harness.lock` 锁定内容哈希。
-
-本文档合并了原「hxhub 使用手册」与「Hub 资产维护手册」，作为 Hub 运维与资产治理的**唯一中文参考**。
+**Harness Hub** 是组织级资产仓库（通常是一个 Git 仓库），用于分发 **Guide（前馈）** 与 **Sensor（反馈）**。项目 owner 用 `hx project create --profile <p> --hub <hub>` 按 profile 拉取对应 stage 下全部 task 相关资产，写入业务仓库 `harnessX/` 并推送到项目 GitHub。成员 `git pull` 后用 `hx init --stages <csv>` 选择本地激活的 stage。
 
 **快速跳转**：资产从零创建到发布 → [§3.3 资产创建与发布（指南）](#33-资产创建与发布指南)；**draft → trial → enforced** → [§3.4 生命周期状态管理](#34-资产生命周期状态管理draft--trial--enforced)；命令参数详情 → [§4.13 `hxhub asset`](#413-hxhub-asset--脚手架与-hub-侧生命周期)。
+
+> **已移除**：Bundle（拓扑包）与 Blueprint（交付蓝图）。不再作为 Hub kind；路径差异由资产 `asset.yaml` 的 `stage`/`task` 与 Profile 表达。
 
 ---
 
@@ -67,31 +67,20 @@ hub:
 ```
 harness-hub/
 ├── hub-policy.yaml              # 维护者白名单与消费策略
-├── packages/                    # 可复用单包（Skill、模版、Rubric …）
-│   └── <asset-id>/
-│       └── <version>/
-│           ├── asset.yaml       # 必填：清单与元数据
-│           ├── SKILL.md | template.md | rules.yaml | …
-│           └── .review          # 评审侧车（pending | approved | rejected）
-├── bundles/                     # 拓扑 Bundle（整仓 harness 片段）
-│   └── <bundle-id>/
-│       └── <version>/
-│           ├── asset.yaml
-│           ├── bundle.yaml      # guides + sensors + suites 组合
-│           └── assets/          # bundle 自带资产文件
-├── blueprints/                  # 交付蓝图（profile + hub_deps + 阶段资产）
-│   └── <blueprint-id>/
-│       └── <version>/
-│           ├── asset.yaml
-│           └── blueprint.yaml
-├── contributions/               # 使用角色提交、待运维审核的资产
-│   └── <actor>/
-│       └── <asset-id>/<version>/
-├── evals/                       # 可选：golden-repo 验收集
-│   └── golden-repos/
-│       └── <name>/
-│           └── checks.yaml
-└── index.json                   # 可选：由 hxhub search --index 生成
+├── packages/                    # Guide / Sensor 包（按 kind 分层）
+│   └── guide/skill/<id>/<ver>/
+│       ├── asset.yaml           # 必填：含 stage + task
+│       ├── SKILL.md | template.md | rules.yaml | …
+│       └── .review              # 评审侧车（pending | approved | rejected）
+├── contributions/               # consumer 提交、maintainer 审核
+└── evals/                       # 评测夹具（可选）
+```
+
+按 profile 预览将安装的资产：
+
+```bash
+hxhub resolve --profile standard --hub ./harness-hub
+hx project create --profile standard --hub ./harness-hub
 ```
 
 **远程引用**：`--hub` 可为本地路径或 Git URL（如 `git@github.com:your-org/hx-hub.git`）。首次克隆缓存于 `harnessX/.hub-remotes/<hash>/repo`。
@@ -108,19 +97,13 @@ harness-hub/
 | `guide.template` | Guide · 计算型 | `template.md` | 脚手架模版（UAT 清单、调研报告） |
 | `sensor.rubric` | Sensor · 推断型 | `rules.yaml` | 评审 Rubric 规则集 |
 | `guide.constraint` | Guide · 计算型 | `*.yaml` | 架构分层等硬约束（多在 Bundle 内） |
-| `guide.command` | Guide · 推断型 | `*.md` | 斜杠命令说明（多在 Bundle / base 内） |
-
-#### Bundle（`bundles/`）
-
-拓扑 Bundle，`kind: harness.bundle`。包含一组 **guides + sensors + suites**，用于 `hx init --bundle` 或 `hx init --from-hub api-service@1.0.0`。
-
-#### Blueprint（`blueprints/`）
-
-交付蓝图，`kind: harness.blueprint`。定义 `extends` profile、`hub_deps` 与阶段级 guides/sensors，用于 `hx init --from-hub enterprise-sdlc@1.0.0`。
+| `guide.command` | Guide · 推断型 | `*.md` | 斜杠命令说明 |
 
 #### Eval（`evals/`）
 
 Golden 仓库检查集，供 `hxhub eval --golden <name>` 验证 Hub 包在代表性项目上的表现。
+
+> Bundle / Blueprint 已移除。按 `hxhub resolve --profile` / `hx project create --profile` 按 stage.task 装配资产。
 
 ### 2.5 `asset.yaml` 规范
 

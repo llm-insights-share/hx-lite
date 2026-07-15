@@ -58,25 +58,6 @@ profiles:
       - apply
       - verify
       - archive
-    suites:
-      dev.propose: propose-enterprise
-      dev.design: design-enterprise
-      dev.plan: plan-enterprise
-      dev.apply: fast
-      dev.verify: verification-enterprise
-  enterprise-sdlc:
-    stages:
-      - req
-      - arch
-      - dev
-      - test
-    dev_tasks:
-      - plan
-      - propose
-      - design
-      - apply
-      - verify
-      - archive
     test_tasks:
       - test-case-design
       - test-execution
@@ -84,8 +65,8 @@ profiles:
       dev.propose: propose-sdlc
       dev.design: design-sdlc
       dev.plan: plan-sdlc
-      test.test-case-design: test-design-sdlc
       dev.apply: fast
+      test.test-case-design: test-design-sdlc
       dev.verify: verification-sdlc
 suites:
   fast-lite:

@@ -1,7 +1,7 @@
 {
-  "name": "harnessx",
-  "version": "0.6.0",
-  "description": "HarnessX — outer harness system for AI coding agents (spec-driven delivery with guides, sensors and enforcement gates)",
+  "name": "hx-lite",
+  "version": "0.1.0",
+  "description": "hx-lite — simplified HarnessX: Profile → Stage → Task with Guides, Sensors and fail-closed Gates",
   "type": "module",
   "license": "MIT",
   "engines": {

@@ -1,6 +1,6 @@
 import z from "zod";
 
-export const HUB_ASSET_CATEGORIES = ["package", "bundle", "blueprint"] as const;
+export const HUB_ASSET_CATEGORIES = ["package"] as const;
 export type HubAssetCategory = (typeof HUB_ASSET_CATEGORIES)[number];
 
 export const HubAssetStatus = z.enum(["draft", "trial", "enforced", "deprecated", "archived"]);

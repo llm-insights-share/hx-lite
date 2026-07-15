@@ -4,7 +4,7 @@
 
 > 让 AI 编程 Agent 可靠交付生产级软件的外层控制平面 —— 不是又一个测试框架，而是 **规格驱动 + 前馈 Guide + 反馈 Sensor + fail-closed Gate** 的完整交付 Harness。
 
-[![Version](https://img.shields.io/badge/version-0.6.0-blue)](docs/releases/v0.6.md)
+[![Version](https://img.shields.io/badge/version-0.1.0-blue)](https://github.com/llm-insights-share/hx-lite)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](package.json)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](package.json)
 
@@ -27,9 +27,10 @@ HarnessX 把 AI 交付当作**控制工程问题**来解：在每个 stage/task 
 | **四阶段交付** | `req` → `arch` → `dev` → `test`，组织级 PRD/架构 + Change 级开发测试 |
 | **Guide + Sensor 双环** | 做事前注入规范与模板，做事后用 lint/测试/规格/AI Review 验收 |
 | **Fail-closed Gate** | Sensor 崩溃、超时、不可解析 —— 一律阻断，不允许静默通过 |
+| **Profile → Stage → Task** | `lite`/`standard`/`strict`/`enterprise` 决定阶段与任务；资产挂在 task 上 |
 | **Steering 自进化** | 重复失败沉淀为 Skill / Rubric / 模板，Harness 越用越准 |
 | **多工具单源** | 一套资产编译到 Cursor、Claude Code、Trae、Qoder 等 |
-| **Hub 资产供应链** | 组织级 Skill/Bundle/Blueprint 发布、评审、锁定与消费 |
+| **Hub 资产供应链** | 组织级 Guide/Sensor 发布、评审、锁定；按 profile 拉入项目仓库 |
 
 兼容 [OpenSpec](https://github.com/Fission-AI/OpenSpec) Delta Spec；可与现有 CI 并存，本地 hooks + 远程 CI 双重 enforcement。
 
@@ -41,16 +42,18 @@ HarnessX 把 AI 交付当作**控制工程问题**来解：在每个 stage/task 
 git clone https://github.com/llm-insights-share/harnessX.git && cd harnessX
 npm install && npm link    # 全局可用 hx / hxhub
 
-hx init --bundle api-service --adapter cursor
+# Owner：按 profile 从 hub 拉取 stage.task 资产写入项目
+hxhub seed ./harness-hub --profile standard --scenario core
+hx project create --profile standard --hub ./harness-hub --adapter cursor
 hx hooks install && hx adapter sync
+
+# 成员（已 pull 项目仓库）：选择要参与的 stage
+hx init --stages req,dev
 
 hx change create my-feature --domains api
 hx propose my-feature --title "你的第一个功能"
 hx gate check my-feature --stage dev --task propose
-# 在 Cursor 里 /hx-propose → design → apply → verify → archive
 ```
-
-**企业全路径**（req/arch/dev/test + 工单）：`hx init --from-hub enterprise-sdlc@1.0.0 --hub <your-hub>`
 
 ---
 

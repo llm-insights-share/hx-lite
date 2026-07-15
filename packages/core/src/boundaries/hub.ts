@@ -1,12 +1,11 @@
 /**
- * @harnessx/hub — public boundary for asset hub, blueprints, and composition.
+ * @harnessx/hub — public boundary for asset hub and composition.
  */
 export {
   hubAdd,
   hubSync,
   hubSyncApply,
   hubPromote,
-  listHubBundles,
   resolveHubPackage,
   seedGoldenHub,
   listGoldenHubPackages,
@@ -14,7 +13,6 @@ export {
   type HubSyncEntry,
   type HubSyncApplyResult
 } from "../hub.js";
-export { applyBlueprint, applyHubBlueprint, readBlueprint, parseHubDep } from "../blueprint.js";
 export { searchHubCatalog, indexHubCatalog } from "../hubSearch.js";
 export { type HubCatalogEntry } from "../hubCatalog.js";
 export { hubEvalPackage } from "../hubEval.js";
@@ -33,3 +31,4 @@ export {
   guideDefFromHubAsset,
   parseImportRef
 } from "../harnessCompose.js";
+export { resolveProfileAssets, applyProfileAssets, validateActiveStages } from "../profileAssets.js";

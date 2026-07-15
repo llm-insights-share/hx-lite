@@ -1,18 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import YAML from "yaml";
 import { Workspace, ensureDir, writeYaml } from "./paths.js";
-import { HarnessYaml } from "./schemas.js";
-import { hubAdd, hubBundleDir, resolveHubPackage, type HubRef } from "./hub.js";
-import { applyHubBlueprint } from "./blueprint.js";
 import { writeLock } from "./assets.js";
 import { isGitHubHubRef, resolveHubSource } from "./hubSource.js";
 import { scaffoldRoles } from "./roles.js";
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-/** Built-in bundle sources shipped with the harnessx package. */
-export const BUILTIN_BUNDLES_DIR = path.resolve(HERE, "../../bundles");
+import {
+  applyProfileAssets,
+  resolveProfileAssets,
+  validateActiveStages,
+  type ProfileAssetResolution
+} from "./profileAssets.js";
+import { BUILTIN_SCAFFOLD_DIR } from "./harnessCompose.js";
+import type { DeliveryStage } from "./schemas.js";
+import { DEFAULT_PROFILE_STAGES } from "./stages.js";
 
 function copyDir(src: string, dest: string) {
   ensureDir(dest);
@@ -25,10 +26,12 @@ function copyDir(src: string, dest: string) {
 }
 
 export interface InitOptions {
-  bundle?: string;
-  bundlesDir?: string;
   /** Built-in scaffold: `base` (English) or `hx-cn` (Chinese). */
   locale?: string;
+  scaffoldDir?: string;
+  /** Optional active stages (local); must be subset of profile stages when profile is set later. */
+  stages?: DeliveryStage[];
+  profile?: string;
 }
 
 const NEXT_STEPS_EN = [
@@ -47,13 +50,29 @@ const NEXT_STEPS_ZH = [
   "5. 安装强制机制：              hx hooks install && hx ci init"
 ];
 
-function resolveScaffoldDir(bundlesDir: string, locale?: string): string {
+const NEXT_STEPS_PROJECT_EN = [
+  "1. Edit harnessX/constitution.md — write your project principles",
+  "2. Commit & push harnessX/ to the project GitHub so teammates can pull",
+  "3. Teammates: git pull, then  hx init --stages <stage,...>",
+  "4. Sync adapters:             hx adapter sync",
+  "5. Install enforcement:       hx hooks install && hx ci init"
+];
+
+const NEXT_STEPS_PROJECT_ZH = [
+  "1. 编辑 harnessX/constitution.md — 填写项目原则",
+  "2. 将 harnessX/ 提交并推送到项目 GitHub，供成员 pull",
+  "3. 成员：git pull 后执行  hx init --stages <stage,...>",
+  "4. 同步适配器：               hx adapter sync",
+  "5. 安装强制机制：             hx hooks install && hx ci init"
+];
+
+function resolveScaffoldDir(scaffoldRoot: string, locale?: string): string {
   if (locale === "hx-cn") {
-    const cn = path.join(bundlesDir, "hx-cn");
+    const cn = path.join(scaffoldRoot, "hx-cn");
     if (!fs.existsSync(cn)) throw new Error(`unknown locale scaffold: ${locale}`);
     return cn;
   }
-  return path.join(bundlesDir, "base");
+  return path.join(scaffoldRoot, "base");
 }
 
 export interface InitResult {
@@ -62,41 +81,89 @@ export interface InitResult {
   nextSteps: string[];
 }
 
-export interface InitFromHubOptions extends InitOptions {
-  hubRef: string;
+/** `hx init` — scaffolds harnessX/ (no hub). Optionally sets active_stages. */
+export function initWorkspace(root: string, opts: InitOptions = {}): InitResult {
+  const scaffoldRoot = opts.scaffoldDir ?? BUILTIN_SCAFFOLD_DIR;
+  const ws = new Workspace(root);
+  if (fs.existsSync(ws.harnessFile)) throw new Error(`harnessX already initialized at ${ws.base}`);
+
+  const baseDir = resolveScaffoldDir(scaffoldRoot, opts.locale);
+  ensureDir(ws.base);
+  for (const f of ["constitution.md", "config.yaml", "harness.yaml"]) {
+    fs.copyFileSync(path.join(baseDir, f), path.join(ws.base, f));
+  }
+  copyDir(path.join(baseDir, "assets"), ws.assetsDir);
+  for (const dir of [ws.specsDir, ws.changesDir, ws.archiveDir, ws.runsDir, ws.workordersDir(), ws.changeRequestsDir()]) ensureDir(dir);
+  scaffoldRoles(ws);
+
+  const created = [
+    "constitution.md",
+    "config.yaml",
+    "harness.yaml",
+    "roles.yaml",
+    "workorders/",
+    "change-requests/",
+    "assets/",
+    "specs/",
+    "changes/",
+    "archive/",
+    "runs/"
+  ];
+
+  const config = ws.readConfig();
+  const profile = opts.profile ?? config.profile ?? "standard";
+  let activeStages = opts.stages;
+  if (activeStages?.length) {
+    activeStages = validateActiveStages(profile, activeStages);
+  }
+  writeYaml(ws.configFile, {
+    ...config,
+    profile,
+    ...(activeStages ? { active_stages: activeStages } : {}),
+    ...(opts.locale === "hx-cn" ? { locale: "zh-CN" } : {})
+  });
+
+  const nextSteps = opts.locale === "hx-cn" ? NEXT_STEPS_ZH : NEXT_STEPS_EN;
+  return { ws, created, nextSteps };
+}
+
+export interface ProjectCreateOptions {
+  profile: string;
   hubRoot: string;
+  locale?: string;
+  scaffoldDir?: string;
   adapter?: string;
-  /** Consumer identity for config.yaml hub.actor (optional but recommended for hub.submit). */
   actor?: string;
+  /** Owner may set default active stages (defaults to all profile stages). */
+  stages?: DeliveryStage[];
 }
 
-function parseHubRef(ref: string): HubRef {
-  const [id, version] = ref.split("@");
-  if (!id || !version) throw new Error(`use <id>@<version> for --from-hub`);
-  return { id, version };
+export interface ProjectCreateResult extends InitResult {
+  resolution: ProfileAssetResolution;
 }
 
-const NEXT_STEPS_FROM_HUB_EN = [
-  "1. Edit harnessX/constitution.md — write your project principles",
-  "2. Sync adapters:             hx adapter sync",
-  "3. Create your first change:  hx change create <name> --domains <d1,d2>",
-  "4. Draft the proposal:        hx propose <name> --title \"...\"",
-  "5. Install enforcement:       hx hooks install && hx ci init"
-];
+/**
+ * Owner path: scaffold + pull all hub assets for the profile's stages/tasks into the project repo.
+ */
+export function createProject(root: string, opts: ProjectCreateOptions): ProjectCreateResult {
+  if (!DEFAULT_PROFILE_STAGES[opts.profile]) {
+    throw new Error(`unknown profile "${opts.profile}" — expected lite|standard|strict|enterprise`);
+  }
 
-/** `hx init --from-hub`: scaffold from a hub bundle or blueprint package. */
-export function initFromHub(root: string, opts: InitFromHubOptions): InitResult {
   const hubRoot = resolveHubSource(root, opts.hubRoot, { updateRemote: true });
-  const ref = parseHubRef(opts.hubRef);
-  const resolved = resolveHubPackage(hubRoot, ref);
-  if (!resolved) throw new Error(`hub package ${opts.hubRef} not found in ${hubRoot}`);
-
-  const res = initWorkspace(root, { locale: opts.locale, bundlesDir: opts.bundlesDir });
+  const res = initWorkspace(root, {
+    locale: opts.locale,
+    scaffoldDir: opts.scaffoldDir,
+    profile: opts.profile,
+    stages: opts.stages ?? [...DEFAULT_PROFILE_STAGES[opts.profile].stages]
+  });
 
   const config = res.ws.readConfig();
   const hubSource = isGitHubHubRef(opts.hubRoot) ? opts.hubRoot : path.resolve(opts.hubRoot);
   writeYaml(res.ws.configFile, {
     ...config,
+    profile: opts.profile,
+    active_stages: opts.stages ?? [...DEFAULT_PROFILE_STAGES[opts.profile].stages],
     hub: {
       source: hubSource,
       role: "consumer",
@@ -105,91 +172,39 @@ export function initFromHub(root: string, opts: InitFromHubOptions): InitResult 
     ...(opts.adapter ? { adapter: { target: opts.adapter } } : {})
   });
 
-  if (resolved.kind === "bundle") {
-    applyBundle(res.ws, ref.id, resolved.dir);
-    res.created.push(`hub bundle ${ref.id}@${ref.version}`);
-  } else if (resolved.kind === "blueprint") {
-    const applied = applyHubBlueprint(res.ws, hubRoot, ref);
-    res.created.push(...applied);
-  } else {
-    hubAdd(res.ws, hubRoot, ref);
-    res.created.push(`hub package ${ref.id}@${ref.version}`);
-    const harness = res.ws.readHarness();
-    if (!harness.dependencies.includes(`${ref.id}@${ref.version}`)) {
-      harness.dependencies.push(`${ref.id}@${ref.version}`);
-      fs.writeFileSync(res.ws.harnessFile, YAML.stringify(HarnessYaml.parse(harness)), "utf8");
-    }
-  }
-
+  const applied = applyProfileAssets(res.ws, hubRoot, opts.profile);
   writeLock(res.ws);
-  res.nextSteps = opts.locale === "hx-cn" ? NEXT_STEPS_ZH : NEXT_STEPS_FROM_HUB_EN;
-  return res;
+  res.created.push(...applied.installed.map((d) => `asset ${d}`));
+  res.nextSteps = opts.locale === "hx-cn" ? NEXT_STEPS_PROJECT_ZH : NEXT_STEPS_PROJECT_EN;
+
+  const resolution = resolveProfileAssets(hubRoot, opts.profile);
+  resolution.assets = applied.assets;
+
+  return { ...res, resolution };
 }
 
-/** `hx init` (FR-034/NFR-007): creates harnessX/, seeds constitution, registry, assets. */
-export function initWorkspace(root: string, opts: InitOptions = {}): InitResult {
-  const bundlesDir = opts.bundlesDir ?? BUILTIN_BUNDLES_DIR;
+/**
+ * Local path on an already-initialized project: set active_stages (multi-select).
+ * Does not re-scaffold; fails if harnessX is missing.
+ */
+export function localInit(root: string, opts: { stages: DeliveryStage[] }): InitResult {
   const ws = new Workspace(root);
-  if (fs.existsSync(ws.harnessFile)) throw new Error(`harnessX already initialized at ${ws.base}`);
-
-  const baseDir = resolveScaffoldDir(bundlesDir, opts.locale);
-  ensureDir(ws.base);
-  for (const f of ["constitution.md", "config.yaml", "harness.yaml"]) {
-    fs.copyFileSync(path.join(baseDir, f), path.join(ws.base, f));
+  if (!fs.existsSync(ws.harnessFile)) {
+    throw new Error(`harnessX not found — clone/pull the project repo first, or run hx project create`);
   }
-  const blueprintSrc = path.join(baseDir, "blueprint.yaml");
-  if (fs.existsSync(blueprintSrc)) fs.copyFileSync(blueprintSrc, path.join(ws.base, "blueprint.yaml"));
-  copyDir(path.join(baseDir, "assets"), ws.assetsDir);
-  for (const dir of [ws.specsDir, ws.changesDir, ws.archiveDir, ws.runsDir, ws.bundlesDir, ws.workordersDir(), ws.changeRequestsDir()]) ensureDir(dir);
-  scaffoldRoles(ws);
-
-  const created = ["constitution.md", "config.yaml", "harness.yaml", "roles.yaml", "workorders/", "change-requests/", "assets/", "specs/", "changes/", "archive/", "runs/"];
-
-  if (opts.bundle) {
-    applyBundle(ws, opts.bundle, bundlesDir);
-    created.push(`assets/bundles/${opts.bundle}/`);
-  }
-
-  const nextSteps = opts.locale === "hx-cn" ? NEXT_STEPS_ZH : NEXT_STEPS_EN;
-  return { ws, created, nextSteps };
+  const config = ws.readConfig();
+  const stages = validateActiveStages(config.profile, opts.stages);
+  writeYaml(ws.configFile, { ...config, active_stages: stages });
+  return {
+    ws,
+    created: [`active_stages=${stages.join(",")}`],
+    nextSteps: [
+      "1. hx adapter sync",
+      "2. Work only within your active stages",
+      "3. hx gate check <change> --stage <s> --task <t>"
+    ]
+  };
 }
 
-/** Merges a topology bundle (FR-031): copies assets and appends guides/sensors/suites to harness.yaml. */
-export function applyBundle(ws: Workspace, bundleId: string, bundlesDir = BUILTIN_BUNDLES_DIR): void {
-  const bundleDir = fs.existsSync(path.join(bundlesDir, "bundle.yaml")) ? bundlesDir : path.join(bundlesDir, bundleId);
-  const manifestFile = path.join(bundleDir, "bundle.yaml");
-  if (!fs.existsSync(manifestFile)) throw new Error(`unknown bundle: ${bundleId}`);
-  const fragment = YAML.parse(fs.readFileSync(manifestFile, "utf8"));
-
-  const destAssets = path.join(ws.bundlesDir, bundleId);
-  if (fs.existsSync(path.join(bundleDir, "assets"))) copyDir(path.join(bundleDir, "assets"), destAssets);
-
-  const harness = HarnessYaml.parse(YAML.parse(fs.readFileSync(ws.harnessFile, "utf8")));
-  const existingGuideIds = new Set(harness.guides.map((g) => g.id));
-  const existingSensorIds = new Set(harness.sensors.map((s) => s.id));
-  for (const g of fragment.guides ?? []) if (!existingGuideIds.has(g.id)) harness.guides.push(g);
-  for (const s of fragment.sensors ?? []) if (!existingSensorIds.has(s.id)) harness.sensors.push(s);
-  for (const [name, sensors] of Object.entries(fragment.suites ?? {})) {
-    harness.suites[name] = sensors as string[];
-  }
-  fs.writeFileSync(ws.harnessFile, YAML.stringify(HarnessYaml.parse(harness)), "utf8");
-}
-
-/** Apply a topology bundle from a hub bundles/ directory. */
-export function applyHubBundle(ws: Workspace, hubRoot: string, bundleId: string, version = "1.0.0"): void {
-  const dir = hubBundleDir(hubRoot, bundleId, version);
-  if (!fs.existsSync(path.join(dir, "bundle.yaml"))) {
-    throw new Error(`hub bundle ${bundleId}@${version} not found in ${hubRoot}`);
-  }
-  applyBundle(ws, bundleId, dir);
-}
-
-export function listBundles(bundlesDir = BUILTIN_BUNDLES_DIR): { id: string; description: string }[] {
-  return fs
-    .readdirSync(bundlesDir, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && fs.existsSync(path.join(bundlesDir, d.name, "bundle.yaml")))
-    .map((d) => {
-      const y = YAML.parse(fs.readFileSync(path.join(bundlesDir, d.name, "bundle.yaml"), "utf8"));
-      return { id: d.name, description: y.description ?? "" };
-    });
-}
+/** @deprecated compatibility alias */
+export const BUILTIN_BUNDLES_DIR = BUILTIN_SCAFFOLD_DIR;

@@ -1,15 +1,11 @@
 import { Command } from "commander";
+import fs from "node:fs";
 import path from "node:path";
 import {
   Workspace,
   initWorkspace,
-  initFromHub,
-  listBundles,
-  listHubBundles,
-  applyBundle,
-  applyHubBundle,
-  resolveHubContext,
-  hubConfigSource,
+  localInit,
+  createProject,
   createChange,
   scaffoldProposal,
   scaffoldExplore,
@@ -17,95 +13,87 @@ import {
   archiveChange,
   scaffoldFromIssue,
   scaffoldExtendedRequirements,
-  readMeta
+  readMeta,
+  type DeliveryStage
 } from "@harnessx/core";
 
 export const ws = () => Workspace.locate(process.cwd());
 
+function parseStagesCsv(csv?: string): DeliveryStage[] | undefined {
+  if (!csv) return undefined;
+  const stages = csv.split(",").map((s) => s.trim()).filter(Boolean) as DeliveryStage[];
+  return stages.length ? stages : undefined;
+}
+
 export function registerFoundationCommands(program: Command): void {
   program
     .command("init")
-    .description("Initialize harnessX/ in the current repository")
-    .option("--bundle <id>", "apply a topology bundle (api-service, frontend-2c, library-sdk, serverless-function, mobile-app, data-pipeline, …)")
+    .description("Initialize harnessX/ or set local active stages")
     .option("--locale <id>", "scaffold locale: hx-cn for Chinese assets (default: English base)")
-    .option("--from-hub <pkg>", "initialize from a hub bundle/blueprint/package (requires --hub)")
-    .option("--hub <path>", "hub source: local path or GitHub URL (for --from-hub)")
-    .option("--actor <name>", "hub consumer identity (written to config.yaml hub.actor)")
-    .option("--adapter <target>", "adapter target to record in config (cursor, codex, …)")
-    .action((opts: { bundle?: string; locale?: string; fromHub?: string; hub?: string; actor?: string; adapter?: string }) => {
-      if (opts.fromHub) {
-        let hubRef = opts.hub;
-        if (!hubRef) {
-          try {
-            hubRef = hubConfigSource(ws().readConfig().hub);
-          } catch {
-            /* fresh repo — no config yet */
-          }
-        }
-        if (!hubRef) throw new Error("--hub is required with --from-hub (or set config.yaml hub)");
-        const res = initFromHub(process.cwd(), {
-          hubRef: opts.fromHub,
-          hubRoot: hubRef,
-          locale: opts.locale,
-          adapter: opts.adapter,
-          actor: opts.actor
-        });
-        console.log(`Initialized from hub ${opts.fromHub} → ${res.ws.base}`);
+    .option("--stages <csv>", "comma-separated active stages (req,arch,dev,test)")
+    .option("--profile <name>", "workflow profile (lite|standard|strict|enterprise)")
+    .action((opts: { locale?: string; stages?: string; profile?: string }) => {
+      const stages = parseStagesCsv(opts.stages);
+      const probe = new Workspace(process.cwd());
+      const exists = fs.existsSync(probe.harnessFile);
+
+      if (exists && stages?.length) {
+        const res = localInit(process.cwd(), { stages });
+        console.log(`Updated active stages in ${res.ws.base}`);
         for (const c of res.created) console.log(`  + ${c}`);
         console.log("\nNext steps:");
         for (const s of res.nextSteps) console.log(`  ${s}`);
         return;
       }
-      const res = initWorkspace(process.cwd(), { bundle: opts.bundle, locale: opts.locale });
+      if (exists) {
+        throw new Error("harnessX already initialized — pass --stages <csv> to set local active stages");
+      }
+
+      const res = initWorkspace(process.cwd(), {
+        locale: opts.locale,
+        stages,
+        profile: opts.profile
+      });
       console.log(`Initialized ${res.ws.base}`);
       for (const c of res.created) console.log(`  + ${c}`);
       console.log("\nNext steps:");
       for (const s of res.nextSteps) console.log(`  ${s}`);
     });
 
-  program
-    .command("bundle")
-    .argument("<action>", "list | add")
-    .argument("[bundleId]", "topology bundle id (required for add)")
-    .option("--hub <path>", "hub source (defaults to config.yaml hub)")
-    .option("--version <ver>", "bundle version when adding from hub", "1.0.0")
-    .description("Manage topology bundles")
-    .action((action: string, bundleId: string | undefined, opts: { hub?: string; version?: string }) => {
-      if (action === "list") {
-        if (opts?.hub) {
-          const { hubRoot } = resolveHubContext(ws(), { hubRef: opts.hub, action: "hub.search" });
-          for (const b of listHubBundles(hubRoot)) console.log(`${b.id}@${b.version}\t(hub)`);
-        } else {
-          try {
-            const w = ws();
-            const hub = hubConfigSource(w.readConfig().hub);
-            if (hub) {
-              const { hubRoot } = resolveHubContext(w, { hubRef: hub, action: "hub.search" });
-              for (const b of listHubBundles(hubRoot)) console.log(`${b.id}@${b.version}\t(hub)`);
-              return;
-            }
-          } catch {
-            /* fall through to builtin */
-          }
-          for (const b of listBundles()) console.log(`${b.id}\t${b.description}`);
-        }
-        return;
+  const project = program.command("project").description("Project owner workflows");
+  project
+    .command("create")
+    .description("Scaffold harnessX/ and pull hub assets for a profile")
+    .requiredOption("--profile <name>", "workflow profile (lite|standard|strict|enterprise)")
+    .requiredOption("--hub <path>", "hub source: local path or GitHub URL")
+    .option("--locale <id>", "scaffold locale: hx-cn for Chinese assets")
+    .option("--adapter <target>", "adapter target to record in config (cursor, codex, …)")
+    .option("--actor <name>", "hub consumer identity (written to config.yaml hub.actor)")
+    .option("--stages <csv>", "comma-separated active stages (defaults to all profile stages)")
+    .action(
+      (opts: {
+        profile: string;
+        hub: string;
+        locale?: string;
+        adapter?: string;
+        actor?: string;
+        stages?: string;
+      }) => {
+        const stages = parseStagesCsv(opts.stages);
+        const res = createProject(process.cwd(), {
+          profile: opts.profile,
+          hubRoot: opts.hub,
+          locale: opts.locale,
+          adapter: opts.adapter,
+          actor: opts.actor,
+          stages
+        });
+        console.log(`Created project ${res.ws.base} (profile: ${opts.profile})`);
+        for (const c of res.created) console.log(`  + ${c}`);
+        console.log("\nNext steps:");
+        for (const s of res.nextSteps) console.log(`  ${s}`);
       }
-      if (action === "add") {
-        if (!bundleId) throw new Error("bundle id required: hx bundle add <id>");
-        const w = ws();
-        if (opts.hub || w.readConfig().hub) {
-          const { hubRoot } = resolveHubContext(w, { hubRef: opts.hub, action: "hub.add" });
-          applyHubBundle(w, hubRoot, bundleId, opts.version ?? "1.0.0");
-          console.log(`Applied hub bundle "${bundleId}@${opts.version ?? "1.0.0"}" — see harness.yaml and assets/bundles/${bundleId}/`);
-        } else {
-          applyBundle(w, bundleId);
-          console.log(`Applied bundle "${bundleId}" — see harness.yaml and assets/bundles/${bundleId}/`);
-        }
-        return;
-      }
-      throw new Error(`unknown bundle action: ${action}`);
-    });
+    );
 
   const change = program.command("change").description("Manage change workspaces");
   change
@@ -155,7 +143,7 @@ export function registerFoundationCommands(program: Command): void {
       console.log(`Wrote ${res.deltaFile}`);
       try {
         const meta = readMeta(w, changeId);
-        if (meta.profile === "enterprise-sdlc") {
+        if (meta.profile === "enterprise") {
           for (const f of scaffoldExtendedRequirements(w, changeId)) console.log(`Wrote harnessX/changes/${changeId}/${f}`);
         }
       } catch {

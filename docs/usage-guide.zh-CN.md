@@ -62,12 +62,11 @@ flowchart LR
 | **Harness 实例** | 已初始化的项目工作区 | `harnessX/` |
 | **Change** | 一次交付工作单元（功能、修复、迁移） | `harnessX/changes/<id>/` |
 | **Profile** | 工作流档位（阶段 + 任务 + 各任务 sensor 套件） | `config.yaml` + `harness.yaml` |
+| **Stage / Task** | 四阶段与阶段内工作单元；资产挂在 task 上 | `meta.yaml`、`active_stages` |
 | **Guide** | 前馈资产：Skill、模板、约束 | `harness.yaml` → `assets/guides/` |
 | **Sensor** | 反馈检查：lint、测试、规格校验、架构扫描 | `harness.yaml` → `runs/` 报告 |
 | **Gate** | 任务推进条件；fail-closed（崩溃也阻断） | `meta.yaml` + `hx gate check --stage --task` |
-| **Bundle** | 拓扑级 guides/sensors 打包（如 API 服务） | `imports:` 或 `assets/bundles/` |
-| **Blueprint** | 交付路径预设（profile + Hub 依赖 + stage.task 映射） | `blueprint.yaml` |
-| **Hub** | 组织级资产注册表（packages / bundles / blueprints） | 独立 Git 仓或本地目录 |
+| **Hub** | 组织级 Guide/Sensor 注册表 | 独立 Git 仓或本地目录 |
 | **Adapter** | 单源资产 → 多 IDE 目标编译 | `.cursor/`、`AGENTS.md` 等 |
 
 资产解析优先级（同一 id 多处出现时）：

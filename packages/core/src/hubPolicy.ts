@@ -33,10 +33,7 @@ export function checkHubPolicy(entries: HubCatalogEntry[], opts: HubPolicyOption
     if (e.status === "enforced") {
       if (e.review !== "approved") issues.push({ asset: key, severity: "error", message: "enforced asset is not approved" });
       if (opts.hubRoot) {
-        const resolved =
-          e.category === "package"
-            ? resolveHubPackageDir(opts.hubRoot, { id: e.id, version: e.version }, e.kind)
-            : path.join(opts.hubRoot, e.category === "bundle" ? "bundles" : "blueprints", e.id, e.version);
+        const resolved = resolveHubPackageDir(opts.hubRoot, { id: e.id, version: e.version }, e.kind);
         if (resolved && fs.existsSync(resolved)) {
           const review = readHubReview(resolved);
           if (minApprovals > 1 && (review.approvedBy?.length ?? 0) < minApprovals) {

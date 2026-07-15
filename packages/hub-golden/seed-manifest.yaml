@@ -24,7 +24,6 @@ profiles:
   enterprise:
     includes: [standard]
     assets:
-      - enterprise-delivery@1.0.0
       - uat-checklist@1.0.0
       - prd-authoring@1.0.0
       - arch-authoring@1.0.0
@@ -32,10 +31,6 @@ profiles:
       - risk-tiering@1.0.0
       - prd-writing@1.0.0
       - requirements-research-outline@1.0.0
-  enterprise-sdlc:
-    includes: [enterprise]
-    assets:
-      - enterprise-sdlc@1.0.0
       - test-cases-template@1.0.0
       - bug-record-template@1.0.0
       - change-request-template@1.0.0
@@ -70,7 +65,6 @@ scenarios:
       - api-breaking-change-rubric@1.0.0
       - backward-compat-rubric@1.0.0
       - query-budget-rules@1.0.0
-      - api-service@1.0.0
   frontend:
     assets:
       - ui-page-spec-template@1.0.0
@@ -83,7 +77,6 @@ scenarios:
       - ux-consistency-rubric@1.0.0
       - a11y-rubric@1.0.0
       - bundle-size-budget-rules@1.0.0
-      - frontend-2c@1.0.0
       - prototype-wireframe@1.0.0
   mobile:
     assets:
@@ -166,11 +159,6 @@ catalog:
   a11y-rubric@1.0.0: { category: package, kind: sensor.rubric }
   uat-quality-rubric@1.0.0: { category: package, kind: sensor.rubric }
   change-risk-rubric@1.0.0: { category: package, kind: sensor.rubric }
-  # --- bundles / blueprints ---
-  api-service@1.0.0: { category: bundle, kind: harness.bundle }
-  frontend-2c@1.0.0: { category: bundle, kind: harness.bundle }
-  enterprise-delivery@1.0.0: { category: blueprint, kind: harness.blueprint }
-  enterprise-sdlc@1.0.0: { category: blueprint, kind: harness.blueprint }
   # --- evals ---
   minimal-api-eval@1.0.0:
     category: eval

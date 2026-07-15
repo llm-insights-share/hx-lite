@@ -11,11 +11,11 @@ import {
   SEED_PROFILES,
   SEED_SCENARIOS,
   listGoldenHubPackages,
-  listGoldenHubBundles,
-  listGoldenHubBlueprints,
   listHubEvalSets,
   searchHubCatalog,
   writeHubIndex,
+  resolveProfileAssets,
+  hubConfigSource,
   hubAdd,
   hubSync,
   hubSyncApply,
@@ -164,7 +164,7 @@ async function interactiveCreateAsset(outDir?: string, sourceDir?: string) {
   const rl = createInterface({ input, output });
   try {
     const id = (await rl.question("asset id: ")).trim();
-    const kind = (await rl.question("kind (guide.skill/guide.template/sensor.rubric/harness.bundle/harness.blueprint): ")).trim() as AssetKind;
+    const kind = (await rl.question("kind (guide.skill/guide.template/sensor.rubric/guide.command/guide.constraint): ")).trim() as AssetKind;
     const version = (await rl.question("version [0.1.0]: ")).trim() || "0.1.0";
     const status = ((await rl.question("status [draft]: ")).trim() || "draft") as AssetStatus;
     const stageRaw = (await rl.question("stage [dev]: ")).trim() || "dev";
@@ -193,16 +193,34 @@ export function registerHubCommands(program: Command, opts: RegisterHubCommandsO
   root.command("golden").description("List built-in golden hub assets").action(() => {
     hubCtx({}, "hub.golden", false);
     for (const p of listGoldenHubPackages()) console.log(`package\t${p.id}@${p.version}`);
-    for (const p of listGoldenHubBundles()) console.log(`bundle\t${p.id}@${p.version}`);
-    for (const p of listGoldenHubBlueprints()) console.log(`blueprint\t${p.id}@${p.version}`);
   });
+
+  root
+    .command("resolve")
+    .description("Resolve hub assets for a workflow profile")
+    .requiredOption("--profile <name>", "workflow profile (lite|standard|strict|enterprise)")
+    .option("--hub <path>", "hub source (defaults to config.yaml hub)")
+    .action((cmdOpts: { profile: string; hub?: string }) => {
+      let hubRef = cmdOpts.hub;
+      if (!hubRef) {
+        try {
+          hubRef = hubConfigSource(ws().readConfig().hub);
+        } catch {
+          /* no config yet */
+        }
+      }
+      if (!hubRef) throw new Error("--hub is required (or set config.yaml hub)");
+      const { hubRoot } = resolveHubContext(ws(), { hubRef, action: "hub.search" });
+      const resolution = resolveProfileAssets(hubRoot, cmdOpts.profile);
+      console.log(JSON.stringify(resolution, null, 2));
+    });
 
   root
     .command("seed [path]")
     .description("Create a hub repo from built-in golden assets")
     .option("--profile <name>", `governance profile (${SEED_PROFILES.join("|")})`)
     .option("--scenario <names>", `domain scenarios, comma-separated (${SEED_SCENARIOS.join("|")})`)
-    .option("--with <kinds>", "asset kinds to include (guides,sensors,rubrics,bundles,blueprints,evals,all)")
+    .option("--with <kinds>", "asset kinds to include (guides,sensors,rubrics,evals,commands,all)")
     .option("--exclude <refs>", "asset refs to skip (<id>@<version>, comma-separated)")
     .option("--full", "copy entire golden hub (legacy default when no selective flags)")
     .option("--dry-run", "print seed plan without writing files")
@@ -343,7 +361,7 @@ export function registerHubCommands(program: Command, opts: RegisterHubCommandsO
     .option("--hub <path>", "hub source (defaults to config.yaml hub)")
     .option("--kind <kind>", "filter by asset kind")
     .option("--phase <phase>", "filter by phase")
-    .option("--category <cat>", "package | bundle | blueprint")
+    .option("--category <cat>", "package")
     .option("--index", "write hub index.json")
     .action((query: string | undefined, cmdOpts: { hub?: string; kind?: string; phase?: string; category?: string; index?: boolean }) => {
       const { hubRoot } = hubCtx(cmdOpts, "hub.search");
@@ -352,7 +370,7 @@ export function registerHubCommands(program: Command, opts: RegisterHubCommandsO
         query,
         kind: cmdOpts.kind,
         phase: cmdOpts.phase,
-        category: cmdOpts.category as "package" | "bundle" | "blueprint" | undefined
+        category: cmdOpts.category as "package" | undefined
       });
       for (const e of results) console.log(`${e.category}\t${e.id}@${e.version}\t${e.kind}\t${e.description ?? ""}`);
     });

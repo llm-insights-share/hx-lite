@@ -105,7 +105,7 @@ export function generateTasks(ws: Workspace, change: string): { file: string; ta
 
   try {
     const meta = readMeta(ws, change);
-    if (meta.profile === "enterprise-sdlc" && meta.archModules?.length) {
+    if (meta.profile === "enterprise" && meta.archModules?.length) {
       const existing = listWorkOrders(ws, { type: "lld-design", change });
       if (existing.length === 0) {
         spawnLldDesignWorkOrders(ws, change, meta.archModules, "hx-plan");

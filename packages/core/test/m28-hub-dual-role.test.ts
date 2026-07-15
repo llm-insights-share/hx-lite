@@ -61,34 +61,36 @@ describe("m28 hub dual-role ops", () => {
     seedGoldenHub(hub);
   });
 
-  it("category-aware hubPromote writes bundles to bundles/", () => {
+  it("hubPromote writes guide packages under packages/", () => {
     const ws = initWorkspace(path.join(root, "consumer")).ws;
-    const bundleDir = path.join(root, "bundle-src");
-    fs.mkdirSync(path.join(bundleDir, "assets"), { recursive: true });
+    const skillDir = path.join(root, "skill-src");
+    fs.mkdirSync(skillDir, { recursive: true });
     fs.writeFileSync(
-      path.join(bundleDir, "asset.yaml"),
+      path.join(skillDir, "asset.yaml"),
       YAML.stringify({
-        id: "my-bundle",
-        kind: "harness.bundle",
+        id: "my-skill",
+        kind: "guide.skill",
         version: "1.0.0",
         origin: "local",
         status: "trial",
         stage: "dev",
+        task: "apply",
+        execution: "inferential",
         provenance: []
       })
     );
-    fs.writeFileSync(path.join(bundleDir, "bundle.yaml"), YAML.stringify({ description: "test", guides: [], sensors: [] }));
+    fs.writeFileSync(path.join(skillDir, "SKILL.md"), "# My Skill\n");
 
-    const { dest } = hubPromote(ws, hub, bundleDir, { publishedBy: "ops", skipEval: true });
-    expect(dest).toContain(path.join("bundles", "my-bundle", "1.0.0"));
-    expect(hubCategoryFromKind("harness.bundle")).toBe("bundle");
-    expect(resolveHubDestDir(hub, { id: "my-bundle", version: "1.0.0", kind: "harness.bundle" })).toBe(dest);
+    const { dest } = hubPromote(ws, hub, skillDir, { publishedBy: "ops", skipEval: true });
+    expect(dest).toContain(path.join("packages", "guide", "skill", "my-skill", "1.0.0"));
+    expect(hubCategoryFromKind("guide.skill")).toBe("package");
+    expect(resolveHubDestDir(hub, { id: "my-skill", version: "1.0.0", kind: "guide.skill" })).toBe(dest);
   });
 
-  it("hubEvalAsset routes to bundle directory", () => {
-    const res = hubEvalAsset(hub, { id: "api-service", version: "1.0.0" });
+  it("hubEvalAsset routes to package directory", () => {
+    const res = hubEvalAsset(hub, { id: "coding-conventions", version: "1.0.0" });
     expect(res.passed).toBe(true);
-    expect(res.package).toContain("api-service");
+    expect(res.package).toContain("coding-conventions");
   });
 
   it("consumer cannot promote; maintainer cannot submit", () => {

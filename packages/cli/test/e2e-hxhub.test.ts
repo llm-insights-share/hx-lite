@@ -115,7 +115,7 @@ describe("hxhub e2e", () => {
     const out = hxhub(repo, ["seed", hubDir, "--profile", "minimal", "--scenario", "api"]);
     expect(out).toContain("Seeded");
     expect(fs.existsSync(path.join(hubDir, "packages/guide/skill/coding-conventions/1.0.0/asset.yaml"))).toBe(true);
-    expect(fs.existsSync(path.join(hubDir, "bundles/api-service/1.0.0/bundle.yaml"))).toBe(true);
+    expect(fs.existsSync(path.join(hubDir, "packages/guide/skill/api-conventions/1.0.0/asset.yaml"))).toBe(true);
     expect(fs.existsSync(path.join(hubDir, "packages/guide/template/ui-page-spec-template/1.0.0/asset.yaml"))).toBe(false);
   });
 

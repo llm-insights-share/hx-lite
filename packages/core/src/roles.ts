@@ -40,13 +40,7 @@ export function memberRole(ws: Workspace, member: string): string | undefined {
 }
 
 export function workordersRequired(ws: Workspace): boolean {
-  const roles = readRoles(ws);
-  if (roles.workflow.workorders === "required") return true;
-  try {
-    return ws.readConfig().profile === "enterprise-sdlc";
-  } catch {
-    return false;
-  }
+  return readRoles(ws).workflow.workorders === "required";
 }
 
 export interface RoleCheckResult {
@@ -55,7 +49,7 @@ export interface RoleCheckResult {
   message?: string;
 }
 
-/** Check if member can perform action; hard block when enterprise-sdlc + workorders required. */
+/** Check if member can perform action; hard block when enterprise + workorders required. */
 export function checkRolePermission(ws: Workspace, member: string, action: string, opts?: { hard?: boolean }): RoleCheckResult {
   const roles = readRoles(ws);
   const role = roles.members[member];

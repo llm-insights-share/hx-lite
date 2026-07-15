@@ -36,7 +36,7 @@ function fillRequirements(ws: Workspace, change: string) {
   for (const f of fs.readdirSync(reqDir)) {
     if (!f.endsWith(".md")) continue;
     const p = path.join(reqDir, f);
-    fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace("<!-- Fill for enterprise-sdlc requirements analysis -->", "Completed for test."), "utf8");
+    fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace("<!-- Fill for enterprise requirements analysis -->", "Completed for test."), "utf8");
   }
   const intDir = path.join(reqDir, "integrations");
   if (fs.existsSync(intDir)) {
@@ -48,6 +48,7 @@ describe("M22-M27 enterprise SDLC workflow", () => {
   it("work order state machine: req-review → approve → change create", () => {
     const ws = initWorkspace(tmp()).ws;
     const roles = readRoles(ws);
+    roles.workflow.workorders = "required";
     roles.members = { "pm.chen": "product-manager", "tm.zhang": "tech-manager" };
     writeRoles(ws, roles);
 
@@ -68,8 +69,8 @@ describe("M22-M27 enterprise SDLC workflow", () => {
     expect(approved.status).toBe("approved");
 
     recordPrephaseApproval(ws, "prd", "tm.zhang", "member-badge");
-    const change = createChange(ws, "member-badge", ["member"], "enterprise-sdlc", { prdRef: "member-badge" });
-    expect(change.meta.profile).toBe("enterprise-sdlc");
+    const change = createChange(ws, "member-badge", ["member"], "enterprise", { prdRef: "member-badge" });
+    expect(change.meta.profile).toBe("enterprise");
   });
 
   it("change request apply patches PRD and invalidates approval", () => {
@@ -108,7 +109,7 @@ describe("M22-M27 enterprise SDLC workflow", () => {
 
   it("test case review work order", () => {
     const ws = initWorkspace(tmp()).ws;
-    createChange(ws, "tc-flow", ["member"], "enterprise-sdlc");
+    createChange(ws, "tc-flow", ["member"], "enterprise");
     scaffoldTestCases(ws, "tc-flow");
     const overview = path.join(ws.testCasesDir("tc-flow"), "overview.md");
     fs.writeFileSync(
@@ -121,9 +122,9 @@ describe("M22-M27 enterprise SDLC workflow", () => {
     expect(pending.some((w) => w.id === woId)).toBe(true);
   });
 
-  it("extended requirements scaffold on enterprise-sdlc propose path", () => {
+  it("extended requirements scaffold on enterprise propose path", () => {
     const ws = initWorkspace(tmp()).ws;
-    createChange(ws, "ext-req", ["member"], "enterprise-sdlc");
+    createChange(ws, "ext-req", ["member"], "enterprise");
     scaffoldProposal(ws, "ext-req", "Extended");
     const created = scaffoldExtendedRequirements(ws, "ext-req");
     expect(created.length).toBeGreaterThan(0);

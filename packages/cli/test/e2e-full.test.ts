@@ -185,14 +185,18 @@ describe("overall verification: full delivery cycle through the CLI", () => {
     expect(metaOut).toContain("TAMPERED");
   }, 120000);
 
-  it("init --from-hub does not require hub.actor on a fresh repo", () => {
+  it("project create installs profile assets without requiring hub.actor", () => {
     const repo = makeRepo();
     const hub = path.join(repo, "harness-hub");
     hx(repo, ["hub", "seed", hub]);
-    const out = hx(repo, ["init", "--from-hub", "enterprise-delivery@1.0.0", "--hub", hub, "--adapter", "cursor"]);
-    expect(out).toContain("Initialized from hub enterprise-delivery@1.0.0");
+    const out = hx(repo, ["project", "create", "--profile", "standard", "--hub", hub, "--adapter", "cursor"]);
+    expect(out).toContain("Created project");
+    expect(out).toContain("profile: standard");
     const config = YAML.parse(fs.readFileSync(path.join(repo, "harnessX/config.yaml"), "utf8"));
     expect(config.hub).toEqual({ source: path.resolve(hub), role: "consumer" });
     expect(config.adapter).toEqual({ target: "cursor" });
+    expect(config.profile).toBe("standard");
+    const harness = YAML.parse(fs.readFileSync(path.join(repo, "harnessX/harness.yaml"), "utf8"));
+    expect(harness.dependencies.length).toBeGreaterThan(0);
   }, 60000);
 });

@@ -23,10 +23,9 @@ import {
   gcHubRemoteCache,
   seedGoldenHub,
   listGoldenHubPackages,
-  listGoldenHubBundles,
-  listGoldenHubBlueprints,
-  listHubBundles,
   listHubEvalSets,
+  resolveProfileAssets,
+  hubConfigSource,
   hubEvalAsset,
   hubEvalLocal,
   hubEvalGoldenRepo,
@@ -184,9 +183,26 @@ export function registerAssetCommands(program: Command): void {
   hub.command("golden").description("List built-in golden hub packages").action(() => {
     hubCtx({}, "hub.golden", false);
     for (const p of listGoldenHubPackages()) console.log(`package\t${p.id}@${p.version}`);
-    for (const p of listGoldenHubBundles()) console.log(`bundle\t${p.id}@${p.version}`);
-    for (const p of listGoldenHubBlueprints()) console.log(`blueprint\t${p.id}@${p.version}`);
   });
+  hub
+    .command("resolve")
+    .description("Resolve hub assets for a workflow profile")
+    .requiredOption("--profile <name>", "workflow profile (lite|standard|strict|enterprise)")
+    .option("--hub <path>", "hub source (defaults to config.yaml hub)")
+    .action((opts: { profile: string; hub?: string }) => {
+      let hubRef = opts.hub;
+      if (!hubRef) {
+        try {
+          hubRef = hubConfigSource(ws().readConfig().hub);
+        } catch {
+          /* no config yet */
+        }
+      }
+      if (!hubRef) throw new Error("--hub is required (or set config.yaml hub)");
+      const { hubRoot } = resolveHubContext(ws(), { hubRef, action: "hub.search" });
+      const resolution = resolveProfileAssets(hubRoot, opts.profile);
+      console.log(JSON.stringify(resolution, null, 2));
+    });
   hub
     .command("seed [path]")
     .description("Create a hub repo from built-in golden packages (pre-approved)")
@@ -336,7 +352,7 @@ export function registerAssetCommands(program: Command): void {
     .option("--hub <path>", "hub source (defaults to config.yaml hub)")
     .option("--kind <kind>", "filter by asset kind")
     .option("--phase <phase>", "filter by phase")
-    .option("--category <cat>", "package | bundle | blueprint")
+    .option("--category <cat>", "package")
     .option("--index", "write hub index.json")
     .action((query: string | undefined, opts: { hub?: string; kind?: string; phase?: string; category?: string; index?: boolean }) => {
       const { hubRoot } = hubCtx(opts, "hub.search");
@@ -348,7 +364,7 @@ export function registerAssetCommands(program: Command): void {
         query,
         kind: opts.kind,
         phase: opts.phase,
-        category: opts.category as "package" | "bundle" | "blueprint" | undefined
+        category: opts.category as "package" | undefined
       });
       for (const e of results) {
         console.log(`${e.category}\t${e.id}@${e.version}\t${e.kind}\t${e.description ?? ""}`);

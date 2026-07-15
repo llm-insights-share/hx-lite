@@ -8,15 +8,15 @@ import type { HubRef } from "./hub.js";
 
 const BUILTIN_HUB_GOLDEN_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../hub-golden");
 
-export const SEED_PROFILES = ["minimal", "standard", "strict", "enterprise", "enterprise-sdlc"] as const;
+export const SEED_PROFILES = ["minimal", "standard", "strict", "enterprise"] as const;
 export const SEED_SCENARIOS = ["core", "api", "frontend", "mobile", "library", "data", "observability", "async-jobs"] as const;
-export const SEED_WITH_FILTERS = ["guides", "sensors", "rubrics", "bundles", "blueprints", "evals", "commands", "all"] as const;
+export const SEED_WITH_FILTERS = ["guides", "sensors", "rubrics", "evals", "commands", "all"] as const;
 
 export type SeedProfile = (typeof SEED_PROFILES)[number];
 export type SeedScenario = (typeof SEED_SCENARIOS)[number];
 export type SeedWithFilter = (typeof SEED_WITH_FILTERS)[number];
 
-export type SeedAssetCategory = "package" | "bundle" | "blueprint" | "eval";
+export type SeedAssetCategory = "package" | "eval";
 
 export interface SeedCatalogEntry {
   category: SeedAssetCategory;
@@ -117,8 +117,6 @@ function kindMatchesWithFilter(kind: string | undefined, filters: Set<SeedWithFi
   if (filters.has("commands") && kind === "guide.command") return true;
   if (filters.has("rubrics") && kind === "sensor.rubric") return true;
   if (filters.has("sensors") && kind.startsWith("sensor.") && kind !== "sensor.rubric") return true;
-  if (filters.has("bundles") && kind === "harness.bundle") return true;
-  if (filters.has("blueprints") && kind === "harness.blueprint") return true;
   return false;
 }
 
@@ -138,26 +136,18 @@ function assetSourcePath(goldenDir: string, manifest: SeedManifest, ref: string)
   if (entry.path) return path.join(goldenDir, entry.path);
   const { id, version } = parseRef(ref);
   if (entry.category === "eval") return path.join(goldenDir, "evals", "golden-repos", id);
-  if (entry.category === "package") {
-    const kind = entry.kind;
-    if (!kind) throw new Error(`seed catalog entry ${ref} missing kind for package`);
-    return hubPackageDirForKind(goldenDir, kind, id, version);
-  }
-  const plural = entry.category === "bundle" ? "bundles" : "blueprints";
-  return path.join(goldenDir, plural, id, version);
+  const kind = entry.kind;
+  if (!kind) throw new Error(`seed catalog entry ${ref} missing kind for package`);
+  return hubPackageDirForKind(goldenDir, kind, id, version);
 }
 
 function assetDestPath(targetRoot: string, manifest: SeedManifest, ref: string): string {
   const entry = manifest.catalog[ref];
   const { id, version } = parseRef(ref);
   if (entry.category === "eval") return path.join(targetRoot, "evals", "golden-repos", id);
-  if (entry.category === "package") {
-    const kind = entry.kind;
-    if (!kind) throw new Error(`seed catalog entry ${ref} missing kind for package`);
-    return hubPackageDirForKind(targetRoot, kind, id, version);
-  }
-  const plural = entry.category === "bundle" ? "bundles" : "blueprints";
-  return path.join(targetRoot, plural, id, version);
+  const kind = entry.kind;
+  if (!kind) throw new Error(`seed catalog entry ${ref} missing kind for package`);
+  return hubPackageDirForKind(targetRoot, kind, id, version);
 }
 
 export function planSeedHub(opts: SeedHubOptions = {}, goldenDir = opts.goldenDir ?? BUILTIN_HUB_GOLDEN_DIR): SeedHubPlan {
@@ -225,7 +215,7 @@ export function seedHub(targetRoot: string, opts: SeedHubOptions = {}): SeedHubR
 
   if (opts.full) {
     const seeded: HubRef[] = [];
-    for (const sub of ["packages", "bundles", "blueprints", "evals"] as const) {
+    for (const sub of ["packages", "evals"] as const) {
       const src = path.join(goldenDir, sub);
       if (!fs.existsSync(src)) continue;
       if (!opts.dryRun) copyDir(src, path.join(targetRoot, sub));

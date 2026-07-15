@@ -9,7 +9,6 @@ import {
   seedGoldenHub,
   searchHubCatalog,
   writeHubIndex,
-  listHubBundles,
   aggregateCoverage,
   phaseFunnel,
   assetEffectiveness,
@@ -58,16 +57,15 @@ describe("v0.4 platform upgrade", () => {
     expect(report.summary).toMatch(/skipped/);
   });
 
-  it("hub search indexes packages, bundles, and blueprints", () => {
+  it("hub search indexes packages", () => {
     const hub = path.join(tmp(), "hub");
     seedGoldenHub(hub);
     const results = searchHubCatalog(hub, { query: "prd" });
     expect(results.some((e) => e.id === "prd-writing")).toBe(true);
-    const bundles = searchHubCatalog(hub, { category: "bundle" });
-    expect(bundles.some((e) => e.id === "api-service")).toBe(true);
-    expect(bundles.some((e) => e.id === "frontend-2c")).toBe(true);
+    const packages = searchHubCatalog(hub, { category: "package" });
+    expect(packages.some((e) => e.id === "prd-writing")).toBe(true);
+    expect(packages.some((e) => e.id === "coding-conventions")).toBe(true);
     expect(fs.existsSync(writeHubIndex(hub))).toBe(true);
-    expect(listHubBundles(hub).length).toBeGreaterThanOrEqual(2);
   });
 
   it("aggregates coverage across multiple harness repos", () => {

@@ -9,7 +9,6 @@ import { assertHubAssetTransition } from "./hubLifecycle.js";
 import { approveHubReview, readHubReview, requestHubReview } from "./hubReview.js";
 import { hashHubAssetDir } from "./hubIntegrity.js";
 import { hubEvalLocal } from "./hubEval.js";
-import { hubBlueprintDir } from "./blueprint.js";
 import type { AssetManifest } from "./schemas.js";
 import type { HubAssetCategory } from "./hubAssetSchema.js";
 import {
@@ -24,15 +23,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const BUILTIN_HUB_GOLDEN_DIR = path.resolve(HERE, "../../hub-golden");
 
 /**
- * T-602 (§11.5): Harness Hub — a directory/git repo of shared asset packages:
+ * Harness Hub — shared guide/sensor asset packages:
  *   hub/packages/<kind>/<...>/<id>/<version>/{asset.yaml, content...}
- *   hub/bundles/<id>/<version>/{bundle.yaml, assets/...}
- *   hub/blueprints/<name>/<version>/{blueprint.yaml, ...}
- *   hub/packages/.../.review (publication review marker, T-603)
- * - add:     copy a hub package version into the repo's hub cache layer
- * - sync:    detect upstream updates vs local overrides (three-way-ish report)
- * - sync --apply: three-way merge upstream vs local override vs baseline
- * - promote: publish a local asset to the hub with provenance/evidence
+ * - add / sync / promote for guide.* and sensor.* packages
  */
 
 export interface HubRef {
@@ -53,44 +46,24 @@ export function hubPackageDir(hubRoot: string, id: string, version: string, kind
   return path.join(hubRoot, "packages", id, version);
 }
 
-export function hubBundleDir(hubRoot: string, id: string, version: string): string {
-  return path.join(hubRoot, "bundles", id, version);
-}
-
-export function hubCategoryFromKind(kind: string): HubAssetCategory {
-  if (kind === "harness.bundle") return "bundle";
-  if (kind === "harness.blueprint") return "blueprint";
+export function hubCategoryFromKind(_kind: string): HubAssetCategory {
   return "package";
 }
 
 export function resolveHubDestDir(hubRoot: string, manifest: Pick<AssetManifest, "id" | "version" | "kind">): string {
-  switch (manifest.kind) {
-    case "harness.bundle":
-      return hubBundleDir(hubRoot, manifest.id, manifest.version);
-    case "harness.blueprint":
-      return hubBlueprintDir(hubRoot, manifest.id, manifest.version);
-    default:
-      return hubPackageDir(hubRoot, manifest.id, manifest.version, manifest.kind);
-  }
+  return hubPackageDir(hubRoot, manifest.id, manifest.version, manifest.kind);
 }
 
-function validatePromoteLayout(assetDir: string, manifest: AssetManifest): void {
-  if (manifest.kind === "harness.bundle") {
-    if (!fs.existsSync(path.join(assetDir, "bundle.yaml"))) throw new Error("harness.bundle requires bundle.yaml");
-  } else if (manifest.kind === "harness.blueprint") {
-    if (!fs.existsSync(path.join(assetDir, "blueprint.yaml"))) throw new Error("harness.blueprint requires blueprint.yaml");
-  }
+function validatePromoteLayout(_assetDir: string, _manifest: AssetManifest): void {
+  /* guide/sensor packages only require asset.yaml */
 }
 
 export function hubContributionDir(hubRoot: string, actor: string, id: string, version: string): string {
   return path.join(hubRoot, "contributions", actor, id, version);
 }
 
-export function hubVersions(hubRoot: string, id: string, category: "packages" | "bundles" | "blueprints" = "packages"): string[] {
-  if (category === "packages") return hubPackageVersions(hubRoot, id);
-  const dir = path.join(hubRoot, category, id);
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir).sort();
+export function hubVersions(hubRoot: string, id: string, _category: "packages" = "packages"): string[] {
+  return hubPackageVersions(hubRoot, id);
 }
 
 function copyDir(src: string, dest: string) {
@@ -208,16 +181,9 @@ export function mergeAssetDirs(baselineDir: string, localDir: string, remoteDir:
 }
 
 /** Resolves a hub ref across packages/, bundles/, blueprints/. */
-export function resolveHubPackage(hubRoot: string, ref: HubRef): { kind: "package" | "bundle" | "blueprint"; dir: string } | null {
+export function resolveHubPackage(hubRoot: string, ref: HubRef): { kind: "package"; dir: string } | null {
   const pkgDir = resolveHubPackageDir(hubRoot, ref);
   if (pkgDir) return { kind: "package", dir: pkgDir };
-  for (const [kind, category] of [
-    ["bundle", "bundles"],
-    ["blueprint", "blueprints"]
-  ] as const) {
-    const dir = path.join(hubRoot, category, ref.id, ref.version);
-    if (fs.existsSync(dir)) return { kind, dir };
-  }
   return null;
 }
 
@@ -479,7 +445,7 @@ export function hubReviewStatus(hubRoot: string, id: string, version: string): "
 export interface HubAssetInfo {
   id: string;
   version: string;
-  category: "package" | "bundle" | "blueprint";
+  category: "package";
   dir: string;
   meta?: HubAssetMeta;
   reviewStatus: "pending" | "approved" | "rejected";
@@ -523,47 +489,6 @@ export function hubSetAssetStatus(hubRoot: string, ref: HubRef, to: HubAssetStat
 /** Lists package ids available in the built-in golden hub catalog. */
 export function listGoldenHubPackages(goldenDir = BUILTIN_HUB_GOLDEN_DIR): HubRef[] {
   return listHubPackageRefs(goldenDir);
-}
-
-export function listGoldenHubBundles(goldenDir = BUILTIN_HUB_GOLDEN_DIR): HubRef[] {
-  const root = path.join(goldenDir, "bundles");
-  if (!fs.existsSync(root)) return [];
-  const out: HubRef[] = [];
-  for (const id of fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory())) {
-    for (const ver of hubVersions(goldenDir, id.name, "bundles")) {
-      out.push({ id: id.name, version: ver });
-    }
-  }
-  return out.sort((a, b) => a.id.localeCompare(b.id) || a.version.localeCompare(b.version));
-}
-
-/** Lists bundles in any hub repo (v0.4). */
-export function listHubBundles(hubRoot: string): HubRef[] {
-  const root = path.join(hubRoot, "bundles");
-  if (!fs.existsSync(root)) return [];
-  const out: HubRef[] = [];
-  for (const id of fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory())) {
-    for (const ver of hubVersions(hubRoot, id.name, "bundles")) {
-      out.push({ id: id.name, version: ver });
-    }
-  }
-  return out.sort((a, b) => a.id.localeCompare(b.id) || a.version.localeCompare(b.version));
-}
-
-export function listHubBlueprints(hubRoot: string): HubRef[] {
-  const root = path.join(hubRoot, "blueprints");
-  if (!fs.existsSync(root)) return [];
-  const out: HubRef[] = [];
-  for (const id of fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory())) {
-    for (const ver of hubVersions(hubRoot, id.name, "blueprints")) {
-      out.push({ id: id.name, version: ver });
-    }
-  }
-  return out.sort((a, b) => a.id.localeCompare(b.id) || a.version.localeCompare(b.version));
-}
-
-export function listGoldenHubBlueprints(goldenDir = BUILTIN_HUB_GOLDEN_DIR): HubRef[] {
-  return listHubBlueprints(goldenDir);
 }
 
 export function listHubEvalSets(hubRoot: string): string[] {

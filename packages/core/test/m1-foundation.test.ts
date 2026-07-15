@@ -69,19 +69,9 @@ describe("T-100 hx init", () => {
     expect(() => initWorkspace(root)).toThrow(/already initialized/);
   });
 
-  it("--bundle api-service merges sensors, guides and suites", () => {
-    const root = tmp();
-    const res = initWorkspace(root, { bundle: "api-service" });
-    const harness = res.ws.readHarness();
-    expect(harness.sensors.map((s) => s.id)).toContain("arch-boundary");
-    expect(harness.guides.map((g) => g.id)).toContain("api-design");
-    expect(harness.suites["verification"]).toContain("arch-boundary");
-    expect(fs.existsSync(path.join(res.ws.bundlesDir, "api-service"))).toBe(true);
-  });
-
   it("--locale hx-cn seeds Chinese scaffold with design-template", () => {
     const root = tmp();
-    const res = initWorkspace(root, { locale: "hx-cn", bundle: "api-service-cn" });
+    const res = initWorkspace(root, { locale: "hx-cn" });
     expect(res.ws.readConfig().locale).toBe("zh-CN");
     const constitution = fs.readFileSync(res.ws.constitutionFile, "utf8");
     expect(constitution).toContain("项目宪法");
@@ -90,12 +80,11 @@ describe("T-100 hx init", () => {
     const proposeCmd = fs.readFileSync(path.join(res.ws.assetsDir, "commands/propose.md"), "utf8");
     expect(proposeCmd).toContain("起草提案");
     expect(res.nextSteps[0]).toContain("constitution.md");
-    expect(fs.existsSync(path.join(res.ws.bundlesDir, "api-service-cn/skills/api-design.md"))).toBe(true);
   });
 
   it("hx-cn enterprise guides and templates are localized", () => {
     const root = tmp();
-    const res = initWorkspace(root, { locale: "hx-cn", bundle: "api-service-cn" });
+    const res = initWorkspace(root, { locale: "hx-cn" });
     const assets = res.ws.assetsDir;
     const prdSkill = fs.readFileSync(path.join(assets, "guides/prd-writing/SKILL.md"), "utf8");
     expect(prdSkill).toContain("PRD 蒸馏");

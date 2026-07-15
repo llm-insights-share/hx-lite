@@ -34,9 +34,8 @@ export const SENSOR_KINDS = [
 ] as const;
 
 export const ORCH_KINDS = ["orch.profile", "orch.waiver", "orch.pattern"] as const;
-export const HUB_KINDS = ["harness.bundle", "harness.blueprint"] as const;
 
-export const AssetKind = z.enum([...GUIDE_KINDS, ...SENSOR_KINDS, ...ORCH_KINDS, ...HUB_KINDS]);
+export const AssetKind = z.enum([...GUIDE_KINDS, ...SENSOR_KINDS, ...ORCH_KINDS]);
 export type AssetKind = z.infer<typeof AssetKind>;
 
 export const Execution = z.enum(["computational", "inferential"]);
@@ -101,8 +100,6 @@ export const OverrideDef = z.object({
 export const HarnessYaml = z.object({
   version: z.string().default("1.0"),
   constitution: z.string().optional(),
-  /** Topology bundle refs expanded at read time, e.g. api-service@1.0.0 */
-  imports: z.array(z.string()).default([]),
   profiles: z.record(ProfileDef),
   suites: z.record(z.array(z.string())).default({}),
   guides: z.array(GuideDef).default([]),
@@ -130,6 +127,8 @@ export type HubConfigField = z.infer<typeof HubConfigField>;
 
 export const ConfigYaml = z.object({
   profile: z.string().default("standard"),
+  /** Local multi-select of stages; must be a subset of the profile's stages. */
+  active_stages: z.array(DELIVERY_STAGE).optional(),
   locale: z.enum(["en", "zh-CN"]).default("en"),
   compat_mode: z.enum(["openspec"]).optional(),
   hub: HubConfigField.optional(),
@@ -148,20 +147,6 @@ export const ConfigYaml = z.object({
     .optional()
 });
 export type ConfigYaml = z.infer<typeof ConfigYaml>;
-
-/** Delivery blueprint — composes profile, stage assets, and hub dependencies. */
-export const BlueprintStageDef = z.object({
-  guides: z.array(z.string()).optional(),
-  sensors: z.array(z.string()).optional()
-});
-
-export const BlueprintYaml = z.object({
-  name: z.string(),
-  extends: z.string().optional(),
-  hub_deps: z.array(z.string()).default([]),
-  stages: z.record(BlueprintStageDef).optional()
-});
-export type BlueprintYaml = z.infer<typeof BlueprintYaml>;
 
 /* ── meta.yaml: phase state, approvals, waivers, gate history — CLI-exclusive writes (FR-050) ── */
 
@@ -454,7 +439,7 @@ export type AssetManifest = z.infer<typeof AssetManifest>;
 export const HubAssetMetaYaml = z.object({
   id: z.string(),
   version: z.string(),
-  category: z.enum(["package", "bundle", "blueprint"]),
+  category: z.enum(["package"]),
   status: z.enum(["draft", "trial", "enforced", "deprecated", "archived"]).default("trial"),
   owner: z.string().optional(),
   stages: z.array(DELIVERY_STAGE).default([]),

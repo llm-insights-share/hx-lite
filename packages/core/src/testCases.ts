@@ -21,7 +21,7 @@ export function scaffoldExtendedRequirements(ws: Workspace, change: string): str
     const p = path.join(reqDir, f);
     if (!fs.existsSync(p)) {
       const title = f.replace(/\.md$/, "").replace(/-/g, " ");
-      fs.writeFileSync(p, `# ${title}\n\n<!-- Fill for enterprise-sdlc requirements analysis -->\n`, "utf8");
+      fs.writeFileSync(p, `# ${title}\n\n<!-- Fill for enterprise requirements analysis -->\n`, "utf8");
       created.push(`requirements/${f}`);
     }
   }
@@ -47,7 +47,7 @@ export function requirementsExtendedProblems(ws: Workspace, change: string): str
     if (!fs.existsSync(p)) problems.push(`missing requirements/${f}`);
     else {
       const text = fs.readFileSync(p, "utf8");
-      if (text.includes("<!-- Fill for enterprise-sdlc")) problems.push(`requirements/${f} is still a scaffold placeholder`);
+      if (text.includes("<!-- Fill for enterprise")) problems.push(`requirements/${f} is still a scaffold placeholder`);
     }
   }
   const intIndex = path.join(reqDir, "integrations", "index.md");

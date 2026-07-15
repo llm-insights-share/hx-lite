@@ -4,7 +4,7 @@ English · **[中文](./README.md)**
 
 > The **outer control plane** that makes AI coding agents ship production software reliably — not another test runner, but a spec-driven harness with **Guides (feedforward)**, **Sensors (feedback)**, and **fail-closed Gates**.
 
-[![Version](https://img.shields.io/badge/version-0.6.0-blue)](docs/releases/v0.6.md)
+[![Version](https://img.shields.io/badge/version-0.1.0-blue)](https://github.com/llm-insights-share/hx-lite)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](package.json)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](package.json)
 
@@ -27,9 +27,10 @@ HarnessX treats AI delivery as a **control-engineering problem**: inject the rig
 | **Four-stage delivery** | `req` → `arch` → `dev` → `test` — org PRD/architecture + per-change dev & test |
 | **Guide + Sensor dual loop** | Skills/templates before action; lint/tests/spec/AI review after |
 | **Fail-closed gates** | Crashed, timed-out, or unparseable sensors **block** — never silent pass |
+| **Profile → Stage → Task** | `lite`/`standard`/`strict`/`enterprise`; assets bind to tasks |
 | **Steering loop** | Recurring failures become Skills, rubrics, and templates over time |
 | **Multi-tool, single source** | One asset set compiles to Cursor, Claude Code, Trae, Qoder, … |
-| **Hub supply chain** | Publish, review, lock, and consume org-wide assets via `hxhub` |
+| **Hub supply chain** | Pull guide/sensor packages by profile into the project repo via `hxhub` |
 
 OpenSpec-compatible Delta Specs. Works alongside existing CI — local hooks plus remote replay.
 
@@ -41,13 +42,16 @@ OpenSpec-compatible Delta Specs. Works alongside existing CI — local hooks plu
 git clone https://github.com/llm-insights-share/harnessX.git && cd harnessX
 npm install && npm link    # hx / hxhub available globally
 
-hx init --bundle api-service --adapter cursor
+hxhub seed ./harness-hub --profile standard --scenario core
+hx project create --profile standard --hub ./harness-hub --adapter cursor
 hx hooks install && hx adapter sync
+
+# After pull: pick local stages
+hx init --stages req,dev
 
 hx change create my-feature --domains api
 hx propose my-feature --title "Your first feature"
 hx gate check my-feature --stage dev --task propose
-# In Cursor: /hx-propose → design → apply → verify → archive
 ```
 
 **Enterprise path** (req/arch/dev/test + work orders): `hx init --from-hub enterprise-sdlc@1.0.0 --hub <your-hub>`

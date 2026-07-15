@@ -10,7 +10,7 @@ import {
   WorkOrderRef
 } from "./schemas.js";
 import { sha256 } from "./telemetry.js";
-import { canApproveWorkOrderType, checkRolePermission } from "./roles.js";
+import { canApproveWorkOrderType, checkRolePermission, workordersRequired } from "./roles.js";
 import { listBugs } from "./bugs.js";
 import { readMeta } from "./metaStore.js";
 import { readArchRegistry } from "./archRegistry.js";
@@ -298,15 +298,7 @@ export function inboxWorkOrders(ws: Workspace, role: string): WorkOrderYaml[] {
 
 export function workorderProblems(ws: Workspace, change?: string, phase?: string): string[] {
   const problems: string[] = [];
-  const required = (() => {
-    try {
-      const cfg = ws.readConfig();
-      return cfg.profile === "enterprise-sdlc";
-    } catch {
-      return false;
-    }
-  })();
-  if (!required) return problems;
+  if (!workordersRequired(ws)) return problems;
 
   if (!change && phase === "change-create") return problems;
 

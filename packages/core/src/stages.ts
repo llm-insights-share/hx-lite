@@ -89,12 +89,22 @@ export const STAGE_TASKS: Record<DeliveryStage, StageTaskDef[]> = {
 };
 
 /** Default task sequences per profile. */
-export const DEFAULT_PROFILE_STAGES: Record<string, { stages: DeliveryStage[]; dev_tasks?: string[]; test_tasks?: string[] }> = {
+export const DEFAULT_PROFILE_STAGES: Record<
+  string,
+  { stages: DeliveryStage[]; dev_tasks?: string[]; test_tasks?: string[]; req_tasks?: string[]; arch_tasks?: string[] }
+> = {
   lite: { stages: ["dev"], dev_tasks: ["propose", "apply", "archive"] },
-  standard: { stages: ["req", "arch", "dev", "test"], dev_tasks: ["plan", "propose", "design", "apply", "verify", "archive"] },
-  strict: { stages: ["req", "arch", "dev", "test"], dev_tasks: ["plan", "propose", "design", "apply", "verify", "archive"] },
-  enterprise: { stages: ["req", "arch", "dev", "test"], dev_tasks: ["plan", "propose", "design", "apply", "verify", "archive"] },
-  "enterprise-sdlc": {
+  standard: {
+    stages: ["req", "arch", "dev", "test"],
+    dev_tasks: ["plan", "propose", "design", "apply", "verify", "archive"],
+    test_tasks: ["test-case-design", "test-execution"]
+  },
+  strict: {
+    stages: ["req", "arch", "dev", "test"],
+    dev_tasks: ["plan", "propose", "design", "apply", "verify", "archive"],
+    test_tasks: ["test-case-design", "test-execution"]
+  },
+  enterprise: {
     stages: ["req", "arch", "dev", "test"],
     dev_tasks: ["plan", "propose", "design", "apply", "verify", "archive"],
     test_tasks: ["test-case-design", "test-execution"]

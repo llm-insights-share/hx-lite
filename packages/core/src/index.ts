@@ -69,7 +69,7 @@ export * from "./hubPolicy.js";
 export * from "./hubGovernance.js";
 export * from "./hubIntegrity.js";
 export * from "./supplyChain.js";
-export * from "./blueprint.js";
+export * from "./profileAssets.js";
 export * from "./gateCompensation.js";
 export * from "./hubEval.js";
 export * from "./hubSearch.js";

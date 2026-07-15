@@ -45,7 +45,7 @@ ok
 
 describe("P0-P2 integration", () => {
   it("buildContextPack injects org PRD on propose and module LLD on design", () => {
-    const { ws } = initWorkspace(tmp(), { bundle: "api-service" });
+    const { ws } = initWorkspace(tmp());
     scaffoldPrd(ws, "feat", "Feat");
     fillPrd(ws.prdFile("feat"));
     scaffoldArchHld(ws, "Sys");
@@ -69,7 +69,7 @@ describe("P0-P2 integration", () => {
   });
 
   it("enterprise design gate requires arch-approved", async () => {
-    const { ws } = initWorkspace(tmp(), { bundle: "api-service" });
+    const { ws } = initWorkspace(tmp());
     scaffoldArchHld(ws, "Sys");
     fs.writeFileSync(
       ws.archOverviewFile(),
@@ -95,7 +95,7 @@ describe("P0-P2 integration", () => {
   });
 
   it("enterprise archive blocks without arch promote", () => {
-    const { ws } = initWorkspace(tmp(), { bundle: "api-service" });
+    const { ws } = initWorkspace(tmp());
     scaffoldArchLld(ws, "order", "Order");
     fs.writeFileSync(
       ws.archModuleLld("order"),

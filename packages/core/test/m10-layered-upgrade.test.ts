@@ -3,16 +3,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
-  Workspace,
   initWorkspace,
-  initFromHub,
+  createProject,
   hubAdd,
-  hubSync,
   hubSyncApply,
   seedGoldenHub,
   listGoldenHubPackages,
   threeWayMergeText,
-  readBlueprint,
   resolveCompensation,
   hubEvalPackage,
   steerPublish,
@@ -74,24 +71,26 @@ describe("v0.3 layered upgrade", () => {
     expect(text).toContain("- remote");
   });
 
-  it("init --from-hub installs api-service bundle from golden hub", () => {
+  it("createProject installs profile assets from golden hub", () => {
     const root = tmp();
     const hub = path.join(root, "hub");
     seedGoldenHub(hub);
-    const res = initFromHub(root, { hubRef: "api-service@1.0.0", hubRoot: hub, actor: "dev.user" });
-    expect(res.created.some((c) => c.includes("hub bundle"))).toBe(true);
-    expect(fs.existsSync(path.join(res.ws.bundlesDir, "api-service"))).toBe(true);
+    const res = createProject(root, { profile: "standard", hubRoot: hub, actor: "dev.user" });
+    expect(res.created.some((c) => c.startsWith("asset "))).toBe(true);
+    expect(res.ws.readHarness().guides.map((g) => g.id)).toContain("coding-conventions");
     const config = res.ws.readConfig();
     expect(config.hub).toEqual({ source: hub, role: "consumer", actor: "dev.user" });
+    expect(config.profile).toBe("standard");
   });
 
-  it("init --from-hub writes consumer hub config without actor", () => {
+  it("createProject writes consumer hub config without actor", () => {
     const root = tmp();
     const hub = path.join(root, "hub");
     seedGoldenHub(hub);
-    const res = initFromHub(root, { hubRef: "api-service@1.0.0", hubRoot: hub });
+    const res = createProject(root, { profile: "lite", hubRoot: hub });
     const config = res.ws.readConfig();
     expect(config.hub).toEqual({ source: hub, role: "consumer" });
+    expect(config.profile).toBe("lite");
   });
 
   it("tier compensation strengthens gates for tier-2 adapters", () => {
@@ -124,13 +123,6 @@ describe("v0.3 layered upgrade", () => {
       const res = hubEvalPackage(hub, { id, version: "1.0.0" });
       expect(res.passed).toBe(true);
     }
-  });
-
-  it("blueprint.yaml is scaffolded and can be read", () => {
-    const ws = initWorkspace(tmp()).ws;
-    const bp = readBlueprint(ws);
-    expect(bp?.name).toBe("standard-delivery");
-    expect(bp?.hub_deps).toContain("prd-writing@1.0.0");
   });
 
   it("steer publish runs eval → promote closed loop", () => {

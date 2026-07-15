@@ -7,7 +7,7 @@
 | 层 | 名称 | 职责 |
 |----|------|------|
 | L1 | AI Coding IDE | Agent 运行时（Cursor、Trae、Qoder 等）。通过 Adapter 输出与 L1 环境契约（`HX_TASK_*`、`HX_FIX_*`）消费指南。 |
-| L2 | hx-hub | 共享资产注册表（packages、bundles、blueprints）。Git 目录或团队 hub 根路径。 |
+| L2 | hx-hub | 共享资产注册表（guide.* / sensor.* 包）。Git 目录或团队 hub 根路径。 |
 | L3 | HX 编排 | `hx` CLI — 门禁、apply 循环、上下文包、强制机制。 |
 
 ## 核心概念
@@ -26,31 +26,35 @@
 
 ### Profile（工作流配置）
 
-`harness.yaml` 中的工作流（如 `standard`、`enterprise`），定义经过哪些**阶段（stage）**、各阶段包含哪些**任务（task）**，以及各任务绑定哪些 sensor **套件（suite）**。权威任务清单见 [delivery-stages.zh-CN.md](delivery-stages.zh-CN.md)。
+工作流档位：`lite` / `standard` / `strict` / `enterprise`。定义启用哪些 **Stage**、各阶段 **Task** 集合，以及各任务绑定的 sensor **Suite**。权威任务清单见 [delivery-stages.zh-CN.md](delivery-stages.zh-CN.md)。
+
+项目 owner 创建时指定 profile，从 hxhub 拉取该 profile 下全部 stage.task 相关资产写入项目 GitHub。
 
 ### Stage（交付阶段）
 
 四阶段交付语义：`req`（需求）、`arch`（设计）、`dev`（开发）、`test`（测试）。`req`/`arch` 为组织级（`docs/`）；`dev`/`test` 为 change 级（`harnessX/changes/<id>/`）。
 
+本地成员可在 `config.yaml` 的 `active_stages` 中选择一个或多个 stage（须为项目 profile 的子集）。
+
 ### Task（阶段任务）
 
 阶段内的具体工作单元，如 `req` 阶段的 `prd-writing`、`dev` 阶段的 `propose`/`design`/`apply`。`hx gate check --stage <stage> --task <task>` 在任务粒度运行 sensor 套件。
 
+### Guide（FeedForward）
+
+前馈资产：Rules、Template、Skill、Constraint、Command 等。在任务开始前注入 Agent 上下文。
+
+### Sensor（FeedBack）
+
+反馈资产：rule、script、rubric、fixture、budget、drift 等。在任务/门禁边界验收；失败返回 `fix_hint`。
+
 ### Suite（套件）
 
-具名 sensor id 列表（如 `fast`、`verification-enterprise`），在 `harness.yaml` 中按 `dev.apply`、`test.test-case-design` 等键绑定到 stage/task，由 `hx gate check` 一并执行。
-
-### Bundle（拓扑包）
-
-面向某类拓扑的可复用 guides/sensors/suites 切片（如 `api-service`）。通过 `harness.yaml` 的 `imports:` 引用，或安装到 `assets/bundles/`。
-
-### Blueprint（交付蓝图）
-
-交付路径预设（`blueprint.yaml`）：继承 profile、声明 `hub_deps`、映射 **stage.task → guides/sensors**。应用 blueprint 会将缺失引用写入 `harness.yaml`。
+具名 sensor id 列表（如 `fast`、`verification-enterprise`），在 `harness.yaml` 中按 `dev.apply`、`test.test-case-design` 等键绑定到 stage/task。
 
 ### Asset（资产）
 
-带 `asset.yaml` 清单的版本化目录单元：guide、sensor、编排模式或 hub 包。生命周期：draft → trial → enforced → deprecated。
+带 `asset.yaml` 清单的版本化目录单元（guide.* / sensor.*）。**归属某个 stage.task**。生命周期：draft → trial → enforced → deprecated。
 
 ### Asset Layer（资产解析层）
 
@@ -77,15 +81,3 @@ Tier-1 Agent 通过环境变量接收结构化交接（见 `schemas/l1/agent-env
 
 - **Apply**：`HX_TASK_ID`、`HX_TASK_TITLE`、`HX_TASK_PACK`、`HX_FIX_HINTS` 等
 - **Fix**：`HX_FIX_PACK`、`HX_FIX_SENSOR`、`HX_FIX_HINTS`
-
-MCP 工具 `apply_task`、`fix_session`、`drift_check` 向 IDE 桥接暴露相同契约。
-
-## 包边界（扩展点）
-
-| 导入路径 | 职责 |
-|----------|------|
-| `@harnessx/core` → `orchestration` | 门禁、apply、指南、L1 契约、MCP |
-| `@harnessx/core` → `hub` | Hub 同步、blueprint、imports、资产解析 |
-| `@harnessx/adapters` | 将 harness 资产编译为 IDE 专用文件 |
-
-第三方扩展：自定义 sensor（`@harnessx/sensors` 模式）、hub 包、拓扑 bundle、adapter emitter。

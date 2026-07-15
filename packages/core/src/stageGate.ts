@@ -11,6 +11,7 @@ import { augmentSuiteIds, resolveCompensation } from "./gateCompensation.js";
 import { appendRun } from "./telemetry.js";
 import { profileDevTasks, profileStages, profileTestTasks, resolveSuiteName } from "./profileResolve.js";
 import { STAGE_TASKS, type DeliveryStage, type StageTaskDef, taskById } from "./stages.js";
+import { effectiveStages } from "./profileAssets.js";
 
 export interface StageGateCheckResult {
   change: string;
@@ -37,9 +38,9 @@ function workorderPhase(stage: DeliveryStage, taskId: string): string | undefine
   return undefined;
 }
 
-/** Next task within change delivery. */
-export function nextTask(harness: HarnessYaml, meta: MetaYaml): { stage: DeliveryStage; task: string } | null {
-  const stages = profileStages(harness, meta.profile);
+/** Next task within change delivery (respects config.active_stages ∩ profile). */
+export function nextTask(harness: HarnessYaml, meta: MetaYaml, activeStages?: DeliveryStage[]): { stage: DeliveryStage; task: string } | null {
+  const stages = activeStages?.length ? activeStages : profileStages(harness, meta.profile);
   const stageIdx = stages.indexOf(meta.stage);
   if (stageIdx < 0) return null;
 
@@ -118,8 +119,10 @@ export async function stageGateCheck(
 export async function stageAdvance(ws: Workspace, change: string, runnerOpts: RunnerOptions): Promise<StageAdvanceResult> {
   const harness = ws.readHarness();
   const meta = readMeta(ws, change);
+  const config = ws.readConfig();
+  const stages = effectiveStages({ profile: meta.profile, active_stages: config.active_stages }, harness);
 
-  const next = nextTask(harness, meta);
+  const next = nextTask(harness, meta, stages);
   if (!next) {
     return {
       change,
@@ -214,7 +217,7 @@ async function appendOrgStageSensors(
     const prdSlug = sensorId === "prd-complete" || sensorId === "prd-approved" ? resolvePrdSlug(ws, change) : undefined;
     const report = await runSensor(ws, def, change, { ...opts, prdSlug });
     const label = `${def.id}: ${report.summary}`;
-    const strict = profile === "enterprise" || profile === "strict" || profile === "enterprise-sdlc";
+    const strict = profile === "enterprise" || profile === "strict";
     if (report.status === "pass") continue;
     if (report.status === "error" || (def.on_fail === "block" && strict)) blockers.push(label);
     else warnings.push(label);

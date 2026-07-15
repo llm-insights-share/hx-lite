@@ -2,9 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import { AssetManifest } from "./schemas.js";
-import { hubBundleDir, hubVersions } from "./hub.js";
 import { walkHubPackages } from "./hubPackagePaths.js";
-import { hubBlueprintDir } from "./blueprint.js";
 import { HubAssetMeta, type HubAssetCategory } from "./hubAssetSchema.js";
 import { hashHubAssetDir } from "./hubIntegrity.js";
 import { readHubReview } from "./hubReview.js";
@@ -16,6 +14,7 @@ export interface HubCatalogEntry {
   kind?: string;
   status?: string;
   stages?: string[];
+  task?: string;
   description?: string;
   owner?: string;
   review?: string;
@@ -51,72 +50,26 @@ function readMeta(dir: string): Partial<HubAssetMeta> {
   }
 }
 
-function readDesc(dir: string, category: HubAssetCategory): string | undefined {
-  if (category === "bundle") {
-    const f = path.join(dir, "bundle.yaml");
-    if (fs.existsSync(f)) return (YAML.parse(fs.readFileSync(f, "utf8")) as { description?: string }).description;
-  }
-  if (category === "blueprint") {
-    const f = path.join(dir, "blueprint.yaml");
-    if (fs.existsSync(f)) return (YAML.parse(fs.readFileSync(f, "utf8")) as { name?: string }).name;
-  }
-  return undefined;
-}
-
 export function buildHubCatalog(hubRoot: string): HubCatalogEntry[] {
   const out: HubCatalogEntry[] = [];
-  const scan = (category: HubAssetCategory, subdir: "packages" | "bundles" | "blueprints", resolveDir: (id: string, ver: string) => string) => {
-    const root = path.join(hubRoot, subdir);
-    if (!fs.existsSync(root)) return;
-    for (const idDir of fs.readdirSync(root, { withFileTypes: true })) {
-      if (!idDir.isDirectory()) continue;
-      for (const ver of hubVersions(hubRoot, idDir.name, subdir)) {
-        const dir = resolveDir(idDir.name, ver);
-        const manifest = manifestOrNull(dir);
-        const meta = readMeta(dir);
-        const review = readHubReview(dir);
-        const id = manifest?.id ?? idDir.name;
-        const version = manifest?.version ?? ver;
-        out.push({
-          id,
-          version,
-          category,
-          kind: manifest?.kind,
-          status: meta.status ?? manifest?.status,
-          stages: manifest?.stage ? [manifest.stage] : meta.stages,
-          description: readDesc(dir, category),
-          owner: meta.owner,
-          review: review.status,
-          hash: meta.security?.hash ?? hashHubAssetDir(dir)
-        });
-      }
-    }
-  };
-
-  const scanPackages = () => {
-    for (const loc of walkHubPackages(hubRoot)) {
-      const dir = loc.dir;
-      const manifest = manifestOrNull(dir);
-      const meta = readMeta(dir);
-      const review = readHubReview(dir);
-      out.push({
-        id: manifest?.id ?? loc.id,
-        version: manifest?.version ?? loc.version,
-        category: "package",
-        kind: manifest?.kind ?? loc.kind,
-        status: meta.status ?? manifest?.status,
-        stages: manifest?.stage ? [manifest.stage] : meta.stages,
-        description: readDesc(dir, "package"),
-        owner: meta.owner,
-        review: review.status,
-        hash: meta.security?.hash ?? hashHubAssetDir(dir)
-      });
-    }
-  };
-
-  scanPackages();
-  scan("bundle", "bundles", (id, ver) => hubBundleDir(hubRoot, id, ver));
-  scan("blueprint", "blueprints", (id, ver) => hubBlueprintDir(hubRoot, id, ver));
+  for (const loc of walkHubPackages(hubRoot)) {
+    const dir = loc.dir;
+    const manifest = manifestOrNull(dir);
+    const meta = readMeta(dir);
+    const review = readHubReview(dir);
+    out.push({
+      id: manifest?.id ?? loc.id,
+      version: manifest?.version ?? loc.version,
+      category: "package",
+      kind: manifest?.kind ?? loc.kind,
+      status: meta.status ?? manifest?.status,
+      stages: manifest?.stage ? [manifest.stage] : meta.stages,
+      task: manifest?.task,
+      owner: meta.owner,
+      review: review.status,
+      hash: meta.security?.hash ?? hashHubAssetDir(dir)
+    });
+  }
   return out.sort((a, b) => a.id.localeCompare(b.id) || a.version.localeCompare(b.version));
 }
 

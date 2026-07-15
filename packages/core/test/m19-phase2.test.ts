@@ -68,7 +68,7 @@ low
 
 describe("M19 pre-phase phase 2", () => {
   it("records and validates PRD human approval", () => {
-    const { ws } = initWorkspace(tmp(), { bundle: "api-service" });
+    const { ws } = initWorkspace(tmp());
     scaffoldPrd(ws, "feat-a", "Feat A");
     fillPrd(ws.prdFile("feat-a"));
     expect(isPrephaseApproved(ws, "prd", "feat-a")).toBe(false);
@@ -79,7 +79,7 @@ describe("M19 pre-phase phase 2", () => {
   });
 
   it("records and validates global arch approval", () => {
-    const { ws } = initWorkspace(tmp(), { bundle: "api-service" });
+    const { ws } = initWorkspace(tmp());
     scaffoldArchHld(ws, "Shop");
     fillArchOverview(ws.archOverviewFile());
     recordPrephaseApproval(ws, "arch", "architect");
@@ -89,7 +89,7 @@ describe("M19 pre-phase phase 2", () => {
   });
 
   it("enterprise propose blocks without prd-approved", async () => {
-    const { ws } = initWorkspace(tmp(), { bundle: "api-service" });
+    const { ws } = initWorkspace(tmp());
     scaffoldPrd(ws, "badge", "Badge");
     fillPrd(ws.prdFile("badge"));
     createChange(ws, "member-badge", ["member"], "enterprise", { prdRef: "badge" });
@@ -106,7 +106,7 @@ describe("M19 pre-phase phase 2", () => {
   });
 
   it("promotes change design into module LLD", () => {
-    const { ws } = initWorkspace(tmp(), { bundle: "api-service" });
+    const { ws } = initWorkspace(tmp());
     scaffoldArchHld(ws, "Shop");
     fillArchOverview(ws.archOverviewFile());
     scaffoldArchLld(ws, "order", "Order");
@@ -144,7 +144,7 @@ x
   });
 
   it("arch-drift warns when design not promoted", () => {
-    const { ws } = initWorkspace(tmp(), { bundle: "api-service" });
+    const { ws } = initWorkspace(tmp());
     scaffoldArchHld(ws, "Shop");
     scaffoldArchLld(ws, "order", "Order");
     fs.writeFileSync(

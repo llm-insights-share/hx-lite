@@ -36,7 +36,7 @@ describe("four-stage delivery model", () => {
     const harness = ws.readHarness();
     expect(profileStages(harness, "standard")).toContain("dev");
     expect(profileDevTasks(harness, "lite")).toEqual(["propose", "apply", "archive"]);
-    expect(profileDevTasks(harness, "enterprise-sdlc")).toContain("plan");
+    expect(profileDevTasks(harness, "enterprise")).toContain("plan");
   });
 
   it("nextTask advances within dev stage", () => {

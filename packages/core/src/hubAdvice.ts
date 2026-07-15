@@ -26,9 +26,9 @@ export function hubAdvice(hubRoot: string, topic = "general"): HubAdviceResult {
 
   if (topic === "enterprise" || topic === "general") {
     suggestions.push({
-      title: has("enterprise-sdlc") ? "Adopt enterprise-sdlc blueprint" : "Publish enterprise-sdlc blueprint",
-      why: "Blueprint standardizes SDLC phases and hub dependencies.",
-      next: ["hxhub search enterprise --category blueprint", "hx init --from-hub enterprise-sdlc@1.0.0"]
+      title: "Create project with enterprise profile",
+      why: "Profile selects req/arch/dev/test stages and pulls related hub assets.",
+      next: ["hxhub resolve --profile enterprise", "hx project create --profile enterprise --hub <hub>"]
     });
   }
 

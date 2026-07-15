@@ -21,7 +21,7 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "hx-m18-"));
 
 describe("M18 pre-phase PRD and arch", () => {
   it("scaffolds PRD and passes prd-complete when filled", () => {
-    const { ws } = initWorkspace(tmp(), { bundle: "api-service" });
+    const { ws } = initWorkspace(tmp());
     scaffoldPrd(ws, "member-badge", "Member badge");
     const file = ws.prdFile("member-badge");
     const body = fs.readFileSync(file, "utf8");
@@ -48,7 +48,7 @@ p99 < 200ms
   });
 
   it("scaffolds global HLD and registry", () => {
-    const { ws } = initWorkspace(tmp(), { bundle: "api-service" });
+    const { ws } = initWorkspace(tmp());
     const res = scaffoldArchHld(ws, "Shop");
     expect(fs.existsSync(res.overview)).toBe(true);
     expect(fs.existsSync(res.registry)).toBe(true);
@@ -80,7 +80,7 @@ low
   });
 
   it("scaffolds module LLD and resolves for change domains", () => {
-    const { ws } = initWorkspace(tmp(), { bundle: "api-service" });
+    const { ws } = initWorkspace(tmp());
     scaffoldArchHld(ws, "Shop");
     const reg = readArchRegistry(ws);
     reg.modules = [{ id: "order", lld: "modules/order/lld.md", capabilities: ["order-refund"], status: "active" }];
@@ -112,13 +112,13 @@ x
   });
 
   it("resolvePrdSlug uses meta.prdRef", () => {
-    const { ws } = initWorkspace(tmp(), { bundle: "api-service" });
+    const { ws } = initWorkspace(tmp());
     createChange(ws, "feat-a", ["core"], "standard", { prdRef: "my-prd" });
     expect(resolvePrdSlug(ws, "feat-a")).toBe("my-prd");
   });
 
   it("collectCommands includes req/arch stage commands", () => {
-    const { ws } = initWorkspace(tmp(), { bundle: "api-service" });
+    const { ws } = initWorkspace(tmp());
     const cmds = collectCommands(ws);
     expect(cmds.some((c) => c.name === "hx-req-prd-writing")).toBe(true);
     expect(cmds.some((c) => c.name === "hx-arch-subsystem-division")).toBe(true);
@@ -126,7 +126,7 @@ x
   });
 
   it("buildPrdPack and buildArchPack assemble guides", () => {
-    const { ws } = initWorkspace(tmp(), { bundle: "api-service" });
+    const { ws } = initWorkspace(tmp());
     scaffoldPrd(ws, "x", "X");
     const prdPack = buildPrdPack(ws, "x");
     expect(prdPack.sections.some((s) => s.title.includes("prd-authoring"))).toBe(true);

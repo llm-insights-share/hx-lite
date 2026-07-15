@@ -44,14 +44,6 @@ function templateFiles(kind: AssetKind, sourceDir?: string, sourceFile?: string)
     const fromSource = fromSourceFile ?? (sourceDir ? readTemplateFromSource(sourceDir, ["rules.yaml", "rubric.yaml"]) : undefined);
     return { "rules.yaml": fromSource ?? "rules: []\n" };
   }
-  if (kind === "harness.bundle") {
-    const fromSource = fromSourceFile ?? (sourceDir ? readTemplateFromSource(sourceDir, ["bundle.yaml"]) : undefined);
-    return { "bundle.yaml": fromSource ?? "description: bundle\nguides: []\nsensors: []\n", "assets/.keep": "" };
-  }
-  if (kind === "harness.blueprint") {
-    const fromSource = fromSourceFile ?? (sourceDir ? readTemplateFromSource(sourceDir, ["blueprint.yaml"]) : undefined);
-    return { "blueprint.yaml": fromSource ?? "name: blueprint\nhub_deps: []\n" };
-  }
   return { "README.md": "# Asset\n" };
 }
 
@@ -118,15 +110,6 @@ export function createAssetScaffold(opts: CreateAssetOptions): CreateAssetResult
     if (!fs.existsSync(abs)) {
       fs.writeFileSync(abs, content, "utf8");
       files.push(rel);
-    }
-  }
-
-  if (opts.kind === "harness.bundle" && sourceDir) {
-    const sourceAssets = path.join(sourceDir, "assets");
-    const targetAssets = path.join(dir, "assets");
-    if (fs.existsSync(sourceAssets) && fs.statSync(sourceAssets).isDirectory()) {
-      ensureDir(targetAssets);
-      copyDirRecursive(sourceAssets, targetAssets, files, "assets");
     }
   }
 

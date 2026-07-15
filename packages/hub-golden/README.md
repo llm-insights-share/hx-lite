@@ -9,7 +9,7 @@ Built-in example packages for `hx hub seed` / `hxhub seed`. Teams can publish th
 hxhub seed ./harness-hub --profile standard --scenario core,api
 
 # Preview plan only
-hxhub seed ./harness-hub --profile enterprise-sdlc --scenario frontend --dry-run
+hxhub seed ./harness-hub --profile enterprise --scenario frontend --dry-run
 
 # Legacy: copy entire golden hub
 hxhub seed ./harness-hub --full
@@ -22,16 +22,15 @@ hxhub seed ./harness-hub --full
 | `minimal` | Smallest viable hub (requirements + conventions + review rubric) |
 | `standard` | Default team baseline + eval set |
 | `strict` | Standard + stronger API compatibility rubrics |
-| `enterprise` | Enterprise delivery templates + blueprint |
-| `enterprise-sdlc` | Full SDLC workflow assets |
+| `enterprise` | Enterprise delivery templates + SDLC assets |
 
 ### Scenarios (domain)
 
 | Scenario | Purpose |
 |----------|---------|
 | `core` | Cross-team templates, skills, rubrics |
-| `api` | Backend/API assets + `api-service` bundle |
-| `frontend` | UI assets + `frontend-2c` bundle |
+| `api` | Backend/API assets |
+| `frontend` | UI assets |
 | `mobile` | Mobile-oriented subset |
 | `library` | SDK/library compatibility focus |
 | `data` | Migrations, transactions, cache |
@@ -48,6 +47,8 @@ Packages are stored by kind under `packages/<kind>/<...>/<id>/<version>/`, for e
 - `packages/guide/template/requirements-template/1.0.0/`
 - `packages/sensor/rubric/common-review-rubrics/1.0.0/`
 
+Each `asset.yaml` declares `stage` + `task` so `hx project create --profile <p>` / `hxhub resolve --profile <p>` can install the matching set.
+
 Includes first-batch assets such as:
 
 | Package | Kind | Purpose |
@@ -61,22 +62,8 @@ Includes first-batch assets such as:
 
 See `seed-manifest.yaml` for the full catalog.
 
-## Bundles (`bundles/`)
-
-| Bundle | Kind | Purpose |
-|--------|------|---------|
-| `api-service@1.0.0` | harness.bundle | API service topology harness |
-| `frontend-2c@1.0.0` | harness.bundle | Consumer-facing web topology |
-
-## Blueprints (`blueprints/`)
-
-| Blueprint | Purpose |
-|-----------|---------|
-| `enterprise-delivery@1.0.0` | Full enterprise path with hub deps |
-| `enterprise-sdlc@1.0.0` | Enterprise SDLC profile + work orders |
-
 Packages ship with `.review` status `approved` so they are consumable immediately after seeding.
 
 **Maintenance guide**: [docs/hxhub-usage.zh-CN.md](../../docs/hxhub-usage.zh-CN.md) (中文) · [docs/hub-asset-maintenance.en.md](../../docs/hub-asset-maintenance.en.md) (English stub)
 
-**Ops project init** (remote Hub already exists): [§6.2 Scenario B](../../docs/hxhub-usage.zh-CN.md#62-场景-b连接已有远程-hub运维项目初始化)
+**Note**: Bundle and Blueprint composite kinds were removed. Topology/path differences are expressed by tagging guide/sensor packages with `stage`/`task`.
