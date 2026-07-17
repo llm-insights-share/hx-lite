@@ -12,7 +12,9 @@ import {
   readArchRegistry,
   buildPrdPack,
   buildArchPack,
-  writeArchRegistry
+  writeArchRegistry,
+  STAGE_TASKS,
+  DELIVERY_STAGES
 } from "@harnessx/core";
 import { prdComplete, archHldComplete, archLldComplete, archChangeAlign } from "@harnessx/sensors";
 import { collectCommands } from "@harnessx/adapters";
@@ -117,12 +119,29 @@ x
     expect(resolvePrdSlug(ws, "feat-a")).toBe("my-prd");
   });
 
-  it("collectCommands includes req/arch stage commands", () => {
+  it("collectCommands includes prompt for every STAGE_TASK", () => {
     const { ws } = initWorkspace(tmp());
     const cmds = collectCommands(ws);
+    for (const stage of DELIVERY_STAGES) {
+      for (const t of STAGE_TASKS[stage]) {
+        const name = `hx-${stage}-${t.id}`;
+        const cmd = cmds.find((c) => c.name === name);
+        expect(cmd, `missing command ${name}`).toBeDefined();
+        expect(cmd!.prompt?.trim().length, `empty prompt for ${name}`).toBeGreaterThan(0);
+      }
+    }
     expect(cmds.some((c) => c.name === "hx-req-prd-writing")).toBe(true);
     expect(cmds.some((c) => c.name === "hx-arch-subsystem-division")).toBe(true);
     expect(cmds.some((c) => c.name === "hx-arch-internal-interface")).toBe(true);
+    expect(cmds.some((c) => c.name === "hx-test-test-execution")).toBe(true);
+    const tech = cmds.find((c) => c.name === "hx-arch-tech-selection");
+    expect(tech?.appendix).toContain("arch-tech");
+    expect(tech?.appendix).toContain("arch-tech-selection-complete");
+    expect(tech?.prompt).toContain("## Input");
+    expect(tech?.prompt).toContain("## Done when");
+    expect(tech?.appendix).toContain("tech-selection");
+    const plan = cmds.find((c) => c.name === "hx-dev-plan");
+    expect(plan?.appendix).toContain("change-planning");
   });
 
   it("buildPrdPack and buildArchPack assemble guides", () => {

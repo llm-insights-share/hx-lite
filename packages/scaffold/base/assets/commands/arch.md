@@ -1,20 +1,22 @@
-# /hx-arch — global HLD + module registry
+# /hx-arch-subsystem-division — global HLD + registry
 
-You are running the **arch** pre-phase. Deliverables: `docs/architecture/overview.md`, `registry.yaml`.
+You are running the **arch** stage task `subsystem-division`.
+
+## Input
+- System title; approved PRDs as context.
 
 ## Steps
+1. Scaffold: `hx arch init --title "<system>"` if missing.
+2. Fill global HLD boundaries, modules, flows, NFR, ADR; keep `registry.yaml` in sync.
+3. Follow **arch-authoring** Skill / HLD template.
+4. `hx arch check --task subsystem-division`.
+5. Human: `hx gate approve --gate arch --approver <name>`.
 
-1. `hx arch init --title "<system>"`
-2. Fill global HLD: boundaries, modules, data flows, NFR, ADR, risks.
-3. Maintain `registry.yaml` — each module id, capabilities[], owner, lld path.
-4. `hx arch check` — do not finish until green.
-5. Human reviewer: `hx gate approve --gate arch --approver <name>`.
+## Output
+- `docs/architecture/overview.md` + `registry.yaml`.
 
 ## Guardrails
-
-- No change-level design or code.
-- Module table must match registry entries.
+- Org-level only — no change design or application code.
 
 ## Done when
-
-`hx arch check` passes and global HLD is human-approved; modules are ready for `/hx-arch-lld`.
+Subsystem-division check is green and HLD is human-approved when required.

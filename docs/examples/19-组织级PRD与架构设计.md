@@ -1,4 +1,4 @@
-# 场景 19：组织级 PRD 与全局架构（/hx-prd、/hx-arch）
+# 场景 19：组织级 PRD 与全局架构（/hx-req-prd-writing、/hx-arch-subsystem-division）
 
 | | |
 | --- | --- |
@@ -19,10 +19,10 @@
 
 单次 change 的 `requirements/`、`design/` 是对上述制品的**蒸馏与增量**；验证通过后 `hx arch promote` 将 change design **沉淀回**模块 LLD。
 
-## 1. PRD — `/hx-prd`
+## 1. PRD — `/hx-req-prd-writing`
 
 ```text
-Cursor ▸ /hx-prd
+Cursor ▸ /hx-req-prd-writing
          目标 slug：member-badge
 ```
 
@@ -45,7 +45,7 @@ approved PRD "member-badge" by chen.pm (artifact a1b2c3d4e5f6)
 
 批准记录写入 `docs/.stage-approvals.yaml`，并与 PRD 文件内容哈希绑定；PRD 改动后需重新批准。
 
-## 2. 全局架构 — `/hx-arch`
+## 2. 全局架构 — `/hx-arch-subsystem-division`
 
 ```console
 $ hx arch init --title "会员电商"
@@ -66,7 +66,7 @@ $ hx approve arch --approver lin.arch
 approved global arch by lin.arch (artifact ...)
 ```
 
-## 3. 模块 LLD — `/hx-arch-lld`
+## 3. 模块 LLD — `/hx-arch-internal-interface`
 
 ```console
 $ hx arch lld init member --title "会员模块"
@@ -88,7 +88,7 @@ $ hx change create member-badge \
     --arch-modules member
 ```
 
-`meta.yaml` 记录 `prdRef` 与 `archModules`；后续 `/hx-propose`、`/hx-design` 的 Context Pack **自动注入** org PRD 与模块 LLD（无需每次手动 `@`）。
+`meta.yaml` 记录 `prdRef` 与 `archModules`；后续 `/hx-dev-propose`、`/hx-dev-design` 的 Context Pack **自动注入** org PRD 与模块 LLD（无需每次手动 `@`）。
 
 ## 5. 与 change 交付的衔接
 

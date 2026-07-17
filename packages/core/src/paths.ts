@@ -98,6 +98,19 @@ export class Workspace {
   prdFile(slug: string) {
     return path.join(this.prdDir(), `${slug}.md`);
   }
+  /** Org req sidecar artifacts for a PRD slug (research / analysis / prototype). */
+  prdArtifactDir(slug: string) {
+    return path.join(this.prdDir(), slug);
+  }
+  prdResearchFile(slug: string) {
+    return path.join(this.prdArtifactDir(slug), "research.md");
+  }
+  prdAnalysisFile(slug: string) {
+    return path.join(this.prdArtifactDir(slug), "analysis.md");
+  }
+  prdPrototypePagesFile(slug: string) {
+    return path.join(this.prdArtifactDir(slug), "prototype", "pages.md");
+  }
 
   /** Organization-level architecture artifacts (pre-phase). */
   archDir() {

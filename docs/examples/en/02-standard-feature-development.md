@@ -29,13 +29,13 @@ Created change "partial-refund" (profile: standard, domains: order-refund)
 Then in Cursor Agent dialog, drive the propose phase with a slash command:
 
 ```text
-Cursor ▸ /hx-propose partial-refund
+Cursor ▸ /hx-dev-propose partial-refund
          Requirement: support partial refund. Multiple refunds per order;
          cumulative refund must not exceed paid amount.
          Product doc: @docs/prd/partial-refund.md
 ```
 
-The `/hx-propose` body (compiled from `harnessX/assets/commands/propose.md`) directs the agent to:
+The `/hx-dev-propose` body (compiled from `harnessX/assets/commands/propose.md`) directs the agent to:
 
 1. Run `hx propose partial-refund --title "Support partial refund"` to scaffold (proposal.md + delta spec skeleton);
 2. Fill proposal.md Why / What Changes / Impact / Out of Scope from the PRD — remove template placeholders — **incomplete proposal blocks the design gate**;
@@ -92,10 +92,10 @@ Each finding in the sensor report (written to `runs/telemetry.jsonl`, input for 
 Design task is also Cursor-driven:
 
 ```text
-Cursor ▸ /hx-design partial-refund
+Cursor ▸ /hx-dev-design partial-refund
 ```
 
-The agent runs `hx design partial-refund` (internally checks propose completeness first), then fills design.md: Context, ADR (key decision: "full refund reuses partial refund path", with rejected alternatives and reasons), architecture constraints mechanically checkable by sensors. After Li reviews, terminal advances tasks (`meta.yaml` records `stage`/`task`; gate advancement is control plane — audit trail):
+The agent runs `hx design partial-refund` (internally checks propose completeness first), then fills `design/overview.md` (and LLD packages): Context, ADR (key decision: "full refund reuses partial refund path", with rejected alternatives and reasons), architecture constraints mechanically checkable by sensors. After Li reviews, terminal advances tasks (`meta.yaml` records `stage`/`task`; gate advancement is control plane — audit trail):
 
 ```console
 $ hx gate advance partial-refund        # → dev/design (prerequisite: complete proposal)
@@ -137,7 +137,7 @@ tasks.md is dual-track — each Requirement gets a test task (a) and impl task (
 - [ ] 02a [test] (order-refund / Requirement: Full refund) ...
 ```
 
-After generation, the agent can review via `/hx-plan partial-refund` prompt rules: foundation tasks first, split oversized tasks, every ADR consequence in design.md has a task, **never delete any [test] task**.
+After generation, the agent can review via `/hx-dev-plan partial-refund` (thin checklist + change-planning appendix): foundation tasks first, split oversized tasks, every ADR consequence in `design/overview.md` has a task, **never delete any [test] task**.
 
 ### 4. apply: task-by-task drive + fast suite self-correction
 
@@ -146,10 +146,10 @@ Two equivalent ways to drive apply.
 **Option A: Cursor dialog interactive** (good for watching progress):
 
 ```text
-Cursor ▸ /hx-apply partial-refund
+Cursor ▸ /hx-dev-apply partial-refund
 ```
 
-`/hx-apply` prompt has the agent work tasks.md in order: each `[test]` task writes failing tests (names include `Scenario:` verbatim); each `[impl]` task implements until scenarios pass; **after each task run `hx gate check partial-refund --stage dev --task apply` (fast suite), read `fix_hint` on failure, never pass by weakening tests or deleting assertions**; check off task in tasks.md before next. Li sees diffs per task and can interrupt.
+`/hx-dev-apply` prompt has the agent work tasks.md in order: each `[test]` task writes failing tests (names include `Scenario:` verbatim); each `[impl]` task implements until scenarios pass; **after each task run `hx gate check partial-refund --stage dev --task apply` (fast suite), read `fix_hint` on failure, never pass by weakening tests or deleting assertions**; check off task in tasks.md before next. Li sees diffs per task and can interrupt.
 
 **Option B: Terminal headless loop** (good for batch runs). Hook Cursor CLI (`cursor-agent`) into apply loop; `$HX_TASK_*` env carries task context, `$HX_FIX_HINTS` carries prior failure hints:
 
@@ -197,7 +197,7 @@ BLOCKER  uncovered scenario "full refund reuses partial path" (order-refund/Full
 NOT VERIFIED
 ```
 
-Return to Cursor — `/hx-verify partial-refund` prompt teaches two cases (test exists but missing scenario string → add reference; test truly missing → add test), then re-run `hx verify`. archive merges delta into main spec — Li runs in terminal.
+Return to Cursor — `/hx-dev-verify partial-refund` prompt teaches two cases (test exists but missing scenario string → add reference; test truly missing → add test), then re-run `hx verify`. archive merges delta into main spec — Li runs in terminal.
 
 archive does three things: MODIFIED "full refund" replaces old main spec text; ADDED "partial refund" appended; change directory moves to `archive/2026-07-04-partial-refund/`; generates `retro.md` (sensor failure distribution for Steering input, see scenario 07).
 

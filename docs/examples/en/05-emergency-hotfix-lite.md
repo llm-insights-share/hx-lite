@@ -36,7 +36,7 @@ profile set to lite (override: P1 production incident INC-4521, on-call manager 
 lite does not exempt "say clearly what you change". Li feeds incident info to Cursor:
 
 ```text
-Cursor ▸ /hx-propose hotfix-expired-coupon-500
+Cursor ▸ /hx-dev-propose hotfix-expired-coupon-500
          P1 incident INC-4521: redemption API returns 500 for coupons expired but expiry
          status not persisted; should return 422 + COUPON_EXPIRED. Fix this behavior only;
          everything else Out of Scope.
@@ -60,7 +60,7 @@ WHEN redemption hits a coupon whose expire_at is before now (regardless of wheth
 
 ### 3. apply + quick verification
 
-For incident, Li stays in Cursor session watching (`/hx-apply hotfix-expired-coupon-500`, agent adds red test then fix, fast-lite suite each step), or headless loop:
+For incident, Li stays in Cursor session watching (`/hx-dev-apply hotfix-expired-coupon-500`, agent adds red test then fix, fast-lite suite each step), or headless loop:
 
 ```console
 $ hx apply hotfix-expired-coupon-500 --runner 'cursor-agent --task "$HX_TASK_TITLE"' --max-retries 2

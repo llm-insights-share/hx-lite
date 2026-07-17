@@ -15,7 +15,7 @@ Platform engineer **Chen** must configure requirement-phase output templates and
 Roles:
 
 - **Chen**: maintains `harnessX/assets/` control assets;
-- **Zhao (PM)**: later drafts changes via Cursor `/hx-propose`, filling business content only — not re-explaining section structure each time.
+- **Zhao (PM)**: later drafts changes via Cursor `/hx-dev-propose`, filling business content only — not re-explaining section structure each time.
 
 ## Steps
 
@@ -85,12 +85,14 @@ guides:
   - id: proposal-template
     kind: guide.template
     execution: computational
-    phase: [propose]
+    stage: dev
+    task: propose
     source: assets/guides/proposal-template/template.md
   - id: spec-writing
     kind: guide.skill
     execution: inferential
-    phase: [propose, spec]
+    stage: dev
+    task: propose
     source: assets/guides/spec-writing/SKILL.md
 ```
 
@@ -110,7 +112,7 @@ $ hx harness lint
 no conflicting guide directives found
 
 $ hx adapter sync
-cursor (Tier 1): 13 file(s)
+cursor (Tier 1): ... file(s)
   + .cursor/skills/spec-writing/SKILL.md
   ...
 ```
@@ -135,11 +137,11 @@ Generated `proposal.md` includes **Data classification**, **Compliance impact**,
 In Cursor:
 
 ```text
-Cursor ▸ /hx-propose freeze-balance-query
+Cursor ▸ /hx-dev-propose freeze-balance-query
          Requirement: users can query frozen balance. PRD: @docs/prd/freeze-balance.md
 ```
 
-The agent follows the compiled `/hx-propose` prompt: fill all sections, write delta specs with `REQ-ACCT-*` titles, run `hx gate check --stage dev --task propose` until green.
+The agent follows the compiled `/hx-dev-propose` prompt: fill all sections, write delta specs with `REQ-ACCT-*` titles, run `hx gate check --stage dev --task propose` until green.
 
 ### 6. Gate behavior: what you can and cannot change
 
@@ -164,11 +166,11 @@ For delta specs: `spec-validate` still requires EARS + Scenarios on ADDED/MODIFI
 
 ## Key mechanisms
 
-- **Feedforward**: `guide.template` (`proposal-template`) is **deterministically** rendered into `proposal.md` by `hx propose`; `guide.skill` (`spec-writing`) enters the Context Pack in propose/spec phases to constrain how agents write delta specs.
+- **Feedforward**: `guide.template` (`proposal-template`) is **deterministically** rendered into `proposal.md` by `hx propose`; `guide.skill` (`spec-writing`) enters the Context Pack for the `dev:propose` task to constrain how agents write delta specs.
 - **Feedback**: section completeness via `proposalProblems()`; delta format via `spec-validate` — templates do not replace Sensors.
 - **Single source**: edit only `harnessX/assets/`, then `hx adapter sync`; do not hand-edit GENERATED files under `.cursor/` (see scenario 09).
 - **Layering**: org Hub template → team `overrides` → repo-local `assets/` — closer to the business repo wins (design doc §11.2).
 
 ## Relation to later phases
 
-Custom proposals affect readability and compliance traceability in **propose/design/spec** only. **Human design→plan approval**, traceability, and archive merge rules are unchanged. In design, agents still read the filled `proposal.md` from the Context Pack — compliance fields in the proposal template naturally become inputs for high-level design.
+Custom proposals affect readability and compliance traceability in the **propose/design** tasks only. **Human design→plan approval**, traceability, and archive merge rules are unchanged. In design, agents still read the filled `proposal.md` from the Context Pack — compliance fields in the proposal template naturally become inputs for high-level design.

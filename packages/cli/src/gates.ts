@@ -7,6 +7,8 @@ import {
   nextTask,
   stageGateCheck,
   stageAdvance,
+  orgStageGateCheck,
+  isOrgStage,
   buildContextPack,
   renderContextPack,
   writeTaskPack,
@@ -21,6 +23,9 @@ import {
   scaffoldDesign,
   readMeta,
   scaffoldFromIssue,
+  agentGateCheck,
+  gateStopHookResponse,
+  markAgentSessionFromPrompt,
   type RunnerOptions,
   type DeliveryStage
 } from "@harnessx/core";
@@ -45,15 +50,32 @@ export function registerGateCommands(program: Command): void {
   const gate = program.command("gate").description("Quality gates (FR-020, fail-closed)");
 
   gate
-    .command("check <change>")
+    .command("check [change]")
     .requiredOption("--stage <stage>", "delivery stage: req|arch|dev|test")
     .requiredOption("--task <task>", "task within stage")
-    .action(async (change: string, opts: { stage: DeliveryStage; task: string }) => {
-      const w = ws();
-      const res = await stageGateCheck(w, change, opts.stage, opts.task, runnerOpts(w));
-      printGate(res);
-      if (!res.passed) process.exit(1);
-    });
+    .option("--prd <slug>", "PRD slug (req stage)")
+    .option("--module <id>", "module id (arch internal-interface)")
+    .action(
+      async (
+        change: string | undefined,
+        opts: { stage: DeliveryStage; task: string; prd?: string; module?: string }
+      ) => {
+        const w = ws();
+        if (isOrgStage(opts.stage)) {
+          const res = await orgStageGateCheck(w, opts.stage, opts.task, runnerOpts(w), {
+            prdSlug: opts.prd,
+            moduleId: opts.module
+          });
+          printGate(res);
+          if (!res.passed) process.exit(1);
+          return;
+        }
+        if (!change) throw new Error("change id required for dev/test gate check");
+        const res = await stageGateCheck(w, change, opts.stage, opts.task, runnerOpts(w));
+        printGate(res);
+        if (!res.passed) process.exit(1);
+      }
+    );
 
   gate.command("advance <change>").action(async (change: string) => {
     const w = ws();
@@ -85,6 +107,56 @@ export function registerGateCommands(program: Command): void {
       if (!change) throw new Error("change id required for change-scoped gates");
       const rec = recordApproval(w, change, opts.gate, opts.approver);
       console.log(`approved gate "${rec.gate}" by ${rec.approver} at ${rec.at} (artifact ${rec.artifactHash.slice(0, 12)})`);
+    });
+
+
+  gate
+    .command("agent-check")
+    .description("Run machine-readable gate check for IDE hooks")
+    .option("--change <id>", "change id (dev/test)")
+    .option("--stage <stage>", "delivery stage: req|arch|dev|test")
+    .option("--task <task>", "task id within stage")
+    .option("--prd <slug>", "PRD slug for req stage")
+    .option("--module <id>", "module id for arch internal-interface")
+    .option("--json", "print JSON result")
+    .action(async (opts: { change?: string; stage?: DeliveryStage; task?: string; prd?: string; module?: string; json?: boolean }) => {
+      const w = ws();
+      const res = await agentGateCheck(w, runnerOpts(w), opts);
+      if (opts.json) {
+        console.log(JSON.stringify(res, null, 2));
+      } else {
+        printGate(res);
+      }
+      if (!res.passed) process.exit(1);
+    });
+
+  gate
+    .command("mark-session")
+    .description("Record slash prompt context for stop hook")
+    .requiredOption("--prompt <text>", "raw user prompt text")
+    .action((opts: { prompt: string }) => {
+      const mark = markAgentSessionFromPrompt(ws(), opts.prompt);
+      if (!mark) {
+        console.log("no-hx-slash");
+        return;
+      }
+      console.log(`marked ${mark.stage}/${mark.task}` + (mark.change ? ` change=${mark.change}` : ""));
+    });
+
+  gate
+    .command("stop-hook")
+    .description("Emit Cursor stop-hook followup JSON from gate status")
+    .option("--loop-limit <n>", "max automatic followups", "3")
+    .action(async (opts: { loopLimit: string }) => {
+      const raw = fs.readFileSync(0, "utf8");
+      let input: { status?: string; loop_count?: number } = {};
+      try {
+        input = raw ? (JSON.parse(raw) as { status?: string; loop_count?: number }) : {};
+      } catch {
+        input = {};
+      }
+      const out = await gateStopHookResponse(ws(), runnerOpts(ws()), input, Number(opts.loopLimit || "3"));
+      process.stdout.write(JSON.stringify(out) + "\n");
     });
 
   gate.command("hook-check").description("Fast pre-commit/pre-push check for active changes").action(async () => {

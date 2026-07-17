@@ -1,4 +1,4 @@
-# Scenario 12: Customize design output templates before delivery (design.md)
+# Scenario 12: Customize design output templates before delivery (design/overview.md)
 | | |
 | --- | --- |
 | **Journey** | Customize |
@@ -15,9 +15,9 @@ Coupon-service (scenario 01, `api-service` Bundle) is about to start **bulk coup
 - **Observability** (metrics, structured log fields, alert thresholds);
 - **Rollback plan**.
 
-`hx design` scaffolds only Context / ADR / Architecture Constraints. Liu must register a **team design template** in Harness **before** the first design change, so agents produce a consistent structure in `/hx-design`.
+`hx design` scaffolds `design/overview.md` with Context / ADR / Architecture Constraints. Liu must register a **team design template** in Harness **before** the first design change, so agents produce a consistent structure in `/hx-dev-design`.
 
-> **Current implementation note**: `proposal-template` is rendered directly by `hx propose`. `design-template` is registered as a `guide.template` asset injected into the design-phase Context Pack; together with a customized `/hx-design` command prompt, the agent **expands** the minimal scaffold into the full template layout. A future version may render `design-template` directly in `hx design`, mirroring proposal behavior.
+> **Current implementation note**: `proposal-template` is rendered directly by `hx propose`. `design-template` is registered as a `guide.template` asset injected into the `dev:design` Context Pack; together with a customized thin `/hx-dev-design` checklist (plus adapter appendix), the agent **expands** the minimal scaffold into the full template layout.
 
 ## Steps
 
@@ -80,7 +80,8 @@ Create `asset.yaml` (same shape as other guide assets):
 id: design-template
 kind: guide.template
 category: architecture
-phase: [design]
+stage: dev
+task: design
 version: 1.0.0
 origin: local
 status: enforced
@@ -98,19 +99,21 @@ guides:
   - id: design-template
     kind: guide.template
     execution: computational
-    phase: [design]
+    stage: dev
+    task: design
     source: assets/guides/design-template/template.md
   # api-service bundle already provides:
   # - id: api-design
-  #   phase: [design, apply]
+  #   stage: dev
+  #   task: design  # (or a separate guide with task: apply)
 ```
 
-### 3. Customize the `/hx-design` phase command (critical)
+### 3. Customize the `/hx-dev-design` phase command (critical)
 
 Edit `harnessX/assets/commands/design.md`. Change step 2 to explicitly reference the template:
 
 ```markdown
-2. Fill `harnessX/changes/<change>/design.md` using the **design-template** guide in this Context Pack:
+2. Fill `harnessX/changes/<change>/design/overview.md` using the **design-template** guide in this Context Pack:
    - Replace the minimal scaffold from `hx design` with the full section layout from the template (`API Surface`, `Data Model`, `Observability`, `Rollback Plan`, …).
    - **Context** — constraints from explore.md, proposal.md, and current specs;
    - **Decisions (ADR)** — one entry per significant decision; record rejected alternatives and WHY;
@@ -136,8 +139,8 @@ $ hx harness lint
 no conflicting guide directives found
 
 $ hx adapter sync
-cursor (Tier 1): 14 file(s)
-  + .cursor/commands/hx-design.md
+cursor (Tier 1): ... file(s)
+  + .cursor/commands/hx-dev-design.md
   + .cursor/skills/...
 ```
 
@@ -158,13 +161,13 @@ $ hx guide pack bulk-issue --stage dev --task design | head -40
 ### 6. Run the design phase
 
 ```text
-Cursor ▸ /hx-design bulk-issue
+Cursor ▸ /hx-dev-design bulk-issue
 ```
 
 The agent:
 
 1. Runs `hx design bulk-issue` (proposal completeness check inside);
-2. Reads **design-template** from the Context Pack and expands `design.md` with all sections;
+2. Reads **design-template** from the Context Pack and expands `design/overview.md` with all sections;
 3. Updates delta specs if API design implies new Scenarios, then `hx gate check --stage dev --task propose`;
 4. `hx gate advance bulk-issue` → `designed`.
 
@@ -201,8 +204,8 @@ advanced: dev/propose → dev/design
 | Template section | Downstream enforcement |
 |------------------|------------------------|
 | Architecture Constraints | `arch-boundary`, `perf-budget` sensors at verify |
-| API Surface | `/hx-plan` review + endpoint behavior in delta spec; `api-design` Skill at apply |
-| ADR Consequences | `/hx-plan` requires a task per consequence |
+| API Surface | `/hx-dev-plan` review + endpoint behavior in delta spec; `api-design` Skill at apply |
+| ADR Consequences | `/hx-dev-plan` requires a task per consequence |
 | Observability / Rollback | Human review + optional custom Sensors (scenario 10) |
 
 There is **no** dedicated `design-validate` sensor like `spec-validate` — structural compliance relies on **guide.template + customized command + human review**; architecture violations are still caught by Architecture Sensors at apply/verify.
@@ -210,12 +213,12 @@ There is **no** dedicated `design-validate` sensor like `spec-validate` — stru
 ## Key mechanisms
 
 - **Dual customization**: template asset (`guide.template`) defines **shape**; command asset (`guide.command`) defines **which sections agents must fill and when to stop**; Skill (`guide.skill`) defines **domain norms** (e.g. RFC 7807 errors).
-- **Phase-isolated Context Pack**: design phase injects `proposal.md` + `design.md` + design Guides — no apply-phase noise (see `PHASE_ARTIFACTS` in `guideEngine.ts`).
+- **Task-isolated Context Pack**: `dev:design` injects `proposal.md` + `design/overview.md` + design Guides — no apply-task noise (see `guideEngine.ts` artifact selection by stage/task).
 - **Pairs with scenario 11**: compliance fields added to the proposal template should be referenced in the design template **Context** section for requirements → design traceability.
-- **Permissions**: design-phase agents may edit only `changes/<id>/design.md` and `changes/<id>/specs/**` (when design drives spec changes).
+- **Permissions**: design-task agents primarily edit `changes/<id>/design/**` and `changes/<id>/specs/**` (when design finalizes delta).
 
 ## Common pitfalls
 
 1. **Template only, no `commands/design.md` edit** — agents may follow the default three-step flow and skip Observability / Rollback. Change command and template together.
-2. **Hand-editing `.cursor/commands/hx-design.md`** — overwritten on next `adapter sync`; edit `harnessX/assets/commands/design.md` only.
-3. **Removing ADR / Architecture Constraints from the template** — not immediately Gate-blocked, but `/hx-plan` and verify sensors lose leverage; extend sections rather than delete core ones.
+2. **Hand-editing `.cursor/commands/hx-dev-design.md`** — overwritten on next `adapter sync`; edit `harnessX/assets/commands/design.md` only.
+3. **Removing ADR / Architecture Constraints from the template** — not immediately Gate-blocked, but `/hx-dev-plan` and verify sensors lose leverage; extend sections rather than delete core ones.

@@ -67,6 +67,8 @@ describe("T-100 hx init", () => {
     expect(Object.keys(harness.profiles)).toEqual(expect.arrayContaining(["lite", "standard", "strict"]));
     expect(res.nextSteps.length).toBeGreaterThan(2);
     expect(() => initWorkspace(root)).toThrow(/already initialized/);
+    expect(() => initWorkspace(root, { overwrite: true })).not.toThrow();
+    expect(fs.existsSync(path.join(root, "harnessX", "harness.yaml"))).toBe(true);
   });
 
   it("--locale hx-cn seeds Chinese scaffold with design-template", () => {
@@ -78,7 +80,8 @@ describe("T-100 hx init", () => {
     const harness = res.ws.readHarness();
     expect(harness.guides.map((g) => g.id)).toContain("design-template");
     const proposeCmd = fs.readFileSync(path.join(res.ws.assetsDir, "commands/propose.md"), "utf8");
-    expect(proposeCmd).toContain("起草提案");
+    expect(proposeCmd).toContain("/hx-dev-propose");
+    expect(proposeCmd).toContain("--stage dev --task propose");
     expect(res.nextSteps[0]).toContain("constitution.md");
   });
 

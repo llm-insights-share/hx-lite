@@ -79,12 +79,12 @@ BLOCKED: stock-reservation/"Create reservation" (MODIFIED): not found in base sp
 Zheng's correct action is not editing the conflict report — **re-read current main spec** (`harnessX/specs/stock-reservation/spec.md`, now with TTL semantics) and rewrite MODIFIED to stack bulk semantics on TTL. Feed the conflict report to Cursor agent:
 
 ```text
-Cursor ▸ /hx-spec bulk-reserve
+Cursor ▸ /hx-dev-design bulk-reserve
          rebase check reported conflict below; rewrite MODIFIED entries against current main spec:
          CONFLICT stock-reservation/"Create reservation" (MODIFIED): not found in base spec ...
 ```
 
-`/hx-spec` prompt step one is exactly this — "re-read **current** main spec for each capability (another change may have archived since your propose); if MODIFIED/REMOVED targets missing, rewrite against latest text". Agent reads new requirement text with TTL (including Wu's new Scenario), adds bulk semantics, rewrites whole requirement. Zheng confirms merged semantics in diff:
+The delta-finalization step in `/hx-dev-design` requires `hx rebase check` when main specs drift, then rewriting MODIFIED/REMOVED against the **current** main spec. Agent reads new requirement text with TTL (including Wu's new Scenario), adds bulk semantics, rewrites whole requirement. Zheng confirms merged semantics in diff:
 
 ```markdown
 ## MODIFIED Requirements
@@ -106,8 +106,8 @@ Note: **MODIFIED must carry the full latest requirement content** (including oth
 Re-verify:
 
 ```console
-$ hx gate check bulk-reserve --stage dev --task propose
-GATE PASS (dev/propose)
+$ hx gate check bulk-reserve --stage dev --task design
+GATE PASS (dev/design)
 $ hx rebase check bulk-reserve
 deltas apply cleanly against current specs
 $ hx archive bulk-reserve

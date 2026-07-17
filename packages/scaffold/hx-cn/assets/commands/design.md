@@ -1,24 +1,21 @@
-# /hx-design — 概要设计（HLD）+ 详细设计（LLD）
+# /hx-dev-design — change 设计与 delta 定稿
 
-你正在执行 **design** 阶段。前置：proposal 完整。
+你正在执行 **dev** 阶段任务 `design`。前置：propose 门禁绿灯。
 
-## 步骤
+## Input
+- change id；Context Pack 中的组织架构。
 
-1. `hx design <change>` — 渲染 design-template 到 `design/overview.md` 及 LLD 目录。
-2. 阅读 Context Pack 中的**组织级 HLD** 与**模块 LLD**（`docs/architecture/`）。
-3. 填写 **HLD**（design-template）：Context、API Surface、Data Model、ADR 等。
-4. 填写 **LLD**：
-   - `design/ui/pages.md` — 页面清单；
-   - `design/ui/components/<slug>.md` — 组件级设计；
-   - `design/api/*.yaml`、`design/data/*.sql` 按需。
-5. 遵循 **fe-layout**、**design-tokens** Skill；API 与 delta spec 对齐。
-6. `hx gate check <change> --phase design`（enterprise：`arch-approved`、HLD/LLD/align 传感器）。
-7. `hx gate advance <change>`。
+## Steps
+1. `hx design <change>`，填写 HLD/LLD。
+2. 定稿 delta（EARS、可度量响应、稳定 `Scenario:`）；必要时 `hx rebase check`。
+3. `hx gate check <change> --stage dev --task design`。
+4. 需要时人工：`hx gate approve <change> --gate spec --approver <name>`（代理不可自批）。
 
-## 护栏
+## Output
+- change `design/` 与定稿 delta。
 
-- 不写生产代码；设计产物仅在 `design/` 下。
+## Guardrails
+- 不写生产代码；批准后勿擅自改 delta。
 
-## 完成标准
-
-HLD 章节齐全，新 UI/API 有 LLD，design 门禁通过。
+## Done when
+design 门禁绿灯，且所需人工批准已记录。

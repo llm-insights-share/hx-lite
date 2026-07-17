@@ -68,7 +68,7 @@ $ hx change create backfill-vip-renewal --domains member-benefits
 "Archaeology" (extract existing behavior from code and tests including edge cases) is agent strength. Liu tasks in Cursor, explicit this is "document current behavior" not "design new behavior":
 
 ```text
-Cursor ▸ /hx-propose backfill-vip-renewal
+Cursor ▸ /hx-dev-propose backfill-vip-renewal
          This is a spec backfill change: write existing behavior from
          @src/benefits/autoRenewal.ts and @tests/benefits/autoRenewal.test.ts
          into EARS spec verbatim. Do not change any code; if behavior looks

@@ -4,7 +4,9 @@
 
 Scenarios are organized by **user journey**, not by version number. Each includes: **background & roles**, **step-by-step commands with expected output**, and **mechanism notes**.
 
-> Thematic overview: [Usage Guide](../usage-guide.en.md) · CLI/config: [Operation Guide](../operation-guide.en.md) · Glossary: [glossary](../glossary.md)
+> Thematic overview: [Usage Guide](../../usage-guide.en.md) · CLI/config: [Operation Guide](../../operation-guide.en.md) · Glossary: [glossary](../../glossary.md)
+>
+> **Current conventions**: profiles use `profiles.*.tasks[].{id,suite}`; IDE commands follow `/hx-<stage>-<task>`; see the [stage-task asset matrix (ZH)](../../stage-task-assets.zh-CN.md) for complete bindings.
 
 ---
 
@@ -71,7 +73,7 @@ Scenarios are organized by **user journey**, not by version number. Each include
 | Scenario | When |
 | --- | --- |
 | [11 Requirements template](11-custom-requirements-output-template.md) | Proposal / delta spec |
-| [12 Design template](12-custom-design-output-template.md) | Design / `/hx-design` |
+| [12 Design template](12-custom-design-output-template.md) | Design / `/hx-dev-design` |
 | [06 OpenSpec migration](06-legacy-migration-openspec.md) | Legacy OpenSpec import |
 
 ---
@@ -99,7 +101,7 @@ Scenarios are organized by **user journey**, not by version number. Each include
 | 16 | [Hub blueprint init](16-v0.3-hub-blueprint-init.md) | Platform | `--from-hub` / sync --apply |
 | 17 | [Platform dashboard](17-v0.4-platform-governance.md) | Platform | prototype/UAT / view |
 | 18 | [Minimal harness + MCP](18-minimal-harness-headless-mcp.md) | Onboarding·Tools | `imports:` / MCP L1 |
-| 19 | [Org PRD/arch](19-org-prd-and-architecture.md) | Enterprise·req/arch | `/hx-prd` `/hx-arch` `hx req prd` `hx arch promote` |
+| 19 | [Org PRD/arch](19-org-prd-and-architecture.md) | Enterprise·req/arch | `/hx-req-prd-writing` `/hx-arch-subsystem-division` `hx req prd` `hx arch promote` |
 
 ---
 

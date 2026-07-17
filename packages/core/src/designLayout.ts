@@ -38,7 +38,7 @@ export function parseUiPageInventory(text: string): { page: string; route: strin
   const pages: { page: string; route: string; shell: string }[] = [];
   for (const line of text.split("\n")) {
     if (!line.trim().startsWith("|")) continue;
-    if (/^\|\s*Page\s*\|/i.test(line) || /^\|\s*---/.test(line)) continue;
+    if (/^\|\s*Page\s*\|/i.test(line) || /^\|\s*页面\s*\|/.test(line) || /^\|\s*---/.test(line)) continue;
     const cols = line
       .split("|")
       .map((c) => c.trim())

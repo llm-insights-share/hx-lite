@@ -8,5 +8,5 @@ provenance:
   - type: golden-package
     ref: harnessx/hub-golden
 metrics: {}
-stage: dev
-task: verify
+stage: test
+task: test-execution

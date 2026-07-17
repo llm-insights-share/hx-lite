@@ -50,7 +50,7 @@ Verification at task/gate boundaries (rule, script, rubric, fixture, budget, dri
 
 ### Suite
 
-A named list of sensor ids (e.g. `fast`, `verification-enterprise`) keyed in `harness.yaml` as `dev.apply`, `test.test-case-design`, etc.
+A named list of sensor ids (e.g. `fast`, `verification`, `verification-sdlc`, `design-basic`). Prefer binding via `profiles.*.tasks[].suite`; optional tasks may use the legacy map `suites: { "req.biz-understanding": "req-biz" }`.
 
 ### Asset
 

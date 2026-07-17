@@ -40,7 +40,7 @@ $ hx change create member-badge \
 ## 1. dev:propose — requirements + proposal
 
 ```text
-Cursor ▸ /hx-propose member-badge
+Cursor ▸ /hx-dev-propose member-badge
          PRD: @docs/prd/member-badge.md
 ```
 
@@ -80,7 +80,7 @@ Enterprise design suite includes **`arch-approved`** (global HLD must be `hx app
 
 ## 3. design-to-plan approval → dev:plan
 
-Chen finalizes delta spec via `/hx-spec` (still within dev:propose); terminal approval then plan:
+Chen finalizes design and delta specs via `/hx-dev-design` (dev:design); terminal approval then plan:
 
 ```console
 $ hx gate approve member-badge --gate design-to-plan --approver chen.pm
@@ -102,7 +102,7 @@ $ hx guide task-pack member-badge 01b
 wrote harnessX/changes/member-badge/tasks/01b-pack.md (6 sections)
 ```
 
-Zhao implements in Cursor `/hx-apply`, or:
+Zhao implements in Cursor `/hx-dev-apply`, or:
 
 ```console
 $ hx apply member-badge --runner '<agent>'
@@ -116,7 +116,7 @@ $ hx verify member-badge
 $ hx gate check member-badge --stage dev --task verify
 ```
 
-Enterprise `verification-enterprise` suite includes `design-drift` and `arch-drift` (warns if not promoted).
+Enterprise `verification-sdlc` suite includes `design-drift` and `arch-drift` (warns if not promoted).
 
 ## 6. Promote and archive
 

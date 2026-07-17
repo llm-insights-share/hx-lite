@@ -14,8 +14,13 @@ import {
   scaffoldFromIssue,
   scaffoldExtendedRequirements,
   readMeta,
+  resolveHubContext,
+  syncProjectFromHub,
+  commitProjectHubPaths,
+  pullProjectAssets,
   type DeliveryStage
 } from "@harnessx/core";
+import { compileAdapters } from "@harnessx/adapters";
 
 export const ws = () => Workspace.locate(process.cwd());
 
@@ -23,6 +28,12 @@ function parseStagesCsv(csv?: string): DeliveryStage[] | undefined {
   if (!csv) return undefined;
   const stages = csv.split(",").map((s) => s.trim()).filter(Boolean) as DeliveryStage[];
   return stages.length ? stages : undefined;
+}
+
+function parseIdsCsv(csv?: string): string[] | undefined {
+  if (!csv) return undefined;
+  const ids = csv.split(",").map((s) => s.trim()).filter(Boolean);
+  return ids.length ? ids : undefined;
 }
 
 export function registerFoundationCommands(program: Command): void {
@@ -60,7 +71,7 @@ export function registerFoundationCommands(program: Command): void {
       for (const s of res.nextSteps) console.log(`  ${s}`);
     });
 
-  const project = program.command("project").description("Project owner workflows");
+  const project = program.command("project").description("Project owner / member workflows");
   project
     .command("create")
     .description("Scaffold harnessX/ and pull hub assets for a profile")
@@ -70,6 +81,7 @@ export function registerFoundationCommands(program: Command): void {
     .option("--adapter <target>", "adapter target to record in config (cursor, codex, …)")
     .option("--actor <name>", "hub consumer identity (written to config.yaml hub.actor)")
     .option("--stages <csv>", "comma-separated active stages (defaults to all profile stages)")
+    .option("--overwrite", "replace existing harnessX/ (destructive: deletes changes/specs/assets)")
     .action(
       (opts: {
         profile: string;
@@ -78,7 +90,41 @@ export function registerFoundationCommands(program: Command): void {
         adapter?: string;
         actor?: string;
         stages?: string;
+        overwrite?: boolean;
       }) => {
+        // #region agent log
+        {
+          const body = {
+            sessionId: "57a8bf",
+            runId: opts.overwrite ? "post-fix" : "pre-fix",
+            hypothesisId: "B",
+            location: "foundation.ts:project.create",
+            message: "CLI project create invoked",
+            data: {
+              cwd: process.cwd(),
+              profile: opts.profile,
+              adapter: opts.adapter,
+              actor: opts.actor,
+              cliKeys: Object.keys(opts),
+              overwrite: opts.overwrite === true
+            },
+            timestamp: Date.now()
+          };
+          try {
+            fs.appendFileSync(
+              "/Users/zhangjr/apps/LlmDemo/hx-project/hx-lite/.cursor/debug-57a8bf.log",
+              `${JSON.stringify(body)}\n`
+            );
+          } catch {
+            /* ignore */
+          }
+          fetch("http://127.0.0.1:7307/ingest/88fb5b33-114f-42c3-b178-e43e3a7b2920", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "57a8bf" },
+            body: JSON.stringify(body)
+          }).catch(() => {});
+        }
+        // #endregion
         const stages = parseStagesCsv(opts.stages);
         const res = createProject(process.cwd(), {
           profile: opts.profile,
@@ -86,14 +132,129 @@ export function registerFoundationCommands(program: Command): void {
           locale: opts.locale,
           adapter: opts.adapter,
           actor: opts.actor,
-          stages
+          stages,
+          overwrite: opts.overwrite
         });
+        if (opts.overwrite) console.log("Overwrote existing harnessX/");
         console.log(`Created project ${res.ws.base} (profile: ${opts.profile})`);
         for (const c of res.created) console.log(`  + ${c}`);
         console.log("\nNext steps:");
         for (const s of res.nextSteps) console.log(`  ${s}`);
       }
     );
+
+  project
+    .command("sync-hub")
+    .description("Owner: sync org hxhub into project assets/harness/lock (then commit to project GitHub)")
+    .option("--hub <path>", "hub source (defaults to config.yaml hub)")
+    .option("--dry-run", "preview hub sync state without applying")
+    .option("--no-apply", "skip hubSyncApply; only land cache → assets + lock")
+    .option("--force", "apply merges even when conflicts occur")
+    .option("--only <ids>", "comma-separated package ids")
+    .option("--install-available", "install all available (not only profile-matched) hub packages")
+    .option("--offline", "use local hub cache without remote fetch")
+    .option("--refresh", "force refresh remote hub cache")
+    .option("--adapter-sync", "also run adapter sync after landing")
+    .option("--commit", "git commit allowlisted harness asset paths")
+    .option("--push", "git push after --commit")
+    .option("--message <text>", "commit message", "chore: sync hub assets into project")
+    .action(
+      (opts: {
+        hub?: string;
+        dryRun?: boolean;
+        apply?: boolean;
+        force?: boolean;
+        only?: string;
+        installAvailable?: boolean;
+        offline?: boolean;
+        refresh?: boolean;
+        adapterSync?: boolean;
+        commit?: boolean;
+        push?: boolean;
+        message?: string;
+      }) => {
+        const workspace = ws();
+        const { hubRoot } = resolveHubContext(workspace, {
+          hubRef: opts.hub,
+          offline: opts.offline,
+          refresh: opts.refresh,
+          action: "hub.sync"
+        });
+        const res = syncProjectFromHub(workspace, hubRoot, {
+          dryRun: opts.dryRun,
+          apply: opts.apply,
+          force: opts.force,
+          only: parseIdsCsv(opts.only),
+          installAvailable: opts.installAvailable
+        });
+
+        for (const r of res.syncResults) {
+          console.log(`sync\t${r.id}\t${r.action}\t${r.detail ?? ""}${r.toVersion ? ` → ${r.toVersion}` : ""}`);
+        }
+        for (const id of res.installedAvailable) console.log(`installed\t${id}`);
+        for (const a of res.landed) console.log(`landed\t${a.id}@${a.version}\t${path.relative(workspace.root, a.localDir)}`);
+        if (res.lock) console.log(`lock\twrote ${path.relative(workspace.root, workspace.lockFile)} (${Object.keys(res.lock.assets).length} assets)`);
+
+        if (opts.adapterSync && !opts.dryRun) {
+          const cfg = workspace.readConfig();
+          const target = cfg.adapter?.target ?? "cursor";
+          const results = compileAdapters(workspace, [target]);
+          for (const r of results) {
+            console.log(`adapter\t${r.target}\t${r.files.length} file(s)`);
+          }
+        }
+
+        if (opts.commit && !opts.dryRun) {
+          const git = commitProjectHubPaths(workspace.root, {
+            message: opts.message,
+            push: opts.push
+          });
+          console.log(`git\tcommitted=${git.committed}\tpushed=${git.pushed}`);
+        } else if (!opts.dryRun) {
+          console.log("\nNext steps:");
+          for (const s of res.nextSteps) console.log(`  ${s}`);
+        }
+      }
+    );
+
+  project
+    .command("pull-assets")
+    .description("Member-safe: update harness assets from project GitHub only (does not overwrite changes/docs/code)")
+    .option("--check", "preview incoming asset paths without applying")
+    .option("--remote <name>", "git remote", "origin")
+    .option("--branch <name>", "remote branch (defaults to current)")
+    .option("--adapter-sync", "run adapter sync after pull")
+    .action((opts: { check?: boolean; remote?: string; branch?: string; adapterSync?: boolean }) => {
+      const root = process.cwd();
+      const res = pullProjectAssets(root, {
+        check: opts.check,
+        remote: opts.remote,
+        branch: opts.branch
+      });
+      console.log(`remote\t${res.remoteRef}`);
+      if (opts.check) {
+        for (const p of res.incoming) console.log(`incoming\t${p}`);
+        if (!res.incoming.length) console.log("incoming\t(none)");
+      } else {
+        for (const p of res.updated) console.log(`updated\t${p}`);
+        for (const p of res.removed) console.log(`removed\t${p}`);
+        if (!res.updated.length && !res.removed.length) console.log("updated\t(none)");
+        if (res.configMerged) console.log(`config\tmerged hub/adapter (active_stages preserved=${res.activeStagesPreserved})`);
+      }
+
+      if (opts.adapterSync && !opts.check) {
+        const workspace = ws();
+        const cfg = workspace.readConfig();
+        const target = cfg.adapter?.target ?? "cursor";
+        const results = compileAdapters(workspace, [target]);
+        for (const r of results) {
+          console.log(`adapter\t${r.target}\t${r.files.length} file(s)`);
+        }
+      }
+
+      console.log("\nNext steps:");
+      for (const s of res.nextSteps) console.log(`  ${s}`);
+    });
 
   const change = program.command("change").description("Manage change workspaces");
   change
@@ -105,7 +266,12 @@ export function registerFoundationCommands(program: Command): void {
     .option("--arch-modules <list>", "comma-separated arch module ids")
     .action(async (id: string, opts: { domains?: string; profile?: string; fromIssue?: string; prd?: string; archModules?: string }) => {
       if (opts.fromIssue) {
-        const res = await scaffoldFromIssue(ws(), { issueUrl: opts.fromIssue, id, profile: opts.profile, domains: opts.domains?.split(",").map((s) => s.trim()).filter(Boolean) });
+        const res = await scaffoldFromIssue(ws(), {
+          issueUrl: opts.fromIssue,
+          id,
+          profile: opts.profile,
+          domains: opts.domains?.split(",").map((s) => s.trim()).filter(Boolean)
+        });
         console.log(`Created change "${res.changeId}" from issue #${res.issue.number}`);
         console.log(`  proposal: ${res.proposalFile}`);
         console.log(`  delta: ${res.deltaFile}`);

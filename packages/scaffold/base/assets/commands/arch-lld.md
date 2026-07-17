@@ -1,19 +1,21 @@
-# /hx-arch-lld — module LLD
+# /hx-arch-internal-interface — module LLD
 
-You are running the **arch-lld** pre-phase for one module. Deliverable: `docs/architecture/modules/<module>/lld.md`.
+You are running the **arch** stage task `internal-interface`.
+
+## Input
+- Module id from `registry.yaml`.
 
 ## Steps
+1. Scaffold: `hx arch lld init <module> --title "..."` if missing.
+2. Fill module LLD (boundaries, APIs, data, constraints).
+3. `hx arch check --task internal-interface --module <module>`.
+4. Human approve when required: `hx gate approve --gate arch-lld --module <module> --approver <name>`.
 
-1. Confirm module exists in `registry.yaml` (or register it).
-2. `hx arch lld init <module> --title "<name>"`
-3. Fill components, interface contracts (IF-xxx), data model, flows, errors, security.
-4. `hx arch lld check <module>` — do not finish until green.
+## Output
+- Module LLD under `docs/architecture/modules/<module>/`.
 
 ## Guardrails
-
-- Align with global HLD in `docs/architecture/overview.md`.
-- Interface IDs unique within the module.
+- Org-level module design only — no change `design/` package.
 
 ## Done when
-
-Module LLD passes `hx arch lld check` and capabilities map to `touchedDomains` for future changes.
+Internal-interface check is green and LLD is approved when required.

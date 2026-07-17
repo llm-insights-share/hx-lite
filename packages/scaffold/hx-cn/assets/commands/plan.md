@@ -1,20 +1,19 @@
-# /hx-plan — 双轨任务与设计交接
+# /hx-dev-plan — 双轨 tasks.md
 
-你正在执行 **plan** 阶段。产出带 `@design=`、`@files=` 的 `tasks.md`，并同步 `delivery-trace.yaml`。
+你正在执行 **dev** 阶段任务 `plan`。
 
-## 步骤
+## Input
+- 已有设计产物的 change。
 
-1. `hx plan <change>` — 从 delta spec 生成双轨任务及交接注解。
-2. 审阅 `tasks.md`：排序、拆分大任务、补充 `@group=`。
-3. 确保 impl 任务的 `@design=` 指向 `design/` 下 LLD 文件。
-4. 将 `@files=` 细化为仓库真实路径。
-5. `hx gate check <change> --phase plan`（enterprise：plan-coverage）。
-6. `hx gate advance <change>`。
+## Steps
+1. `hx plan <change>`，完善 `@design=` / `@files=` / Scenario 名。
+2. `hx gate check <change> --stage dev --task plan`。
 
-## 护栏
+## Output
+- 带设计交接引用的 `tasks.md`。
 
-- 不得删除 `[test]` 任务；Scenario 名字面量匹配 traceability。
+## Guardrails
+- 勿删除 `[test]` 任务；Scenario 名须与 delta 一致。
 
-## 完成标准
-
-`tasks.md` 完整且含设计交接，plan 门禁通过。
+## Done when
+`hx gate check <change> --stage dev --task plan` 绿灯。

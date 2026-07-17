@@ -1,25 +1,19 @@
-# /hx-apply — 按任务 Task Pack 实现
+# /hx-dev-apply — 按任务实现
 
-你正在执行 **apply** 阶段。按 `tasks.md` 顺序，使用**任务级**上下文（非整包 change）。
+你正在执行 **dev** 阶段任务 `apply`。
 
-## 步骤
+## Input
+- change id；`tasks.md` 未勾选项。
 
-对每条未完成任务：
+## Steps
+1. 每项任务：`hx guide task-pack` → TDD → 实现切片。
+2. 每项后：`hx gate check <change> --stage dev --task apply`，勾选 `- [x]`。
 
-1. 加载：`hx guide task-pack <change> <taskId>`（或读 `tasks/<taskId>-pack.md`）。
-   - 服从 **fe-layout**、**design-tokens**、**coding-conventions** 及 `guide.constraint`。
-   - 仅实现 `@design=` 指向的 LLD 与 Requirement 片段；优先改 `@files=` 列出的文件。
-2. **[test]**：写失败测试，标题含 `Scenario: <精确名称>`。
-3. **[impl]**：最小实现；遵守分层（verify 时 arch-boundary 检查）。
-4. 每任务后：`hx gate check <change> --phase apply`；读 `fix_hint` 修正，不得弱化测试。
-5. 在 tasks.md 标记 `- [x]`。
+## Output
+- 全部任务对应代码与测试。
 
-或：`hx apply <change> --runner "<agent>"` — 每轮设置 `HX_TASK_PACK`。
+## Guardrails
+- 勿改 delta / meta / 已批 fixture；勿削弱测试过门禁。
 
-## 护栏
-
-- 不改 delta spec、meta.yaml、已批准 fixture。
-
-## 完成标准
-
-任务全勾选且 fast 套件全绿，然后 `hx gate advance <change>`。
+## Done when
+全部勾选且 apply 门禁绿灯。

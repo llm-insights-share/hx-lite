@@ -1,4 +1,4 @@
-# Scenario 19: Organization PRD and global architecture (/hx-prd, /hx-arch)
+# Scenario 19: Organization PRD and global architecture (/hx-req-prd-writing, /hx-arch-subsystem-division)
 
 | | |
 | --- | --- |
@@ -19,10 +19,10 @@ Before each **enterprise** change, **RetailCo** maintains org-level truth under 
 
 Per-change `requirements/` and `design/` **distill and extend** these artifacts; after verify, `hx arch promote` **writes back** to module LLD.
 
-## 1. req stage — PRD (`/hx-prd`)
+## 1. req stage — PRD (`/hx-req-prd-writing`)
 
 ```text
-Cursor ▸ /hx-prd
+Cursor ▸ /hx-req-prd-writing
          Target slug: member-badge
 ```
 
@@ -43,7 +43,7 @@ approved PRD "member-badge" by chen.pm (artifact a1b2c3d4e5f6)
 
 Record stored in `docs/.stage-approvals.yaml` with content hash binding.
 
-## 2. arch stage — global HLD (`/hx-arch`)
+## 2. arch stage — global HLD (`/hx-arch-subsystem-division`)
 
 ```console
 $ hx arch init --title "Member commerce"
@@ -51,7 +51,7 @@ $ hx arch check
 $ hx approve arch --approver lin.arch
 ```
 
-## 3. arch stage — module LLD (`/hx-arch-lld`)
+## 3. arch stage — module LLD (`/hx-arch-internal-interface`)
 
 ```console
 $ hx arch lld init member --title "Member module"
@@ -95,11 +95,11 @@ Enterprise **blocks archive** until promote completes (unless waived).
 | stage/task | Sensors |
 | --- | --- |
 | dev:propose | `prd-complete`, `prd-approved`, `requirements-complete` |
-| dev:design | `arch-approved`, `arch-change-align`, `design-enterprise` suite |
+| dev:design | `arch-approved`, `arch-change-align`, `design-sdlc` suite |
 | dev:verify | `arch-drift` (warn if not promoted) |
 
 ## See also
 
 - [Scenario 15 walkthrough](15-enterprise-delivery-handoff.md) · [Chinese full version](../19-组织级PRD与架构设计.md)
-- [Operation guide §4.3 req/arch stages](../operation-guide.en.md)
+- [Operation guide §4.3 req/arch stages](../../operation-guide.en.md)
 - [Four-stage model](../../delivery-stages.zh-CN.md)

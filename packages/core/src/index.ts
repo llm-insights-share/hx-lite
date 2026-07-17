@@ -16,10 +16,19 @@ export {
   profileTestTasks,
   profileReqTasks,
   profileArchTasks,
+  profileTaskIds,
+  profileTaskEntries,
   resolveSuiteName,
-  normalizeHarnessProfiles
+  resolveSuiteSensors,
+  normalizeProfile,
+  normalizeHarnessProfiles,
+  suiteMapFromTasks,
+  ensureProfileSuiteBinding
 } from "./profileResolve.js";
+export { bindTaskSensorToSuites, defaultSuiteName } from "./suiteBind.js";
 export * from "./stageGate.js";
+export * from "./orgStageGate.js";
+export * from "./orgStageProgress.js";
 export * from "./guideEngine.js";
 export * from "./designLayout.js";
 export * from "./archRegistry.js";
@@ -70,6 +79,8 @@ export * from "./hubGovernance.js";
 export * from "./hubIntegrity.js";
 export * from "./supplyChain.js";
 export * from "./profileAssets.js";
+export * from "./projectHubSync.js";
+export * from "./projectPullAssets.js";
 export * from "./gateCompensation.js";
 export * from "./hubEval.js";
 export * from "./hubSearch.js";
@@ -91,6 +102,9 @@ export * from "./mcp.js";
 export * from "./l1Contract.js";
 export * from "./harnessCompose.js";
 export * from "./skill.js";
+export * from "./suiteBind.js";
+export * from "./agentSession.js";
+export * from "./agentGateCheck.js";
 export * as orchestration from "./boundaries/orchestration.js";
 export * as hub from "./boundaries/hub.js";
 export * as adaptersBoundary from "./boundaries/adapters.js";

@@ -36,9 +36,22 @@ import {
   archLldApproved,
   changeRequestApplied
 } from "./sdlc.js";
+import {
+  reqBizUnderstanding,
+  reqResearchComplete,
+  reqAnalysisComplete,
+  orgPrototypeComplete,
+  archTechSelectionComplete,
+  archDatabaseDesignComplete,
+  archInterfaceDesignComplete,
+  archKeyMechanismsComplete,
+  testReportComplete
+} from "./orgTasks.js";
 
+export * from "./sdlc.js";
 export * from "./delivery.js";
 export * from "./prd.js";
+export * from "./orgTasks.js";
 export { archHldComplete, archRegistryComplete, archLldComplete, archModuleBoundary, archChangeAlign, archApproved, archDrift } from "./arch.js";
 export { prototypeComplete, uatComplete } from "./prototypeUat.js";
 export { driftSensor, integrationSmoke } from "./drift.js";
@@ -101,7 +114,16 @@ export const builtinSensors: Record<string, BuiltinSensor> = {
   "bugs-closed": bugsClosed,
   "wo-lld-done": woLldDone,
   "arch-lld-approved": archLldApproved,
-  "change-request-applied": changeRequestApplied
+  "change-request-applied": changeRequestApplied,
+  "req-biz-understanding": reqBizUnderstanding,
+  "req-research-complete": reqResearchComplete,
+  "req-analysis-complete": reqAnalysisComplete,
+  "org-prototype-complete": orgPrototypeComplete,
+  "arch-tech-selection-complete": archTechSelectionComplete,
+  "arch-database-design-complete": archDatabaseDesignComplete,
+  "arch-interface-design-complete": archInterfaceDesignComplete,
+  "arch-key-mechanisms-complete": archKeyMechanismsComplete,
+  "test-report-complete": testReportComplete
 };
 
 export function registerBuiltin(name: string, sensor: BuiltinSensor): void {

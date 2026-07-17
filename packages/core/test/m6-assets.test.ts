@@ -133,15 +133,24 @@ describe("T-602 hub add/sync/promote", () => {
     const hub = makeHub(tmp());
     const { asset } = hubAdd(ws, hub, { id: "api-conventions", version: "1.0.0" });
     expect(asset.manifest.id).toBe("api-conventions");
-    expect(hubSync(ws, hub)[0].state).toBe("up-to-date");
+    expect(hubSync(ws, hub).find((e) => e.id === "api-conventions")!.state).toBe("up-to-date");
 
     // upstream publishes 1.1.0
     makeAsset(path.join(hub, "packages/api-conventions/1.1.0"), "api-conventions", { version: "1.1.0", status: "enforced" });
-    expect(hubSync(ws, hub)[0].state).toBe("update-available");
+    expect(hubSync(ws, hub).find((e) => e.id === "api-conventions")!.state).toBe("update-available");
 
     // local override on top → three-way state
     fs.appendFileSync(path.join(ws.base, ".hub-cache/api-conventions/SKILL.md"), "\n- local tweak\n");
-    expect(hubSync(ws, hub)[0].state).toBe("update-and-local-changes");
+    expect(hubSync(ws, hub).find((e) => e.id === "api-conventions")!.state).toBe("update-and-local-changes");
+  });
+
+  it("sync reports hub packages that are not yet installed as available", () => {
+    const ws = initWorkspace(tmp()).ws;
+    const hub = makeHub(tmp());
+    makeAsset(path.join(hub, "packages/new-skill/1.0.0"), "new-skill", { version: "1.0.0", status: "enforced" });
+    hubAdd(ws, hub, { id: "api-conventions", version: "1.0.0" });
+    const entry = hubSync(ws, hub).find((e) => e.id === "new-skill");
+    expect(entry).toEqual({ id: "new-skill", installed: "-", latest: "1.0.0", state: "available" });
   });
 
   it("promote publishes with provenance + pending review; draft assets are refused", () => {
@@ -329,15 +338,28 @@ describe("T-605..T-608 target emitters", () => {
     const ws = initWorkspace(tmp()).ws;
     compileAdapters(ws, ["cursor", "claude", "qoder"]);
 
+    const hooksJson = JSON.parse(fs.readFileSync(path.join(ws.root, ".cursor/hooks.json"), "utf8"));
+    expect(hooksJson.hooks.stop?.[0]?.command).toContain("gate-stop.mjs");
+    expect(hooksJson.hooks.beforeSubmitPrompt?.some((h: { command: string }) => h.command.includes("gate-session.mjs"))).toBe(true);
+    expect(fs.existsSync(path.join(ws.root, ".cursor/hooks/gate-stop.mjs"))).toBe(true);
+    expect(fs.existsSync(path.join(ws.root, ".cursor/hooks/gate-session.mjs"))).toBe(true);
+
     // the propose command carries the full task workflow, not a thin bridge
     for (const dir of [".cursor/commands", ".claude/commands", ".qoder/commands"]) {
       const propose = fs.readFileSync(path.join(ws.root, dir, "hx-dev-propose.md"), "utf8");
-      expect(propose).toContain("EARS");
+      expect(propose).toContain("/hx-dev-propose");
       expect(propose).toContain("hx gate check");
       expect(propose).toContain("Guardrails");
+      expect(propose).toContain("harnessx:bound-guides");
+      expect(propose).toContain("hx guide pack <change> --stage dev --task propose");
+      expect(propose).toContain("spec-writing");
+      expect(propose).toContain("proposal-template");
+      expect(propose).toContain("特别约束");
       const apply = fs.readFileSync(path.join(ws.root, dir, "hx-dev-apply.md"), "utf8");
       expect(apply).toMatch(/hx guide (task-pack|pack)/);
       expect(apply).toMatch(/never weaken tests/i);
+      expect(apply).toContain("harnessx:bound-guides");
+      expect(apply).toContain("task-pack");
     }
 
     // the spec-writing skill ships to tools alongside commands
@@ -347,6 +369,48 @@ describe("T-605..T-608 target emitters", () => {
     createChange(ws, "cp1", ["auth"]);
     const pack = buildContextPack(ws, "cp1", "dev", "apply");
     expect(pack.sections.some((s) => s.title.includes("cmd-apply"))).toBe(true);
+  });
+
+  it("adapter sync appendix asks the user when multiple skills or templates bind to a task", () => {
+    const ws = initWorkspace(tmp()).ws;
+    const harness = ws.readHarness();
+    harness.guides.push(
+      {
+        id: "alt-design-template",
+        kind: "guide.template",
+        execution: "computational",
+        stage: "dev",
+        task: "design",
+        source: "assets/guides/design-template/template.md"
+      },
+      {
+        id: "extra-design-skill",
+        kind: "guide.skill",
+        execution: "inferential",
+        stage: "dev",
+        task: "design",
+        source: "assets/guides/fe-layout/SKILL.md"
+      }
+    );
+    fs.writeFileSync(ws.harnessFile, YAML.stringify(harness));
+    compileAdapters(ws, ["cursor"]);
+
+    const design = fs.readFileSync(path.join(ws.root, ".cursor/commands/hx-dev-design.md"), "utf8");
+    expect(design).toContain("harnessx:bound-guides");
+    expect(design).toContain("alt-design-template");
+    expect(design).toContain("multiple templates");
+    expect(design).toMatch(/Which one should I use/i);
+    expect(design).toContain("extra-design-skill");
+    // fe-layout already bound + extra-design-skill → multi-skill prompt
+    expect(design).toContain("multiple skills");
+    expect(design).toMatch(/Which should I prioritize/i);
+
+    const cmds = collectCommands(ws);
+    const designCmd = cmds.find((c) => c.name === "hx-dev-design");
+    expect(designCmd?.stage).toBe("dev");
+    expect(designCmd?.task).toBe("design");
+    expect(designCmd?.appendix).toContain("特别约束");
+    expect(designCmd?.appendix).toContain("Sensors");
   });
 
   it("exports a Qoder quest from delta specs + tasks", () => {

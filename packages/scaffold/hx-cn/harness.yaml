@@ -4,70 +4,156 @@ profiles:
   lite:
     stages:
       - dev
-    dev_tasks:
-      - propose
-      - apply
-      - archive
-    suites:
-      dev.apply: fast-lite
-      dev.propose: fast-lite
+    tasks:
+      dev:
+        - id: propose
+          suite: fast-lite
+        - id: apply
+          suite: fast-lite
+        - id: archive
+          suite: archive-check
   standard:
     stages:
       - req
       - arch
       - dev
       - test
-    dev_tasks:
-      - plan
-      - propose
-      - design
-      - apply
-      - verify
-      - archive
+    tasks:
+      req:
+        - id: requirements-analysis
+          suite: req-analysis
+        - id: prototype-design
+          suite: req-prototype
+        - id: prd-writing
+          suite: prd-check
+      arch:
+        - id: subsystem-division
+          suite: arch-subsystem
+        - id: tech-selection
+          suite: arch-tech
+        - id: database-design
+          suite: arch-db
+        - id: interface-design
+          suite: arch-iface
+        - id: internal-interface
+          suite: arch-lld-check
+      dev:
+        - id: plan
+          suite: plan-basic
+        - id: propose
+          suite: propose-basic
+        - id: design
+          suite: design-basic
+        - id: apply
+          suite: fast
+        - id: verify
+          suite: verification
+        - id: archive
+          suite: archive-check
+      test:
+        - id: test-case-design
+          suite: test-design-sdlc
+        - id: test-execution
+          suite: test-execution-sdlc
+    # Optional task suite bindings (not in check-all enabled set)
     suites:
-      dev.design: fast
-      dev.apply: fast
-      dev.verify: verification
+      req.biz-understanding: req-biz
+      req.requirements-research: req-research
+      arch.key-mechanisms: arch-key
   strict:
     stages:
       - req
       - arch
       - dev
       - test
-    dev_tasks:
-      - plan
-      - propose
-      - design
-      - apply
-      - verify
-      - archive
+    tasks:
+      req:
+        - id: requirements-analysis
+          suite: req-analysis
+        - id: prototype-design
+          suite: req-prototype
+        - id: prd-writing
+          suite: prd-check
+      arch:
+        - id: subsystem-division
+          suite: arch-subsystem
+        - id: tech-selection
+          suite: arch-tech
+        - id: database-design
+          suite: arch-db
+        - id: interface-design
+          suite: arch-iface
+        - id: internal-interface
+          suite: arch-lld-check
+      dev:
+        - id: plan
+          suite: plan-basic
+        - id: propose
+          suite: propose-basic
+        - id: design
+          suite: design-basic
+        - id: apply
+          suite: fast
+        - id: verify
+          suite: verification-strict
+        - id: archive
+          suite: archive-check
+      test:
+        - id: test-case-design
+          suite: test-design-sdlc
+        - id: test-execution
+          suite: test-execution-sdlc
     suites:
-      dev.design: fast
-      dev.apply: fast
-      dev.verify: verification-strict
+      req.biz-understanding: req-biz
+      req.requirements-research: req-research
+      arch.key-mechanisms: arch-key
   enterprise:
     stages:
       - req
       - arch
       - dev
       - test
-    dev_tasks:
-      - plan
-      - propose
-      - design
-      - apply
-      - verify
-      - archive
-    test_tasks:
-      - test-case-design
-      - test-execution
+    tasks:
+      req:
+        - id: requirements-analysis
+          suite: req-analysis
+        - id: prototype-design
+          suite: req-prototype
+        - id: prd-writing
+          suite: prd-check
+      arch:
+        - id: subsystem-division
+          suite: arch-subsystem
+        - id: tech-selection
+          suite: arch-tech
+        - id: database-design
+          suite: arch-db
+        - id: interface-design
+          suite: arch-iface
+        - id: internal-interface
+          suite: arch-lld-check
+      dev:
+        - id: plan
+          suite: plan-sdlc
+        - id: propose
+          suite: propose-sdlc
+        - id: design
+          suite: design-sdlc
+        - id: apply
+          suite: fast
+        - id: verify
+          suite: verification-sdlc
+        - id: archive
+          suite: archive-check
+      test:
+        - id: test-case-design
+          suite: test-design-sdlc
+        - id: test-execution
+          suite: test-execution-sdlc
     suites:
-      dev.propose: propose-sdlc
-      dev.design: design-sdlc
-      dev.plan: plan-sdlc
-      dev.apply: fast
-      test.test-case-design: test-design-sdlc
-      dev.verify: verification-sdlc
+      req.biz-understanding: req-biz
+      req.requirements-research: req-research
+      arch.key-mechanisms: arch-key
 suites:
   fast-lite:
     - spec-validate
@@ -79,39 +165,37 @@ suites:
   verification:
     - spec-validate
     - spec-trace
+    - drift
+    - integration-smoke
   verification-strict:
     - spec-validate
     - spec-trace
     - unit-changed
     - mutation-probe
     - ai-spec-review
-  propose-enterprise:
-    - prd-complete
-    - prd-approved
-    - requirements-complete
-    - spec-validate
-    - typecheck
-    - lint
-    - unit-changed
-  design-enterprise:
-    - arch-approved
-    - arch-change-align
-    - design-hld-complete
-    - design-lld-complete
-    - design-spec-align
-    - prototype-complete
-  plan-enterprise:
-    - plan-coverage
-  verification-enterprise:
-    - spec-validate
-    - spec-trace
-    - design-drift
-    - arch-drift
-    - unit-changed
-    - mutation-probe
-    - ai-spec-review
+    - integration-smoke
+  req-biz:
+    - req-biz-understanding
+  req-research:
+    - req-research-complete
+  req-analysis:
+    - req-analysis-complete
+  req-prototype:
+    - org-prototype-complete
   prd-check:
     - prd-complete
+    - prd-approved
+  arch-subsystem:
+    - arch-hld-complete
+    - arch-registry-complete
+  arch-tech:
+    - arch-tech-selection-complete
+  arch-db:
+    - arch-database-design-complete
+  arch-iface:
+    - arch-interface-design-complete
+  arch-key:
+    - arch-key-mechanisms-complete
   arch-check:
     - arch-hld-complete
     - arch-registry-complete
@@ -135,18 +219,31 @@ suites:
   test-design-sdlc:
     - test-cases-complete
     - test-cases-approved
+  test-execution-sdlc:
+    - uat-complete
+    - bugs-closed
+    - test-report-complete
   verification-sdlc:
     - spec-validate
     - spec-trace
     - design-drift
     - arch-drift
-    - bugs-closed
     - drift
-    - uat-complete
     - unit-changed
     - mutation-probe
     - ai-spec-review
-  dev.propose:
+    - integration-smoke
+  plan-basic:
+    - plan-coverage
+  propose-basic:
+    - requirements-complete
+    - spec-validate
+  design-basic:
+    - design-hld-complete
+    - design-lld-complete
+  archive-check:
+    - spec-validate
+  propose-sdlc:
     - wo-req-arch-clear
     - prd-complete
     - prd-approved
@@ -216,6 +313,12 @@ guides:
     source: assets/commands/explore.md
     stage: req
     task: requirements-research
+  - id: cmd-biz-understanding
+    kind: guide.command
+    execution: inferential
+    source: assets/commands/biz-understanding.md
+    stage: req
+    task: biz-understanding
   - id: cmd-propose
     kind: guide.command
     execution: inferential
@@ -226,12 +329,6 @@ guides:
     kind: guide.command
     execution: inferential
     source: assets/commands/design.md
-    stage: dev
-    task: design
-  - id: cmd-spec
-    kind: guide.command
-    execution: inferential
-    source: assets/commands/spec.md
     stage: dev
     task: design
   - id: cmd-plan
@@ -276,6 +373,18 @@ guides:
     source: assets/commands/prd.md
     stage: req
     task: prd-writing
+  - id: cmd-requirements-analysis
+    kind: guide.command
+    execution: inferential
+    source: assets/commands/requirements-analysis.md
+    stage: req
+    task: requirements-analysis
+  - id: cmd-prototype-design
+    kind: guide.command
+    execution: inferential
+    source: assets/commands/prototype-design.md
+    stage: req
+    task: prototype-design
   - id: arch-hld-template
     kind: guide.template
     execution: computational
@@ -294,6 +403,30 @@ guides:
     source: assets/commands/arch.md
     stage: arch
     task: subsystem-division
+  - id: cmd-tech-selection
+    kind: guide.command
+    execution: inferential
+    source: assets/commands/tech-selection.md
+    stage: arch
+    task: tech-selection
+  - id: cmd-database-design
+    kind: guide.command
+    execution: inferential
+    source: assets/commands/database-design.md
+    stage: arch
+    task: database-design
+  - id: cmd-interface-design
+    kind: guide.command
+    execution: inferential
+    source: assets/commands/interface-design.md
+    stage: arch
+    task: interface-design
+  - id: cmd-key-mechanisms
+    kind: guide.command
+    execution: inferential
+    source: assets/commands/key-mechanisms.md
+    stage: arch
+    task: key-mechanisms
   - id: arch-lld-template
     kind: guide.template
     execution: computational
@@ -312,13 +445,134 @@ guides:
     source: assets/commands/arch-lld.md
     stage: arch
     task: internal-interface
+  - id: cmd-test-design
+    kind: guide.command
+    execution: inferential
+    source: assets/commands/test-design.md
+    stage: test
+    task: test-case-design
+  - id: cmd-test-execution
+    kind: guide.command
+    execution: inferential
+    source: assets/commands/test-execution.md
+    stage: test
+    task: test-execution
+  - id: requirements-research-outline
+    kind: guide.skill
+    execution: inferential
+    source: assets/guides/requirements-research-outline/SKILL.md
+    stage: req
+    task: requirements-research
+  - id: biz-understanding-outline
+    kind: guide.skill
+    execution: inferential
+    source: assets/guides/requirements-research-outline/SKILL.md
+    stage: req
+    task: biz-understanding
+  - id: requirements-analysis
+    kind: guide.skill
+    execution: inferential
+    source: assets/guides/requirements-analysis/SKILL.md
+    stage: req
+    task: requirements-analysis
+  - id: prototype-wireframe
+    kind: guide.skill
+    execution: inferential
+    source: assets/guides/prototype-wireframe/SKILL.md
+    stage: req
+    task: prototype-design
+  - id: tech-selection
+    kind: guide.skill
+    execution: inferential
+    source: assets/guides/tech-selection/SKILL.md
+    stage: arch
+    task: tech-selection
+  - id: database-design
+    kind: guide.skill
+    execution: inferential
+    source: assets/guides/database-design/SKILL.md
+    stage: arch
+    task: database-design
+  - id: db-migration-template
+    kind: guide.template
+    execution: computational
+    source: assets/guides/db-migration-template/template.md
+    stage: arch
+    task: database-design
+  - id: interface-design
+    kind: guide.skill
+    execution: inferential
+    source: assets/guides/interface-design/SKILL.md
+    stage: arch
+    task: interface-design
+  - id: api-contract-template
+    kind: guide.template
+    execution: computational
+    source: assets/guides/api-contract-template/template.md
+    stage: arch
+    task: interface-design
+  - id: key-mechanisms
+    kind: guide.skill
+    execution: inferential
+    source: assets/guides/key-mechanisms/SKILL.md
+    stage: arch
+    task: key-mechanisms
+  - id: change-planning
+    kind: guide.skill
+    execution: inferential
+    source: assets/guides/change-planning/SKILL.md
+    stage: dev
+    task: plan
+  - id: rollback-template
+    kind: guide.template
+    execution: computational
+    source: assets/guides/rollback-template/template.md
+    stage: dev
+    task: plan
+  - id: release-readiness-checklist
+    kind: guide.skill
+    execution: inferential
+    source: assets/guides/release-readiness-checklist/SKILL.md
+    stage: dev
+    task: verify
+  - id: archive-checklist
+    kind: guide.skill
+    execution: inferential
+    source: assets/guides/archive-checklist/SKILL.md
+    stage: dev
+    task: archive
+  - id: test-case-authoring
+    kind: guide.skill
+    execution: inferential
+    source: assets/guides/test-case-authoring/SKILL.md
+    stage: test
+    task: test-case-design
+  - id: test-cases-template
+    kind: guide.template
+    execution: computational
+    source: assets/guides/test-cases-template/template.md
+    stage: test
+    task: test-case-design
+  - id: test-execution
+    kind: guide.skill
+    execution: inferential
+    source: assets/guides/test-execution/SKILL.md
+    stage: test
+    task: test-execution
+  - id: uat-checklist
+    kind: guide.template
+    execution: computational
+    source: assets/guides/uat-checklist/template.md
+    stage: test
+    task: test-execution
 sensors:
   - id: spec-validate
     kind: sensor.script
     execution: computational
     builtin: spec-validate
     on_fail: block
-    fix_hint: 修正 delta spec 格式；确保每条 Requirement 至少有一个 Scenario，且需求文本符合 EARS 句式
+    fix_hint: Fix delta spec format; ensure each Requirement has >=1 Scenario and
+      EARS-style requirement text
     stage: dev
     task: propose
   - id: spec-trace
@@ -326,7 +580,6 @@ sensors:
     execution: computational
     builtin: spec-trace
     on_fail: block
-    fix_hint: 为未覆盖的 Scenario 补充测试，或在测试标题中字面引用 Scenario 名称
     stage: dev
     task: verify
   - id: ai-spec-review
@@ -335,7 +588,6 @@ sensors:
     builtin: rubric
     on_fail: warn
     budget_tokens: 8000
-    fix_hint: 根据 rubric 评审意见收紧规格表述，消除模糊或不可测量的需求
     stage: dev
     task: verify
   - id: fixture-guard
@@ -346,13 +598,12 @@ sensors:
       - tests/fixtures/**
     builtin: fixture-hash
     on_fail: block
-    fix_hint: 已批准的 fixture 不可修改；如需变更请通过 waiver 流程重新批准
   - id: typecheck
     kind: sensor.script
     execution: computational
     builtin: typecheck
     on_fail: block
-    fix_hint: 修复 tsc 报告的类型错误
+    fix_hint: Fix TypeScript errors reported by tsc
     stage: dev
     task: apply
   - id: lint
@@ -360,7 +611,7 @@ sensors:
     execution: computational
     builtin: lint
     on_fail: block
-    fix_hint: 修复 lint 违规
+    fix_hint: Fix lint violations
     stage: dev
     task: apply
   - id: unit-changed
@@ -368,7 +619,7 @@ sensors:
     execution: computational
     builtin: unit-changed
     on_fail: block
-    fix_hint: 修复与当前 diff 相关的失败测试
+    fix_hint: Fix failing tests related to your diff
     stage: dev
     task: apply
   - id: mutation-probe
@@ -376,7 +627,7 @@ sensors:
     execution: computational
     builtin: mutation-probe
     on_fail: block
-    fix_hint: 加强场景测试——避免桩和恒真断言
+    fix_hint: Strengthen scenario tests — avoid stubs and tautological assertions
     stage: dev
     task: verify
   - id: requirements-complete
@@ -384,7 +635,7 @@ sensors:
     execution: computational
     builtin: requirements-complete
     on_fail: block
-    fix_hint: 填写 requirements/ 并在 proposal.md 中链接 PRD
+    fix_hint: Fill requirements/ artifacts and link PRD in proposal.md
     stage: dev
     task: propose
   - id: design-hld-complete
@@ -392,7 +643,8 @@ sensors:
     execution: computational
     builtin: design-hld-complete
     on_fail: block
-    fix_hint: 补全 design/overview.md 概要设计章节
+    fix_hint: Complete design/overview.md HLD sections (API, ADR, Observability,
+      Rollback)
     stage: dev
     task: design
   - id: design-lld-complete
@@ -400,7 +652,7 @@ sensors:
     execution: computational
     builtin: design-lld-complete
     on_fail: warn
-    fix_hint: 补充 design/ui/pages.md 与 components LLD
+    fix_hint: Add design/ui/pages.md and per-page LLD under design/ui/components/
     stage: dev
     task: design
   - id: design-spec-align
@@ -408,7 +660,7 @@ sensors:
     execution: computational
     builtin: design-spec-align
     on_fail: warn
-    fix_hint: 确保设计中的 API 路径出现在 delta spec
+    fix_hint: Ensure API paths in design appear in delta specs
     stage: dev
     task: design
   - id: plan-coverage
@@ -416,7 +668,7 @@ sensors:
     execution: computational
     builtin: plan-coverage
     on_fail: warn
-    fix_hint: 运行 hx plan 生成 @design= 与 delivery-trace.yaml
+    fix_hint: Run hx plan to generate @design= and delivery-trace.yaml handoff
     stage: dev
     task: plan
   - id: design-drift
@@ -424,15 +676,49 @@ sensors:
     execution: computational
     builtin: design-drift
     on_fail: warn
-    fix_hint: 实现 delivery-trace 中的 code_hints 或更新追溯文件
+    fix_hint: Implement files listed in delivery-trace code_hints or update the trace
     stage: dev
     task: verify
+  - id: uat-complete
+    kind: sensor.script
+    execution: computational
+    builtin: uat-complete
+    on_fail: block
+    fix_hint: Complete change/uat-checklist.md with scenario walkthrough and sign-off
+    stage: test
+    task: test-execution
+  - id: drift
+    kind: sensor.drift
+    execution: computational
+    builtin: drift
+    on_fail: warn
+    fix_hint: Run hx sync; fix spec↔code or design↔code drift; hx adapter sync for
+      adapter drift
+    stage: dev
+    task: verify
+  - id: integration-smoke
+    kind: sensor.script
+    execution: computational
+    builtin: integration-smoke
+    on_fail: warn
+    timeout_ms: 120000
+    fix_hint: Add npm run test:integration or fix failing integration tests
+    stage: dev
+    task: verify
+  - id: prototype-complete
+    kind: sensor.script
+    execution: computational
+    builtin: prototype-complete
+    on_fail: block
+    fix_hint: Add design/ui/pages.md or docs/prd/<slug>/prototype/pages.md (prototype-wireframe)
+    stage: dev
+    task: design
   - id: prd-complete
     kind: sensor.script
     execution: computational
     builtin: prd-complete
     on_fail: block
-    fix_hint: 补全 docs/prd/<slug>.md
+    fix_hint: Complete docs/prd/<slug>.md per prd-template
     stage: req
     task: prd-writing
   - id: prd-approved
@@ -440,7 +726,8 @@ sensors:
     execution: computational
     builtin: prd-approved
     on_fail: block
-    fix_hint: 人工批准 PRD：hx gate approve --gate prd --prd <slug> --approver <姓名>
+    fix_hint: "Human approves PRD: hx gate approve --gate prd --prd <slug>
+      --approver <name>"
     stage: req
     task: prd-writing
   - id: arch-hld-complete
@@ -448,7 +735,7 @@ sensors:
     execution: computational
     builtin: arch-hld-complete
     on_fail: block
-    fix_hint: 补全 docs/architecture/overview.md
+    fix_hint: Complete docs/architecture/overview.md HLD sections
     stage: arch
     task: subsystem-division
   - id: arch-registry-complete
@@ -456,7 +743,7 @@ sensors:
     execution: computational
     builtin: arch-registry-complete
     on_fail: block
-    fix_hint: 修复 registry.yaml
+    fix_hint: Fix registry.yaml and ensure active modules have LLD paths
     stage: arch
     task: subsystem-division
   - id: arch-lld-complete
@@ -464,7 +751,7 @@ sensors:
     execution: computational
     builtin: arch-lld-complete
     on_fail: block
-    fix_hint: 补全模块 LLD
+    fix_hint: Complete module LLD under docs/architecture/modules/<id>/lld.md
     stage: arch
     task: internal-interface
   - id: arch-module-boundary
@@ -472,7 +759,7 @@ sensors:
     execution: computational
     builtin: arch-module-boundary
     on_fail: warn
-    fix_hint: 解决 capabilities 重复归属
+    fix_hint: Resolve duplicate capability ownership in registry.yaml
     stage: arch
     task: internal-interface
   - id: arch-change-align
@@ -480,7 +767,7 @@ sensors:
     execution: computational
     builtin: arch-change-align
     on_fail: block
-    fix_hint: 确保 touched domains 映射到模块 LLD
+    fix_hint: Ensure touched domains map to module LLD in docs/architecture/
     stage: dev
     task: design
   - id: arch-approved
@@ -488,7 +775,7 @@ sensors:
     execution: computational
     builtin: arch-approved
     on_fail: block
-    fix_hint: 人工批准全局架构：hx gate approve --gate arch --approver <姓名>
+    fix_hint: "Human approves global HLD: hx gate approve --gate arch --approver <name>"
     stage: arch
     task: subsystem-division
   - id: arch-drift
@@ -496,7 +783,7 @@ sensors:
     execution: computational
     builtin: arch-drift
     on_fail: warn
-    fix_hint: 运行 hx arch promote <change> 将 design 沉淀到模块 LLD
+    fix_hint: Run hx arch promote <change> to沉淀 design into module LLD
     stage: dev
     task: verify
   - id: wo-req-arch-clear
@@ -504,7 +791,7 @@ sensors:
     execution: computational
     builtin: wo-req-arch-clear
     on_fail: block
-    fix_hint: 关闭待审 req/arch 工单：hx wo inbox
+    fix_hint: "Close pending req/arch work orders: hx wo inbox"
     stage: dev
     task: propose
   - id: requirements-extended-complete
@@ -512,7 +799,8 @@ sensors:
     execution: computational
     builtin: requirements-extended-complete
     on_fail: block
-    fix_hint: 填写扩展 requirements/ 制品（调研、业务流程、集成）
+    fix_hint: Fill extended requirements/ artifacts (research, business flows,
+      integrations)
     stage: dev
     task: propose
   - id: test-cases-complete
@@ -520,7 +808,7 @@ sensors:
     execution: computational
     builtin: test-cases-complete
     on_fail: block
-    fix_hint: 完成 test-cases/overview.md — hx test-cases init
+    fix_hint: Complete test-cases/overview.md — hx test-cases init
     stage: test
     task: test-case-design
   - id: test-cases-approved
@@ -528,7 +816,7 @@ sensors:
     execution: computational
     builtin: test-cases-approved
     on_fail: block
-    fix_hint: 提交并批准测试用例：hx test-cases submit
+    fix_hint: "Submit and approve test cases: hx test-cases submit"
     stage: test
     task: test-case-design
   - id: bugs-closed
@@ -536,15 +824,87 @@ sensors:
     execution: computational
     builtin: bugs-closed
     on_fail: block
-    fix_hint: 关闭或修复 open bug：hx bug list
-    stage: dev
-    task: verify
+    fix_hint: "Close or fix open bugs: hx bug list"
+    stage: test
+    task: test-execution
+  - id: test-report-complete
+    kind: sensor.script
+    execution: computational
+    builtin: test-report-complete
+    on_fail: block
+    fix_hint: "Write changes/<id>/test-report.md — hx test report init <change>"
+    stage: test
+    task: test-execution
+  - id: req-biz-understanding
+    kind: sensor.script
+    execution: computational
+    builtin: req-biz-understanding
+    on_fail: warn
+    fix_hint: Add docs/prd/<slug>/research.md notes or fill PRD goals
+    stage: req
+    task: biz-understanding
+  - id: req-research-complete
+    kind: sensor.script
+    execution: computational
+    builtin: req-research-complete
+    on_fail: block
+    fix_hint: Fill docs/prd/<slug>/research.md — hx req research init <slug>
+    stage: req
+    task: requirements-research
+  - id: req-analysis-complete
+    kind: sensor.script
+    execution: computational
+    builtin: req-analysis-complete
+    on_fail: block
+    fix_hint: Fill docs/prd/<slug>/analysis.md — hx req analysis init <slug>
+    stage: req
+    task: requirements-analysis
+  - id: org-prototype-complete
+    kind: sensor.script
+    execution: computational
+    builtin: org-prototype-complete
+    on_fail: block
+    fix_hint: Fill docs/prd/<slug>/prototype/pages.md — hx req prototype init <slug>
+    stage: req
+    task: prototype-design
+  - id: arch-tech-selection-complete
+    kind: sensor.script
+    execution: computational
+    builtin: arch-tech-selection-complete
+    on_fail: block
+    fix_hint: Add ## 技术选型 / Technology Selection to docs/architecture/overview.md
+    stage: arch
+    task: tech-selection
+  - id: arch-database-design-complete
+    kind: sensor.script
+    execution: computational
+    builtin: arch-database-design-complete
+    on_fail: block
+    fix_hint: Add ## 数据库设计 / Database Design to overview.md
+    stage: arch
+    task: database-design
+  - id: arch-interface-design-complete
+    kind: sensor.script
+    execution: computational
+    builtin: arch-interface-design-complete
+    on_fail: block
+    fix_hint: Add ## 接口设计 / Interface Design to overview.md
+    stage: arch
+    task: interface-design
+  - id: arch-key-mechanisms-complete
+    kind: sensor.script
+    execution: computational
+    builtin: arch-key-mechanisms-complete
+    on_fail: warn
+    fix_hint: Add ## 关键设计机制 or ## ADR to overview.md
+    stage: arch
+    task: key-mechanisms
   - id: wo-lld-done
     kind: sensor.script
     execution: computational
     builtin: wo-lld-done
     on_fail: block
-    fix_hint: 将 lld-design 工单标记完成：hx wo done <id>
+    fix_hint: "Mark lld-design work orders done: hx wo done <id>"
     stage: dev
     task: plan
   - id: arch-lld-approved
@@ -552,14 +912,14 @@ sensors:
     execution: computational
     builtin: arch-lld-approved
     on_fail: block
-    fix_hint: 批准模块 LLD：hx approve arch-lld <module> --approver <姓名>
-    stage: dev
-    task: design
+    fix_hint: "Approve module LLD: hx approve arch-lld <module> --approver <name>"
+    stage: arch
+    task: internal-interface
   - id: change-request-applied
     kind: sensor.script
     execution: computational
     builtin: change-request-applied
     on_fail: block
-    fix_hint: 批准后应用待处理变更单
+    fix_hint: Apply pending change requests after approval
     stage: dev
     task: design

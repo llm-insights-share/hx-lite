@@ -74,6 +74,36 @@ export function scaffoldTestCases(ws: Workspace, change: string): string {
   return overview;
 }
 
+/** Scaffold change-level test execution report. */
+export function scaffoldTestReport(ws: Workspace, change: string): string {
+  const file = path.join(ws.changeDir(change), "test-report.md");
+  if (!fs.existsSync(file)) {
+    fs.writeFileSync(
+      file,
+      `# Test Report: ${change}
+
+## Execution summary
+
+| Suite | Result | Notes |
+| --- | --- | --- |
+| | Pass/Fail | |
+
+## UAT
+
+- Checklist: uat-checklist.md
+- Sign-off:
+
+## Open defects
+
+| Bug ID | Severity | Status |
+| --- | --- | --- |
+`,
+      "utf8"
+    );
+  }
+  return file;
+}
+
 export function testCasesProblems(ws: Workspace, change: string): string[] {
   const problems: string[] = [];
   const overview = path.join(ws.testCasesDir(change), "overview.md");

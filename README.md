@@ -39,7 +39,7 @@ HarnessX 把 AI 交付当作**控制工程问题**来解：在每个 stage/task 
 ## 30 秒上手
 
 ```bash
-git clone https://github.com/llm-insights-share/harnessX.git && cd harnessX
+git clone https://github.com/llm-insights-share/hx-lite.git && cd hx-lite
 npm install && npm link    # 全局可用 hx / hxhub
 
 # Owner：按 profile 从 hub 拉取 stage.task 资产写入项目
@@ -70,15 +70,12 @@ hx gate check my-feature --stage dev --task propose
 
 | 文档 | 说明 |
 | --- | --- |
-| [使用说明（中文）](docs/usage-guide.zh-CN.md) | 概念、初始化、定制 |
-| [操作说明（中文）](docs/operation-guide.zh-CN.md) | 按 stage 的命令与配置 |
-| [开发人员应用交付使用手册](docs/dev-manual.zh-CN.md) | dev 阶段交付、前后端多人协同 |
-| [产品经理需求文档编写使用手册](docs/pm-req-manual.zh-CN.md) | 组织级 PRD 编写与批准 |
-| [架构师概要设计使用手册](docs/arch-hld-manual.zh-CN.md) | 组织级 HLD/LLD |
+| [企业 AI 交付全过程手册](docs/enterprise-delivery.zh-CN.md) | 按角色：产品经理 / 技术经理 / 架构师 / 开发 / 测试 |
 | [hxhub 使用手册](docs/hxhub-usage.zh-CN.md) | Hub 资产创建、发布与治理 |
-| [20 个场景示例](docs/examples/README.md) | 从入门到企业 SDLC 的 walkthrough |
 | [四阶段模型权威定义](docs/delivery-stages.zh-CN.md) | stage / task 清单 |
-| [English usage guide](docs/usage-guide.en.md) | English documentation |
+| [阶段任务资产矩阵](docs/stage-task-assets.zh-CN.md) | 每个 task 的 Command / Skill / Template / Suite / Sensor |
+| [概念词表](docs/glossary.zh-CN.md) | 术语速查 |
+| [场景示例](docs/examples/README.md) | 端到端 walkthrough |
 
 ---
 

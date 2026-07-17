@@ -1,0 +1,12 @@
+id: interface-design
+kind: guide.skill
+version: 1.0.0
+origin: hub
+status: enforced
+execution: inferential
+provenance:
+  - type: golden-package
+    ref: harnessx/hub-golden
+metrics: {}
+stage: arch
+task: interface-design

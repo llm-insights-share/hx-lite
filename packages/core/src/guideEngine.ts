@@ -18,25 +18,44 @@ import { loadSkillPackage } from "./skill.js";
  */
 
 const TASK_ARTIFACTS: Record<string, string[]> = {
-  "req.requirements-research": ["explore.md"],
+  "req.biz-understanding": [],
+  "req.requirements-research": ["research.md"],
+  "req.requirements-analysis": ["analysis.md"],
+  "req.prototype-design": ["prototype/pages.md"],
+  "req.prd-writing": [],
+  "arch.subsystem-division": [],
+  "arch.tech-selection": [],
+  "arch.database-design": [],
+  "arch.interface-design": [],
+  "arch.key-mechanisms": [],
+  "arch.internal-interface": [],
   "dev.propose": ["proposal.md"],
   "dev.design": ["proposal.md"],
   "dev.plan": ["tasks.md"],
   "test.test-case-design": ["tasks.md"],
+  "test.test-execution": ["test-report.md", "uat-checklist.md"],
   "dev.apply": ["tasks.md"],
   "dev.verify": ["tasks.md"],
   "dev.archive": []
 };
 
 const TASK_PERMISSIONS: Record<string, string> = {
-  "req.requirements-research": "READ-ONLY. You may read any file; you must not modify code or specs.",
+  "req.biz-understanding": "You may edit docs/prd/<slug>/research.md notes only.",
+  "req.requirements-research": "You may edit docs/prd/<slug>/research.md. Do not modify code.",
+  "req.requirements-analysis": "You may edit docs/prd/<slug>/analysis.md and docs/prd/<slug>.md analysis sections.",
+  "req.prototype-design": "You may edit docs/prd/<slug>/prototype/** only.",
   "req.prd-writing": "You may edit docs/prd/** only. Do not create change artifacts or code.",
   "arch.subsystem-division": "You may edit docs/architecture/overview.md, registry.yaml, and adr/**. No change artifacts or code.",
+  "arch.tech-selection": "You may edit the Technology Selection section of docs/architecture/overview.md.",
+  "arch.database-design": "You may edit the Database Design section of docs/architecture/overview.md.",
+  "arch.interface-design": "You may edit the Interface Design section of docs/architecture/overview.md.",
+  "arch.key-mechanisms": "You may edit Key Mechanisms / ADR sections of docs/architecture/overview.md.",
   "arch.internal-interface": "You may edit docs/architecture/modules/<module>/** for the target module only.",
   "dev.propose": "You may edit changes/<id>/proposal.md, requirements/**, and changes/<id>/specs/**.",
   "dev.design": "You may edit changes/<id>/design/**, design.md, and changes/<id>/specs/**.",
   "dev.plan": "You may edit only changes/<id>/tasks.md and traces/delivery-trace.yaml.",
   "test.test-case-design": "You may edit changes/<id>/test-cases/** and tasks.md test-track items only.",
+  "test.test-execution": "You may edit uat-checklist.md, test-report.md, and bug records. Do not weaken production tests to force green.",
   "dev.apply": "You may edit source code and tests for unchecked tasks in tasks.md. Never edit meta.yaml, fixtures, or approved test assertions.",
   "dev.verify": "You may fix code to satisfy sensors. Never weaken tests or specs to make sensors pass.",
   "dev.archive": "No edits. Archival is performed by the hx CLI."

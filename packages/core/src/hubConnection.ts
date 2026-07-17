@@ -17,6 +17,7 @@ export type HubAction =
   | "hub.policy"
   | "hub.seed"
   | "hub.push"
+  | "hub.push-github"
   | "hub.eval";
 
 const CONSUMER_ACTIONS = new Set<HubAction>([
@@ -42,6 +43,7 @@ const MAINTAINER_ACTIONS = new Set<HubAction>([
   "hub.policy",
   "hub.seed",
   "hub.push",
+  "hub.push-github",
   "hub.eval"
 ]);
 

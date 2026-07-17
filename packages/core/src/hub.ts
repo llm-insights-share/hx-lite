@@ -244,33 +244,45 @@ export interface HubSyncEntry {
   id: string;
   installed: string;
   latest: string;
-  state: "up-to-date" | "update-available" | "locally-modified" | "update-and-local-changes";
+  state: "up-to-date" | "update-available" | "locally-modified" | "update-and-local-changes" | "available";
 }
 
 /** hub sync: compare installed cache entries against the hub (upstream vs local override 三方对比). */
 export function hubSync(ws: Workspace, hubRoot: string): HubSyncEntry[] {
   const cache = path.join(ws.base, ".hub-cache");
-  if (!fs.existsSync(cache)) return [];
   const out: HubSyncEntry[] = [];
-  for (const e of fs.readdirSync(cache, { withFileTypes: true })) {
-    if (!e.isDirectory()) continue;
-    const installedDir = path.join(cache, e.name);
-    const installed = loadAssetDir(installedDir, "hub");
-    if (!installed) continue;
-    const versions = hubVersions(hubRoot, e.name);
-    const latest = versions.at(-1) ?? installed.manifest.version;
-    const upstreamDir = hubPackageDir(hubRoot, e.name, installed.manifest.version, installed.manifest.kind);
-    const meta = readSyncMeta(installedDir);
-    const baselineHash = meta?.baselineHash ?? installed.contentHash;
-    const locallyModified = assetContentHash(installedDir) !== baselineHash;
-    const updateAvailable = latest !== installed.manifest.version;
-    out.push({
-      id: e.name,
-      installed: installed.manifest.version,
-      latest,
-      state: updateAvailable && locallyModified ? "update-and-local-changes" : updateAvailable ? "update-available" : locallyModified ? "locally-modified" : "up-to-date"
-    });
+  const hubIds = [...new Set(listHubPackageRefs(hubRoot).map((r) => r.id))];
+  if (fs.existsSync(cache)) {
+    for (const e of fs.readdirSync(cache, { withFileTypes: true })) {
+      if (!e.isDirectory() || e.name.startsWith(".")) continue;
+      const installedDir = path.join(cache, e.name);
+      const installed = loadAssetDir(installedDir, "hub");
+      if (!installed) continue;
+      const versions = hubVersions(hubRoot, e.name);
+      const latest = versions.at(-1) ?? installed.manifest.version;
+      const meta = readSyncMeta(installedDir);
+      const baselineHash = meta?.baselineHash ?? installed.contentHash;
+      const locallyModified = assetContentHash(installedDir) !== baselineHash;
+      const updateAvailable = latest !== installed.manifest.version;
+      out.push({
+        id: e.name,
+        installed: installed.manifest.version,
+        latest,
+        state: updateAvailable && locallyModified ? "update-and-local-changes" : updateAvailable ? "update-available" : locallyModified ? "locally-modified" : "up-to-date"
+      });
+    }
   }
+
+  // Hub packages not yet installed in this workspace (new skill / template / rubric).
+  const installedIds = new Set(out.map((e) => e.id));
+  for (const id of hubIds) {
+    if (installedIds.has(id)) continue;
+    const versions = hubVersions(hubRoot, id);
+    const latest = versions.at(-1);
+    if (!latest) continue;
+    out.push({ id, installed: "-", latest, state: "available" });
+  }
+  out.sort((a, b) => a.id.localeCompare(b.id));
   return out;
 }
 
@@ -302,6 +314,15 @@ export function hubSyncApply(ws: Workspace, hubRoot: string, opts: HubSyncApplyO
     if (opts.only?.length && !opts.only.includes(entry.id)) continue;
     if (entry.state === "up-to-date") {
       results.push({ id: entry.id, action: "skipped", detail: "up-to-date" });
+      continue;
+    }
+    if (entry.state === "available") {
+      results.push({
+        id: entry.id,
+        action: "skipped",
+        detail: `available ${entry.latest} — install with: hxhub add ${entry.id}@${entry.latest}`,
+        toVersion: entry.latest
+      });
       continue;
     }
 

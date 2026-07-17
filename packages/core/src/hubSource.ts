@@ -124,6 +124,154 @@ export interface HubGitPushOptions {
   gitExec?: GitExec;
 }
 
+export interface PushLocalHubToRemoteOptions {
+  remote: string;
+  branch?: string;
+  message?: string;
+  /** When true, skip push if working tree is clean and remote already has commits (default false). */
+  allowEmpty?: boolean;
+  /** Integrate remote commits before push (default: rebase). Use "none" to fail on non-ff. */
+  integrate?: "rebase" | "merge" | "none";
+  gitExec?: GitExec;
+}
+
+export interface PushLocalHubToRemoteResult {
+  committed: boolean;
+  pushed: boolean;
+  branch: string;
+  remote: string;
+}
+
+function gitConfigValue(execGit: GitExec, cwd: string, key: string): string | null {
+  const r = execGit(["config", "--get", key], cwd);
+  if (r.status !== 0) return null;
+  const value = r.stdout.trim();
+  return value || null;
+}
+
+function gitOrThrow(execGit: GitExec, cwd: string, args: string[], action: string): string {
+  const r = execGit(args, cwd);
+  const out = `${r.stdout}${r.stderr}`.trim();
+  if (r.status !== 0) throw new Error(`failed to ${action}: git ${args.join(" ")}${out ? `\n${out}` : ""}`);
+  return out;
+}
+
+/**
+ * Initialize (if needed), commit, and push a locally generated hub directory to a Git remote (e.g. GitHub).
+ * Used after `hxhub seed` without `--submit`, or for maintainer first-time publish of a local hub clone.
+ * By default fetches remote and rebases local commits onto origin/<branch> before pushing (non-ff safe).
+ */
+export function pushLocalHubToRemote(hubRoot: string, opts: PushLocalHubToRemoteOptions): PushLocalHubToRemoteResult {
+  const execGit = opts.gitExec ?? runGit;
+  const hubDir = path.resolve(hubRoot);
+  if (!fs.existsSync(hubDir)) throw new Error(`hub directory not found: ${hubDir}`);
+
+  const remote = opts.remote.trim();
+  if (!remote) throw new Error("--remote <git-url> is required (e.g. git@github.com:your-org/hx-hub.git)");
+
+  const branch = opts.branch ?? "main";
+  const message = opts.message ?? "chore: hub update";
+  const integrate = opts.integrate ?? "rebase";
+
+  if (!fs.existsSync(path.join(hubDir, ".git"))) {
+    gitOrThrow(execGit, hubDir, ["init"], "initialize git repository");
+  }
+
+  const remoteExists = execGit(["remote", "get-url", "origin"], hubDir);
+  if (remoteExists.status === 0) {
+    const existing = remoteExists.stdout.trim();
+    if (existing !== remote) {
+      throw new Error(`origin already exists with a different URL (${existing}); expected ${remote}`);
+    }
+  } else {
+    gitOrThrow(execGit, hubDir, ["remote", "add", "origin", remote], "add origin remote");
+  }
+
+  const status = execGit(["status", "--porcelain"], hubDir);
+  if (status.status !== 0) throw new Error(`git status failed: ${status.stderr || status.stdout}`);
+  const dirty = status.stdout.trim().length > 0;
+
+  let committed = false;
+  if (dirty) {
+    gitOrThrow(execGit, hubDir, ["add", "."], "stage hub files");
+    const gitName = gitConfigValue(execGit, hubDir, "user.name");
+    const gitEmail = gitConfigValue(execGit, hubDir, "user.email");
+    const commitArgs = ["commit", "-m", message];
+    if (!gitName) commitArgs.unshift("-c", "user.name=HarnessX Hub Bot");
+    if (!gitEmail) commitArgs.unshift("-c", "user.email=harnessx-hub-bot@local");
+    const commit = execGit(commitArgs, hubDir);
+    if (commit.status !== 0) {
+      const out = `${commit.stdout}${commit.stderr}`;
+      if (!/nothing to commit|no changes added/i.test(out)) throw new Error(`failed to create commit${out.trim() ? `\n${out.trim()}` : ""}`);
+    } else {
+      committed = true;
+    }
+  } else if (!opts.allowEmpty) {
+    // Still push — remote may be behind or first push with existing commit
+  }
+
+  gitOrThrow(execGit, hubDir, ["branch", "-M", branch], "set default branch");
+
+  execGit(["fetch", "origin", branch], hubDir);
+  const remoteHead = execGit(["rev-parse", `origin/${branch}`], hubDir);
+  const localHead = execGit(["rev-parse", "HEAD"], hubDir);
+  const mergeBase = remoteHead.status === 0 ? execGit(["merge-base", "HEAD", `origin/${branch}`], hubDir) : { status: 1, stdout: "", stderr: "" };
+  const behind =
+    remoteHead.status === 0 &&
+    localHead.status === 0 &&
+    remoteHead.stdout.trim() !== localHead.stdout.trim() &&
+    (mergeBase.status !== 0 || mergeBase.stdout.trim() !== remoteHead.stdout.trim());
+
+  if (behind && integrate !== "none" && remoteHead.status === 0) {
+    const unrelated = mergeBase.status !== 0;
+    if (integrate === "rebase") {
+      const rebase = execGit(["rebase", `origin/${branch}`], hubDir);
+      if (rebase.status !== 0) {
+        execGit(["rebase", "--abort"], hubDir);
+        // Fall back to merge for unrelated or conflicted histories
+        const mergeArgs = unrelated
+          ? ["merge", "--allow-unrelated-histories", "--no-edit", `origin/${branch}`]
+          : ["merge", "--no-edit", `origin/${branch}`];
+        const merge = execGit(mergeArgs, hubDir);
+        if (merge.status !== 0) {
+          throw new Error(
+            `failed to integrate remote ${branch} before push:\n${(rebase.stderr || rebase.stdout).trim()}\n${(merge.stderr || merge.stdout).trim()}\n` +
+              `Resolve conflicts in ${hubDir}, then re-run hxhub push-github.`
+          );
+        }
+      }
+    } else {
+      const mergeArgs = unrelated
+        ? ["merge", "--allow-unrelated-histories", "--no-edit", `origin/${branch}`]
+        : ["merge", "--no-edit", `origin/${branch}`];
+      const merge = execGit(mergeArgs, hubDir);
+      if (merge.status !== 0) {
+        throw new Error(
+          `failed to merge origin/${branch} before push:\n${(merge.stderr || merge.stdout).trim()}\n` +
+            `Resolve conflicts in ${hubDir}, then re-run hxhub push-github.`
+        );
+      }
+    }
+  }
+
+  const push = execGit(["push", "-u", "origin", branch], hubDir);
+  if (push.status !== 0) {
+    const detail = (push.stderr || push.stdout || "").trim();
+    const authHint =
+      isGitHubHubRef(remote) &&
+      /Permission denied \(publickey\)|Authentication failed|Could not read from remote repository/i.test(detail)
+        ? `\nSSH authentication failed. Verify: ssh -T git@github.com`
+        : "";
+    const integrateHint =
+      /fetch first|non-fast-forward|rejected/i.test(detail) && integrate === "none"
+        ? `\nTip: use default --integrate rebase (or merge) onto origin/${branch}, or: git -C ${hubDir} pull --rebase origin ${branch}`
+        : "";
+    throw new Error(`git push failed: ${detail}${authHint}${integrateHint}`);
+  }
+
+  return { committed, pushed: true, branch, remote };
+}
+
 /** Commit and push hub repo changes (for maintainer workflows). */
 export function hubGitPush(hubRoot: string, opts: HubGitPushOptions): { committed: boolean; pushed: boolean } {
   const execGit = opts.gitExec ?? runGit;

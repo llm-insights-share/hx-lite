@@ -55,6 +55,16 @@ describe("profile assets", () => {
     expect(res.ws.readConfig().active_stages).toEqual(["dev"]);
   });
 
+  it("createProject rejects existing harness unless overwrite is set", () => {
+    const root = tmp();
+    const hub = path.join(root, "hub");
+    seedGoldenHub(hub);
+    createProject(root, { profile: "lite", hubRoot: hub, actor: "a" });
+    expect(() => createProject(root, { profile: "lite", hubRoot: hub, actor: "b" })).toThrow(/already initialized/);
+    const res = createProject(root, { profile: "lite", hubRoot: hub, actor: "b", overwrite: true });
+    expect(res.ws.readConfig().hub).toEqual({ source: hub, role: "consumer", actor: "b" });
+  });
+
   it("localInit rejects a stage not in the project profile", () => {
     const root = tmp();
     const hub = path.join(root, "hub");

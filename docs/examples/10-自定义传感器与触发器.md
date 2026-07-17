@@ -50,7 +50,8 @@ sensors:
   - id: secscan
     kind: sensor.script
     execution: computational
-    phase: [verify]
+    stage: dev
+    task: verify
     plugin: "cmd:python3 harnessX/plugins/secscan_adapter.py"
     on_fail: block
     timeout_ms: 180000

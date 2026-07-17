@@ -9,6 +9,7 @@ import {
   readMeta,
   profileStages,
   profileDevTasks,
+  profileReqTasks,
   orchestration
 } from "@harnessx/core";
 
@@ -31,12 +32,18 @@ describe("four-stage delivery model", () => {
     expect(meta.task).toBe("propose");
   });
 
-  it("resolves profile stages and dev_tasks from harness.yaml", () => {
+  it("resolves profile stages and tasks from harness.yaml", () => {
     const { ws } = initWorkspace(tmp());
     const harness = ws.readHarness();
     expect(profileStages(harness, "standard")).toContain("dev");
     expect(profileDevTasks(harness, "lite")).toEqual(["propose", "apply", "archive"]);
     expect(profileDevTasks(harness, "enterprise")).toContain("plan");
+    expect(profileReqTasks(harness, "standard")).toContain("prd-writing");
+    expect(profileReqTasks(harness, "standard")).toEqual([
+      "requirements-analysis",
+      "prototype-design",
+      "prd-writing"
+    ]);
   });
 
   it("nextTask advances within dev stage", () => {

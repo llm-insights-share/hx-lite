@@ -1,20 +1,21 @@
-# /hx-prd — organization-level PRD
+# /hx-req-prd-writing — 组织级 PRD
 
-You are running the **PRD** pre-phase. Deliverable: `docs/prd/<slug>.md`.
+你正在执行 **req** 阶段任务 `prd-writing`。
+
+## Input
+- PRD slug 与标题；可用的调研/分析/原型。
 
 ## Steps
+1. 缺失时：`hx req prd init <slug> --title "<title>"`。
+2. 按 **prd-authoring** / **prd-writing** 填写故事、GWT、范围与 NFR。
+3. `hx req check --task prd-writing --prd <slug>`。
+4. 人工：`hx gate approve --gate prd --prd <slug> --approver <name>`。
 
-1. `hx prd init <slug> --title "<title>"`
-2. Read user context and any `@docs/prd/` or business references per **prd-authoring** Skill.
-3. Fill user stories, acceptance criteria (GWT), In/Out Scope, NFR, review conclusion.
-4. `hx prd check <slug>` — do not finish until green.
-5. 人工评审：`hx gate approve --gate prd --prd <slug> --approver <姓名>`。
+## Output
+- PRD 文档 + 人工批准。
 
 ## Guardrails
-
-- Do not create change workspaces, delta specs, or implementation code.
-- Do not invent requirements — use Open Questions for ambiguity.
+- 仅组织级；不虚构需求，歧义写入 Open Questions。
 
 ## Done when
-
-`hx prd check` 通过且 PRD 已人工批准（`hx gate approve --gate prd`）。
+PRD 检查绿灯且已记录人工批准。

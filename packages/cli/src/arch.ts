@@ -37,10 +37,37 @@ export function registerArchCommands(program: Command): void {
       console.log(`Wrote ${res.registry}`);
     });
 
-  arch.command("check").action(async () => {
-    const res = await runHarnessSuite(ws(), "arch-check", runnerOpts());
-    exitOnSuite(res);
-  });
+  arch.command("check")
+    .option("--task <id>", "arch task id (omit for legacy arch-check suite / all required)")
+    .option("--module <id>", "module id for internal-interface")
+    .action(async (opts: { task?: string; module?: string }) => {
+      const w = ws();
+      if (opts.task) {
+        const { orgStageGateCheck } = await import("@harnessx/core");
+        const res = await orgStageGateCheck(w, "arch", opts.task, runnerOpts(), { moduleId: opts.module });
+        for (const b of res.blockers) console.error(`BLOCKER  ${b}`);
+        for (const warn of res.warnings) console.warn(`warning  ${warn}`);
+        console.log(res.passed ? `GATE PASS (arch/${opts.task})` : `GATE BLOCKED (arch/${opts.task})`);
+        if (!res.passed) process.exit(1);
+        return;
+      }
+      if (opts.module) {
+        /* checking all required with module context for LLD */
+        const { orgStageGateCheckAll } = await import("@harnessx/core");
+        const results = await orgStageGateCheckAll(w, "arch", runnerOpts(), { moduleId: opts.module });
+        let failed = false;
+        for (const res of results) {
+          for (const b of res.blockers) console.error(`BLOCKER  ${b}`);
+          for (const warn of res.warnings) console.warn(`warning  ${warn}`);
+          console.log(res.passed ? `GATE PASS (arch/${res.task})` : `GATE BLOCKED (arch/${res.task})`);
+          if (!res.passed) failed = true;
+        }
+        if (failed) process.exit(1);
+        return;
+      }
+      const res = await runHarnessSuite(ws(), "arch-check", runnerOpts());
+      exitOnSuite(res);
+    });
 
   arch
     .command("promote <change>")

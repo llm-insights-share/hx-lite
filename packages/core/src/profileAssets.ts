@@ -4,11 +4,11 @@ import YAML from "yaml";
 import { AssetManifest, type DeliveryStage, type GuideDef, type HarnessYaml, type SensorDef, GUIDE_KINDS, SENSOR_KINDS } from "./schemas.js";
 import { DEFAULT_PROFILE_STAGES, STAGE_TASKS, type DeliveryStage as StageId } from "./stages.js";
 import { walkHubPackages, type HubPackageLocation } from "./hubPackagePaths.js";
-import { hubAdd, type HubRef } from "./hub.js";
+import { hubAdd } from "./hub.js";
 import { Workspace, writeYaml } from "./paths.js";
 import { guideDefFromHubAsset } from "./harnessCompose.js";
-import { loadAssetDir } from "./assets.js";
 import { SKILL_ENTRY } from "./skill.js";
+import { bindTaskSensorToSuites } from "./suiteBind.js";
 
 export interface ProfileTaskRef {
   stage: DeliveryStage;
@@ -161,6 +161,13 @@ function copyDir(src: string, dest: string) {
   }
 }
 
+function upsertDependency(deps: string[], id: string, version: string): void {
+  const next = deps.filter((d) => !d.startsWith(`${id}@`));
+  next.push(`${id}@${version}`);
+  deps.length = 0;
+  deps.push(...next);
+}
+
 /**
  * Install profile-resolved hub assets into the workspace:
  * - copies package into .hub-cache and local assets/
@@ -170,42 +177,44 @@ function copyDir(src: string, dest: string) {
 export function applyProfileAssets(ws: Workspace, hubRoot: string, profile: string): { installed: string[]; assets: ResolvedProfileAsset[] } {
   const resolution = resolveProfileAssets(hubRoot, profile);
   const harness = ws.readHarness();
-  const guideIds = new Set(harness.guides.map((g) => g.id));
-  const sensorIds = new Set(harness.sensors.map((s) => s.id));
   const installed: string[] = [];
 
   for (const asset of resolution.assets) {
-    const ref: HubRef = { id: asset.id, version: asset.version };
-    const { dir: cacheDir } = hubAdd(ws, hubRoot, ref);
+    const { dir: cacheDir } = hubAdd(ws, hubRoot, { id: asset.id, version: asset.version });
 
     const localDir = path.join(ws.assetsDir, asset.kind.startsWith("guide.") ? "guides" : "sensors", asset.id);
+    fs.rmSync(localDir, { recursive: true, force: true });
     copyDir(cacheDir, localDir);
 
-    const dep = `${asset.id}@${asset.version}`;
-    if (!harness.dependencies.includes(dep)) harness.dependencies.push(dep);
+    upsertDependency(harness.dependencies, asset.id, asset.version);
 
-    if (asset.kind.startsWith("guide.") && !guideIds.has(asset.id)) {
-      const def = guideDefFromHubAsset(ws, localDir, AssetManifest.parse(YAML.parse(fs.readFileSync(path.join(localDir, "asset.yaml"), "utf8"))));
-      harness.guides.push(def);
-      guideIds.add(asset.id);
-    } else if (asset.kind.startsWith("sensor.") && !sensorIds.has(asset.id)) {
-      const def = sensorDefFromHubAsset(ws, localDir, AssetManifest.parse(YAML.parse(fs.readFileSync(path.join(localDir, "asset.yaml"), "utf8"))));
-      harness.sensors.push(def);
-      sensorIds.add(asset.id);
+    const manifest = AssetManifest.parse(YAML.parse(fs.readFileSync(path.join(localDir, "asset.yaml"), "utf8")));
+    if (asset.kind.startsWith("guide.")) {
+      const def = guideDefFromHubAsset(ws, localDir, manifest);
+      const idx = harness.guides.findIndex((g) => g.id === asset.id);
+      if (idx >= 0) harness.guides[idx] = def;
+      else harness.guides.push(def);
+    } else if (asset.kind.startsWith("sensor.")) {
+      const def = sensorDefFromHubAsset(ws, localDir, manifest);
+      const idx = harness.sensors.findIndex((s) => s.id === asset.id);
+      if (idx >= 0) harness.sensors[idx] = def;
+      else harness.sensors.push(def);
+      bindTaskSensorToSuites(harness, def, profile);
     }
 
-    installed.push(dep);
+    installed.push(`${asset.id}@${asset.version}`);
   }
 
-  // Ensure profile exists and config will select it — merge DEFAULT if missing
   if (!harness.profiles[profile] && DEFAULT_PROFILE_STAGES[profile]) {
     const d = DEFAULT_PROFILE_STAGES[profile];
     harness.profiles[profile] = {
       stages: [...d.stages],
-      dev_tasks: d.dev_tasks,
-      test_tasks: d.test_tasks,
-      req_tasks: d.req_tasks,
-      arch_tasks: d.arch_tasks,
+      tasks: {
+        ...(d.req_tasks?.length ? { req: d.req_tasks.map((id) => ({ id })) } : {}),
+        ...(d.arch_tasks?.length ? { arch: d.arch_tasks.map((id) => ({ id })) } : {}),
+        ...(d.dev_tasks?.length ? { dev: d.dev_tasks.map((id) => ({ id })) } : {}),
+        ...(d.test_tasks?.length ? { test: d.test_tasks.map((id) => ({ id })) } : {})
+      },
       suites: {}
     };
   }

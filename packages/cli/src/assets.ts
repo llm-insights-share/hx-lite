@@ -45,6 +45,7 @@ import {
   contributionRefKey,
   readHubRepoPolicy,
   hubGitPush,
+  pushLocalHubToRemote,
   loadAssetDir,
   ensureDir,
   type AssetStatus,
@@ -89,53 +90,14 @@ interface SeedSubmitOptions {
   message: string;
 }
 
-function gitConfigValue(cwd: string, key: string): string | null {
-  const r = spawnSync("git", ["config", "--get", key], { cwd, encoding: "utf8" });
-  if ((r.status ?? 1) !== 0) return null;
-  const value = (r.stdout ?? "").trim();
-  return value || null;
-}
-
-function runGitOrThrow(cwd: string, args: string[], action: string): string {
-  const r = spawnSync("git", args, { cwd, encoding: "utf8" });
-  const out = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim();
-  if ((r.status ?? 1) !== 0) throw new Error(`failed to ${action}: git ${args.join(" ")}${out ? `\n${out}` : ""}`);
-  return out;
-}
-
 function submitSeededHub(target: string, opts: SeedSubmitOptions): void {
   if (!opts.submit) return;
-  if (!opts.remote) throw new Error("--remote <git-url> is required when --submit is enabled");
-
-  const gitDir = path.join(target, ".git");
-  if (!fs.existsSync(gitDir)) runGitOrThrow(target, ["init"], "initialize git repository");
-
-  const remoteExists = spawnSync("git", ["remote", "get-url", "origin"], { cwd: target, encoding: "utf8" });
-  if ((remoteExists.status ?? 1) === 0) {
-    const existing = (remoteExists.stdout ?? "").trim();
-    if (existing !== opts.remote) {
-      throw new Error(`origin already exists with a different URL (${existing}); expected ${opts.remote}`);
-    }
-  } else {
-    runGitOrThrow(target, ["remote", "add", "origin", opts.remote], "add origin remote");
-  }
-
-  runGitOrThrow(target, ["add", "."], "stage seeded hub files");
-  const gitName = gitConfigValue(target, "user.name");
-  const gitEmail = gitConfigValue(target, "user.email");
-  const commitArgs = ["commit", "-m", opts.message];
-  if (!gitName) commitArgs.unshift("-c", "user.name=HarnessX Seed Bot");
-  if (!gitEmail) commitArgs.unshift("-c", "user.email=harnessx-seed-bot@local");
-  const commit = spawnSync("git", commitArgs, { cwd: target, encoding: "utf8" });
-  if ((commit.status ?? 1) !== 0) {
-    const out = `${commit.stdout ?? ""}${commit.stderr ?? ""}`;
-    if (!/nothing to commit|no changes added/i.test(out)) {
-      throw new Error(`failed to create commit${out.trim() ? `\n${out.trim()}` : ""}`);
-    }
-  }
-
-  runGitOrThrow(target, ["branch", "-M", opts.branch], "set default branch");
-  runGitOrThrow(target, ["push", "-u", "origin", opts.branch], "push branch to origin");
+  const result = pushLocalHubToRemote(target, {
+    remote: opts.remote ?? "",
+    branch: opts.branch,
+    message: opts.message
+  });
+  console.log(`Submitted ${target} to ${result.remote} (${result.branch}, committed=${result.committed})`);
 }
 
 export function registerAssetCommands(program: Command): void {
@@ -218,7 +180,28 @@ export function registerAssetCommands(program: Command): void {
       console.log(`Seeded ${target} with ${pkgs.length} asset(s):`);
       for (const p of pkgs) console.log(`  ${p.id}@${p.version}`);
       submitSeededHub(target, opts);
-      if (opts.submit) console.log(`Submitted ${target} to ${opts.remote} (${opts.branch})`);
+    });
+  hub
+    .command("push-github [path]")
+    .description("Commit and push a locally generated hub directory to GitHub (or any Git remote)")
+    .requiredOption("--remote <git-url>", "Git remote URL (e.g. git@github.com:your-org/hx-hub.git)")
+    .option("--branch <name>", "remote branch name (default: main)", "main")
+    .option("--message <text>", "commit message", "chore: hub update")
+    .option("--integrate <mode>", "how to integrate remote commits before push: rebase|merge|none (default: rebase)", "rebase")
+    .action((hubPath: string | undefined, opts: { remote: string; branch?: string; message?: string; integrate?: string }) => {
+      hubCtx({}, "hub.push-github", false);
+      const target = path.resolve(hubPath ?? "harness-hub");
+      const integrateRaw = (opts.integrate ?? "rebase").toLowerCase();
+      if (!["rebase", "merge", "none"].includes(integrateRaw)) {
+        throw new Error(`--integrate must be rebase|merge|none (got ${opts.integrate})`);
+      }
+      const result = pushLocalHubToRemote(target, {
+        remote: opts.remote,
+        branch: opts.branch ?? "main",
+        message: opts.message ?? "chore: hub update",
+        integrate: integrateRaw as "rebase" | "merge" | "none"
+      });
+      console.log(`Pushed ${target} → ${result.remote} (${result.branch}, committed=${result.committed})`);
     });
   hub
     .command("add <pkg>")
@@ -373,12 +356,29 @@ export function registerAssetCommands(program: Command): void {
 
   hub
     .command("catalog")
-    .argument("<action>", "rebuild")
+    .description("List hub catalog entries, or rebuild index.json")
+    .argument("[action]", "list (default) | rebuild")
     .option("--hub <path>", "hub source (defaults to config.yaml hub)")
-    .action((action: string, opts: { hub?: string }) => {
-      if (action !== "rebuild") throw new Error(`unknown hub catalog action: ${action}`);
-      const { hubRoot } = hubCtx({ ...opts, refresh: true }, "hub.catalog");
-      console.log(`wrote ${writeHubIndex(hubRoot)}`);
+    .option("--kind <kind>", "filter by asset kind (list)")
+    .option("--phase <phase>", "filter by phase (list)")
+    .option("--category <cat>", "package (list)")
+    .action((action: string | undefined, opts: { hub?: string; kind?: string; phase?: string; category?: string }) => {
+      const resolved = action ?? "list";
+      if (resolved === "rebuild") {
+        const { hubRoot } = hubCtx({ ...opts, refresh: true }, "hub.catalog");
+        console.log(`wrote ${writeHubIndex(hubRoot)}`);
+        return;
+      }
+      if (resolved !== "list") throw new Error(`unknown hub catalog action: ${resolved} (use list | rebuild)`);
+      const { hubRoot } = hubCtx(opts, "hub.search");
+      const results = searchHubCatalog(hubRoot, {
+        kind: opts.kind,
+        phase: opts.phase,
+        category: opts.category as "package" | undefined
+      });
+      for (const e of results) {
+        console.log(`${e.category}\t${e.id}@${e.version}\t${e.kind}\t${e.description ?? ""}`);
+      }
     });
 
   const hubContrib = hub.command("contributions").description("Contribution review queue (maintainer)");

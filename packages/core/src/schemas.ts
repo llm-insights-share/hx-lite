@@ -81,12 +81,37 @@ export const SensorDef = z.object({
 });
 export type SensorDef = z.infer<typeof SensorDef>;
 
+/** Per-stage task enablement + optional suite binding (preferred Profile shape). */
+export const ProfileTaskEntry = z.object({
+  id: z.string(),
+  suite: z.string().optional()
+});
+export type ProfileTaskEntry = z.infer<typeof ProfileTaskEntry>;
+
+export const ProfileTasksByStage = z.object({
+  req: z.array(ProfileTaskEntry).optional(),
+  arch: z.array(ProfileTaskEntry).optional(),
+  dev: z.array(ProfileTaskEntry).optional(),
+  test: z.array(ProfileTaskEntry).optional()
+});
+export type ProfileTasksByStage = z.infer<typeof ProfileTasksByStage>;
+
 export const ProfileDef = z.object({
   stages: z.array(DELIVERY_STAGE),
+  /** Preferred: enabled tasks + suite bindings per stage. */
+  tasks: ProfileTasksByStage.optional(),
+  /** @deprecated Prefer `tasks.dev`; kept for harness compatibility. */
   dev_tasks: z.array(z.string()).optional(),
+  /** @deprecated Prefer `tasks.test`. */
   test_tasks: z.array(z.string()).optional(),
+  /** @deprecated Prefer `tasks.req`. */
   req_tasks: z.array(z.string()).optional(),
+  /** @deprecated Prefer `tasks.arch`. */
   arch_tasks: z.array(z.string()).optional(),
+  /**
+   * Legacy stage.task → suiteName map. Prefer `tasks.*.suite`.
+   * Still accepted and merged by normalizeProfile.
+   */
   suites: z.record(z.string()).default({})
 });
 export type ProfileDef = z.infer<typeof ProfileDef>;
@@ -206,6 +231,24 @@ export const StageApprovals = z.object({
   archLld: z.record(ApprovalRecord).default({})
 });
 export type StageApprovals = z.infer<typeof StageApprovals>;
+
+/** Org-level req/arch task progress at docs/.stage-progress.yaml */
+export const OrgStageProgressEntry = z.object({
+  completed: z.array(z.string()).default([]),
+  current: z.string().optional(),
+  /** Last PRD slug used for req checks */
+  prdSlug: z.string().optional(),
+  /** Last module id used for arch LLD checks */
+  moduleId: z.string().optional()
+});
+export type OrgStageProgressEntry = z.infer<typeof OrgStageProgressEntry>;
+
+export const OrgStageProgress = z.object({
+  version: z.string().default("1.0"),
+  req: OrgStageProgressEntry.optional(),
+  arch: OrgStageProgressEntry.optional()
+});
+export type OrgStageProgress = z.infer<typeof OrgStageProgress>;
 
 /* ── Work orders (enterprise SDLC) ── */
 

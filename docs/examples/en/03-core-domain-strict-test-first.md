@@ -51,17 +51,17 @@ hx: profile "standard" is below the recommended "strict" — provide --override-
 strict profile may complete the **requirements-research** task in the `req` stage before dev:propose. Zhou drives in Cursor:
 
 ```text
-Cursor ▸ /hx-explore pre-auth
+Cursor ▸ Read-only investigate change pre-auth and record constraints in explore.md
          Topic: existing charge state machine and idempotency key design
 ```
 
-`/hx-explore` defines **strictly read-only**: agent runs `hx explore pre-auth --topic "existing charge state machine and idempotency key design"` for note scaffold, then follows prompt investigation order — read relevant main specs in `harnessX/specs/` first (specs are source of truth before code), then modules and tests to touch, then search `harnessX/archive/` for historical changes on same capability. Findings go to explore.md Questions / Findings / Recommendation — **every conclusion must cite file paths**; Guardrails: "output is understanding not design"; Recommendation lists options with tradeoffs only.
+The current four-stage task catalog has no change-level `explore` slash command. Give the agent an explicit read-only instruction, then run `hx explore pre-auth --topic "existing charge state machine and idempotency key design"` to scaffold notes. Read relevant main specs first, then modules/tests, then historical changes. Record Questions / Findings / Recommendation in explore.md; **every conclusion must cite file paths**, with no code or spec edits.
 
 Double lock: `hx guide pack pre-auth --stage req --task requirements-research` Context Pack declares **READ-ONLY** permissions; gate check flags staged code edits — discipline violations caught even if agent forgets. Exploration conclusions ("state machine is CREATED→CHARGED two states, need FROZEN; idempotency key reusable") feed dev:design.
 
 ### 3. dev:propose / dev:design / design-to-plan approval (same as scenario 02, abbreviated)
 
-Zhou runs `/hx-propose pre-auth`, `/hx-design pre-auth`, `/hx-spec pre-auth` in Cursor (agent drafts delta spec, Zhou reviews). Terminal `hx gate advance` per task. Note `/hx-spec` prompt's last step **requires agent to stop and ask for human approval** — explicitly must not run `hx gate approve` (human-only). Zhang reviews and runs `hx gate approve pre-auth --gate design-to-plan --approver zhang.arch` in terminal.
+Zhou runs `/hx-dev-propose pre-auth`, then `/hx-dev-design pre-auth` in Cursor (the design task also finalizes delta specs). Terminal `hx gate advance` advances each task. `/hx-dev-design` explicitly prohibits self-approval; Zhang reviews and runs `hx gate approve pre-auth --gate design-to-plan --approver zhang.arch`.
 
 ### 4. Test-first: generate → human review → approve lock
 
@@ -89,9 +89,9 @@ approved test files recorded in meta.yaml (hash-locked)
 
 ### 5. Separate session implementation: agent cannot change approved assertions
 
-After `hx plan`, Zhou opens a **new Agent session** in Cursor (not continuing the test-stub session), runs `/hx-apply pre-auth` — test-first core: test-writing and implementation sessions isolated, preventing agent from "conveniently" weakening tests. New session has no prior context; all knowledge of tests comes from hash-locked test files.
+After `hx plan`, Zhou opens a **new Agent session** in Cursor (not continuing the test-stub session), runs `/hx-dev-apply pre-auth` — test-first core: test-writing and implementation sessions isolated, preventing agent from "conveniently" weakening tests. New session has no prior context; all knowledge of tests comes from hash-locked test files.
 
-In one iteration agent finds an assertion "too strict" and changes expected value. First line of defense: `.cursor/rules/harnessx.mdc` and `/hx-apply` prompt say "never weaken tests to pass"; L1 relies on discipline. Real backstop is verification-strict suite `approved-tests` sensor:
+In one iteration agent finds an assertion "too strict" and changes expected value. First line of defense: `.cursor/rules/harnessx.mdc` and `/hx-dev-apply` prompt say "never weaken tests to pass"; L1 relies on discipline. Real backstop is verification-strict suite `approved-tests` sensor:
 
 ```console
 $ hx verify pre-auth

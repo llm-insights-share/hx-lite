@@ -22,11 +22,11 @@ Retail company **RetailCo** delivers a **member points center** in one monorepo:
 
 | Role | Person | Primary responsibility | Typical entry |
 | --- | --- | --- | --- |
-| Product Manager | **Chen (PM)** | Scope, proposal, delta specs, approval | Cursor `/hx-propose` `/hx-spec`; terminal `hx gate approve` |
-| Designer | **Lin (Design)** | IA, API surface, ADRs, observability | Cursor `/hx-design` |
-| Frontend Developer | **Zhao (FE)** | `admin-web` + `portal-web` implementation | Cursor `/hx-apply` (FE tasks) |
-| Backend Developer | **Li (BE)** | `apps/api` implementation + API tests | Cursor `/hx-apply` (BE tasks) |
-| QA Engineer | **Zhou (QA)** | Test review, traceability, verify sign-off | `hx testfirst approve`; `/hx-verify` |
+| Product Manager | **Chen (PM)** | Scope, proposal, delta specs, approval | Cursor `/hx-dev-propose` `/hx-dev-design`; terminal `hx gate approve` |
+| Designer | **Lin (Design)** | IA, API surface, ADRs, observability | Cursor `/hx-dev-design` |
+| Frontend Developer | **Zhao (FE)** | `admin-web` + `portal-web` implementation | Cursor `/hx-dev-apply` (FE tasks) |
+| Backend Developer | **Li (BE)** | `apps/api` implementation + API tests | Cursor `/hx-dev-apply` (BE tasks) |
+| QA Engineer | **Zhou (QA)** | Test review, traceability, verify sign-off | `hx testfirst approve`; `/hx-dev-verify` |
 
 **Profile**: `standard` (design, human approval, verify).
 
@@ -38,8 +38,8 @@ Retail company **RetailCo** delivers a **member points center** in one monorepo:
 | --- | --- | --- | --- | --- | --- |
 | 0 | Repo onboarding (once) | Li + Zhao | All | `harnessX/`, multi-bundle | — |
 | 1 | dev:propose | Chen (PM) | Lin (Design) | `proposal.md`, draft deltas | `hx gate check --stage dev --task propose` |
-| 2 | dev:design | Lin | Chen, Li | `design.md` | `hx gate check --stage dev --task design` |
-| 3 | dev:propose (finalize) | Chen | Li, Zhou | EARS delta specs | `hx gate check --stage dev --task propose` |
+| 2 | dev:design | Lin | Chen, Li | `design/overview.md` + LLD | `hx gate check --stage dev --task design` |
+| 3 | dev:design (delta finalize) | Chen | Li, Zhou | EARS delta specs | `hx gate check --stage dev --task design` |
 | 4 | Human approval | Chen | Zhou | approval in `meta.yaml` | design→plan |
 | 5 | dev:plan | Li | Zhao, Zhou | dual-track `tasks.md` | `hx gate check --stage dev --task plan` |
 | 6 | dev:apply | Zhao + Li | Zhou | code, tests, traceability | apply fast suite |
@@ -69,7 +69,7 @@ $ hx change create member-points --domains member,points
 ```
 
 ```text
-Cursor ▸ /hx-propose member-points
+Cursor ▸ /hx-dev-propose member-points
          PRD: Member points v1 — portal balance/ledger; admin earn rules; shared API.
 ```
 
@@ -85,7 +85,7 @@ GATE PASS (dev/propose)
 ## 2. Design — Lin (Designer)
 
 ```text
-Cursor ▸ /hx-design member-points
+Cursor ▸ /hx-dev-design member-points
          Fill design-template: API table, data model, ADRs, metrics, rollback.
 ```
 
@@ -99,10 +99,10 @@ advanced: dev/propose → dev/design
 
 ---
 
-## 3. dev:propose — delta spec finalize (Chen, Li, Zhou)
+## 3. dev:design — delta spec finalize (Chen, Li, Zhou)
 
 ```text
-Cursor ▸ /hx-spec member-points
+Cursor ▸ /hx-dev-design member-points
          Complete member + points deltas; ≥2 scenarios per requirement including errors.
 ```
 
@@ -149,9 +149,9 @@ advanced: dev/design → dev/plan
 $ hx testfirst approve member-points --files tests/api/points.test.ts --by zhou.qa
 ```
 
-**Li (BE)** — Cursor `/hx-apply` for `apps/api/` tasks.
+**Li (BE)** — Cursor `/hx-dev-apply` for `apps/api/` tasks.
 
-**Zhao (FE)** — Cursor `/hx-apply` for `apps/admin-web/` and `apps/portal-web/`.
+**Zhao (FE)** — Cursor `/hx-dev-apply` for `apps/admin-web/` and `apps/portal-web/`.
 
 Or terminal:
 

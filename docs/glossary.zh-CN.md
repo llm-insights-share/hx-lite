@@ -50,7 +50,7 @@
 
 ### Suite（套件）
 
-具名 sensor id 列表（如 `fast`、`verification-enterprise`），在 `harness.yaml` 中按 `dev.apply`、`test.test-case-design` 等键绑定到 stage/task。
+具名 sensor id 列表（如 `fast`、`verification`、`verification-sdlc`、`design-basic`）。首选通过 `profiles.*.tasks[].suite` 绑定到 stage/task；可选任务可用顶层兼容字段 `suites: { "req.biz-understanding": "req-biz" }`。
 
 ### Asset（资产）
 

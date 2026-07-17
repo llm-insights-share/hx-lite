@@ -19,5 +19,5 @@ HarnessX splits responsibilities so third parties can extend without forking cor
 
 ## Related docs
 
-- [Concept glossary](./glossary.md)
-- [L1 agent env JSON Schema](../schemas/l1/agent-env-contract.json)
+- [Concept glossary](../glossary.md)
+- [L1 agent env JSON Schema](../../schemas/l1/agent-env-contract.json)

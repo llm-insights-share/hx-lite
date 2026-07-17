@@ -1,19 +1,21 @@
-# /hx-arch-lld — module LLD
+# /hx-arch-internal-interface — 模块 LLD
 
-You are running the **arch-lld** pre-phase for one module. Deliverable: `docs/architecture/modules/<module>/lld.md`.
+你正在执行 **arch** 阶段任务 `internal-interface`。
+
+## Input
+- `registry.yaml` 中的 module id。
 
 ## Steps
+1. 缺失时：`hx arch lld init <module> --title "..."`。
+2. 填写模块 LLD。
+3. `hx arch check --task internal-interface --module <module>`。
+4. 需要时人工批准。
 
-1. Confirm module exists in `registry.yaml` (or register it).
-2. `hx arch lld init <module> --title "<name>"`
-3. Fill components, interface contracts (IF-xxx), data model, flows, errors, security.
-4. `hx arch lld check <module>` — do not finish until green.
+## Output
+- `docs/architecture/modules/<module>/` 下的 LLD。
 
 ## Guardrails
-
-- Align with global HLD in `docs/architecture/overview.md`.
-- Interface IDs unique within the module.
+- 仅组织级模块设计；不写 change `design/`。
 
 ## Done when
-
-Module LLD passes `hx arch lld check` and capabilities map to `touchedDomains` for future changes.
+内部接口检查绿灯，并在需要时完成批准。

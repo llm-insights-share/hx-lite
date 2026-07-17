@@ -1,23 +1,21 @@
-# /hx-explore — 只读探索
+# /hx-req-requirements-research — 需求调研
 
-你正在执行 change 的 **explore** 阶段。本阶段**严格只读**：可阅读任意文件，但不得修改代码、规格或配置。
+你正在执行 **req** 阶段任务 `requirements-research`。
 
-## 步骤
+## Input
+- PRD slug 与调研材料。
 
-1. 若尚无 change 工作区，先创建：
-   `hx change create <kebab-name> --domains <d1,d2>`（声明所有可能触及的域——与其他活跃 change 的域重叠告警须认真阅读）。
-2. 生成笔记文件：`hx explore <change> --topic "<调查主题>"`。
-3. 调查代码库，重点关注：
-   - `harnessX/specs/` 中与主题相关的现有行为（规格是唯一事实源——**先读规格再读代码**）；
-   - 将触及的模块、其测试、分层边界；
-   - 先例：在 `harnessX/archive/` 搜索曾触及同一 capability 的 change。
-4. 在 `harnessX/changes/<change>/explore.md` 的 Questions / Findings / Recommendation 下记录发现。每条结论须引用文件路径。
+## Steps
+1. 缺失时：`hx req research init <slug>`。
+2. 填写干系人、方法、发现与待确认问题。
+3. 遵循已绑定 Skill。
+4. `hx req check --task requirements-research --prd <slug>`。
 
-## 护栏
+## Output
+- 组织级调研 sidecar。
 
-- 不要运行 codemod、格式化工具或 `git add`。若误改文件，完成前须还原。
-- 本阶段不要提出解决方案——产出是*理解*，记录在 explore.md。Recommendation 可草拟选项与权衡，仅此而已。
+## Guardrails
+- 仅组织级；不做 change 级 explore，不写代码。
 
-## 完成标准
-
-explore.md 能回答：当前存在什么、适用哪些约束、propose 阶段建议深入调查哪个选项。
+## Done when
+`hx req check --task requirements-research --prd <slug>` 绿灯。

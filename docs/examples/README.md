@@ -4,7 +4,9 @@
 
 本目录按**使用者旅程**组织端到端场景（非按版本号堆砌）。每个场景含：**背景与角色**、**逐步命令与期望输出**、**关键机制**。
 
-> 按主题系统入门见 [使用说明](../usage-guide.zh-CN.md)；命令与配置细节见 [操作说明](../operation-guide.zh-CN.md)；概念词表见 [glossary](../glossary.zh-CN.md)。
+> **主手册（仅两本）**：[企业 AI 交付全过程手册](../enterprise-delivery.zh-CN.md)（按角色） · [hxhub 使用手册](../hxhub-usage.zh-CN.md)。词表：[glossary](../glossary.zh-CN.md)。
+>
+> **最新版约定**：Profile 使用 `profiles.*.tasks[].{id,suite}`；IDE 命令统一为 `/hx-<stage>-<task>`；完整资产绑定见[阶段任务资产矩阵](../stage-task-assets.zh-CN.md)。
 
 ---
 
@@ -12,17 +14,16 @@
 
 | 你此刻的目标 | 从这里开始 |
 | --- | --- |
+| 角色职责与全流程 | **[企业 AI 交付全过程手册](../enterprise-delivery.zh-CN.md)** |
 | 第一次接入 HarnessX | [01 新项目接入](01-新项目接入.md) |
-| 交付一个常规功能 | **[开发人员应用交付使用手册](../dev-manual.zh-CN.md)** · [02 标准功能全流程](02-标准功能开发全流程.md)（需先 01） |
-| 从组织 Hub 初始化 | [16 Hub 蓝图初始化](16-v0.3-hub-blueprint-init.md) · **[hxhub 使用手册](../hxhub-usage.zh-CN.md)** |
-| 企业级需求→编码交接 | [19 req/arch 阶段](19-组织级PRD与架构设计.md) → [15 enterprise 交接](15-企业级需求到交付交接.md) |
-| 产品经理撰写组织级 PRD | [产品经理需求文档编写使用手册](../pm-req-manual.zh-CN.md) |
-| 架构师维护组织级 HLD/LLD | [架构师概要设计使用手册](../arch-hld-manual.zh-CN.md) |
-| 开发人员应用交付与多人协同 | [开发人员应用交付使用手册](../dev-manual.zh-CN.md) |
-| 企业 SDLC 工单全流程 | [20 企业 SDLC 工单全流程](20-企业SDLC工单全流程.md)（profile: `enterprise-sdlc`） |
-| Hub 双角色与贡献审核 | [21 Hub 双角色与贡献审核](21-hub-双角色与贡献审核.md) |
+| 交付一个常规功能 | 手册 [§4 开发](../enterprise-delivery.zh-CN.md#4-开发人员) · [02 标准功能全流程](02-标准功能开发全流程.md) |
+| 从组织 Hub 初始化 | **[hxhub 使用手册](../hxhub-usage.zh-CN.md)** · [16 Hub 初始化](16-v0.3-hub-blueprint-init.md) |
+| 企业级需求→编码交接 | [19 req/arch](19-组织级PRD与架构设计.md) → [15](15-企业级需求到交付交接.md) |
+| 产品经理 / 架构师 / 测试 | 手册 [§1](../enterprise-delivery.zh-CN.md#1-产品经理) / [§3](../enterprise-delivery.zh-CN.md#3-架构师) / [§5](../enterprise-delivery.zh-CN.md#5-测试人员) |
+| 技术经理与工单 | 手册 [§2](../enterprise-delivery.zh-CN.md#2-技术经理) · [20 工单全流程](20-企业SDLC工单全流程.md) |
+| Hub 双角色与贡献审核 | [21](21-hub-双角色与贡献审核.md) · hxhub 手册 |
 | Codex/脚本无头交付 | [18 精简 harness + MCP](18-精简配置与无头Agent-MCP.md) |
-| Rubric 编写与维护 | [Rubric 编写与维护使用手册](../rubric-manual.zh-CN.md) · [07 Steering 质量](07-steering-质量治理.md) |
+| Rubric / Steering | [hxhub §4](../hxhub-usage.zh-CN.md#4-资产创建与发布) · [07](07-steering-质量治理.md) |
 | 不确定 | [00 场景选择指南](00-场景选择指南.md) |
 
 ---
@@ -35,7 +36,7 @@
 | --- | --- | --- |
 | [01 新项目接入](01-新项目接入.md) | 技术负责人 | init、宪法、hooks/CI、adapter、验证 Cursor 约束 |
 | [02 标准功能全流程](02-标准功能开发全流程.md) | 后端开发 | propose→archive 完整循环 |
-| [开发人员应用交付使用手册](../dev-manual.zh-CN.md) | 前后端/全栈开发 | 单人交付与多人协同 Runbook |
+| [企业交付手册 §4](../enterprise-delivery.zh-CN.md#4-开发人员) | 前后端/全栈开发 | 单人交付与多人协同 |
 | [18 精简 harness + MCP](18-精简配置与无头Agent-MCP.md) | 效能/平台 | `imports:` 最小 harness、无头 apply、MCP L1 |
 
 ### 旅程 2 · 日常交付：按风险选路径
@@ -78,7 +79,7 @@
 | 场景 | 何时选 |
 | --- | --- |
 | [11 需求模板](11-自定义需求产出模板.md) | 定制 proposal / delta spec |
-| [12 设计模板](12-自定义概要设计产出模板.md) | 定制 design / `/hx-design` |
+| [12 设计模板](12-自定义概要设计产出模板.md) | 定制 design / `/hx-dev-design` |
 | [06 OpenSpec 迁移](06-遗留项目迁移-openspec.md) | 存量 OpenSpec 导入 |
 
 ---
@@ -106,7 +107,7 @@
 | 16 | [Hub 蓝图初始化](16-v0.3-hub-blueprint-init.md) | 平台 | `--from-hub` / blueprint / sync --apply |
 | 17 | [平台看板](17-v0.4-平台治理与仪表盘.md) | 平台 | prototype/UAT / drift / `hx view` |
 | 18 | [精简 harness + MCP](18-精简配置与无头Agent-MCP.md) | 入门·工具 | `imports:` / MCP L1 / 无头 apply |
-| 19 | [组织级 PRD/架构](19-组织级PRD与架构设计.md) | 企业·req/arch | `/hx-prd` `/hx-arch` `hx req prd` `hx arch promote` |
+| 19 | [组织级 PRD/架构](19-组织级PRD与架构设计.md) | 企业·req/arch | `/hx-req-prd-writing` `/hx-arch-subsystem-division` `hx req prd` `hx arch promote` |
 | 20 | [企业 SDLC 工单全流程](20-企业SDLC工单全流程.md) | 企业·sdlc | `wo/cr/bug/test-cases` 与 req/arch/change 闭环 |
 | 21 | [Hub 双角色与贡献审核](21-hub-双角色与贡献审核.md) | 平台·hub | `hub submit` / `hub contributions` / 双角色治理 |
 

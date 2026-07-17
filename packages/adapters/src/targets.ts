@@ -15,6 +15,52 @@ import { commandBody, skillInlineBody, type TargetEmitter } from "./compiler.js"
 const CURSOR_FIXTURE_WRITE_MATCHER = "Write|StrReplace|Apply_patch";
 
 /** Cursor fixture hook: preToolUse blocks protected paths; postToolUse injects verify violations into agent context. */
+
+const CURSOR_GATE_SESSION_HOOK = `#!/usr/bin/env node
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+function readInput() {
+  try {
+    return JSON.parse(readFileSync(0, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+const input = readInput();
+const prompt = String(input.prompt ?? input.user_prompt ?? "");
+if (!prompt) process.exit(0);
+spawnSync("hx", ["gate", "mark-session", "--prompt", prompt], { stdio: "ignore", cwd: process.cwd() });
+process.stdout.write(JSON.stringify({ continue: true }) + "\n");
+`;
+
+const CURSOR_GATE_STOP_HOOK = `#!/usr/bin/env node
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+function readInput() {
+  try {
+    return JSON.parse(readFileSync(0, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+const input = readInput();
+const child = spawnSync("hx", ["gate", "stop-hook", "--loop-limit", "3"], {
+  cwd: process.cwd(),
+  input: JSON.stringify(input),
+  encoding: "utf8"
+});
+if (child.status !== 0) {
+  process.stdout.write(JSON.stringify({}) + "\n");
+  process.exit(0);
+}
+const out = (child.stdout || "{}").trim();
+process.stdout.write((out || "{}") + "\n");
+`;
+
 const CURSOR_FIXTURE_VERIFY_HOOK = `#!/usr/bin/env node
 /** HarnessX Cursor hook — guard approved fixtures on agent file edits. */
 import { spawnSync } from "node:child_process";
@@ -156,6 +202,16 @@ export const cursorEmitter: TargetEmitter = (ws, ctx) => {
   ensureDir(path.dirname(hookAbs));
   fs.writeFileSync(hookAbs, CURSOR_FIXTURE_VERIFY_HOOK);
   files.push(hookRel);
+
+  const sessionHookRel = ".cursor/hooks/gate-session.mjs";
+  const sessionHookAbs = path.join(ws.root, sessionHookRel);
+  fs.writeFileSync(sessionHookAbs, CURSOR_GATE_SESSION_HOOK);
+  files.push(sessionHookRel);
+
+  const stopHookRel = ".cursor/hooks/gate-stop.mjs";
+  const stopHookAbs = path.join(ws.root, stopHookRel);
+  fs.writeFileSync(stopHookAbs, CURSOR_GATE_STOP_HOOK);
+  files.push(stopHookRel);
   // hooks: preToolUse blocks protected paths; postToolUse feeds violations back to the agent; afterFileEdit is observational only
   files.push(
     ctx.write(
@@ -164,9 +220,10 @@ export const cursorEmitter: TargetEmitter = (ws, ctx) => {
         {
           version: 1,
           hooks: {
-            beforeSubmitPrompt: [{ command: "hx gate hook-check" }],
+            beforeSubmitPrompt: [{ command: "hx gate hook-check" }, { command: "node .cursor/hooks/gate-session.mjs", matcher: "UserPromptSubmit" }],
             preToolUse: [{ command: "node .cursor/hooks/fixture-verify.mjs", matcher: CURSOR_FIXTURE_WRITE_MATCHER }],
             postToolUse: [{ command: "node .cursor/hooks/fixture-verify.mjs", matcher: CURSOR_FIXTURE_WRITE_MATCHER }],
+            stop: [{ command: "node .cursor/hooks/gate-stop.mjs", loop_limit: 3 }],
             afterFileEdit: [
               {
                 command: "node .cursor/hooks/fixture-verify.mjs",

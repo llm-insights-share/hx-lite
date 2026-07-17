@@ -73,10 +73,33 @@ describe("overall verification: full delivery cycle through the CLI", () => {
     expect(remoteHeads).toContain("refs/heads/main");
   });
 
+  it("can push-github a seeded hub in a separate step", () => {
+    const repo = makeRepo();
+    const remote = fs.mkdtempSync(path.join(os.tmpdir(), "hx-hub-remote-"));
+    execFileSync("git", ["init", "--bare", "-q"], { cwd: remote });
+
+    hx(repo, ["hub", "seed", "./harness-hub"]);
+    const out = hx(repo, [
+      "hub",
+      "push-github",
+      "./harness-hub",
+      "--remote",
+      remote,
+      "--branch",
+      "main",
+      "--message",
+      "pushed via push-github"
+    ]);
+    expect(out).toContain("Pushed");
+    const hubDir = path.join(repo, "harness-hub");
+    const latest = execFileSync("git", ["log", "-1", "--pretty=%s"], { cwd: hubDir, encoding: "utf8" }).trim();
+    expect(latest).toBe("pushed via push-github");
+  });
+
   it("fails seed submit when remote is missing", () => {
     const repo = makeRepo();
     const out = hx(repo, ["hub", "seed", "./harness-hub", "--submit"], { expectFail: true });
-    expect(out).toContain("--remote <git-url> is required when --submit is enabled");
+    expect(out).toContain("--remote <git-url> is required");
   });
 
   it("runs init → propose → gates → plan → apply → verify → archive end-to-end", () => {

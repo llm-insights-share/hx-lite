@@ -1,20 +1,22 @@
-# /hx-prd — organization-level PRD
+# /hx-req-prd-writing — organization-level PRD
 
-You are running the **PRD** pre-phase. Deliverable: `docs/prd/<slug>.md`.
+You are running the **req** stage task `prd-writing`.
+
+## Input
+- PRD slug and title; research/analysis/prototype as available.
 
 ## Steps
+1. Scaffold: `hx req prd init <slug> --title "<title>"` if missing.
+2. Fill stories, GWT acceptance criteria, In/Out Scope, NFR per **prd-authoring** / **prd-writing** Skill.
+3. `hx req check --task prd-writing --prd <slug>`.
+4. Human: `hx gate approve --gate prd --prd <slug> --approver <name>`.
 
-1. `hx prd init <slug> --title "<title>"`
-2. Read user context and any `@docs/prd/` or business references per **prd-authoring** Skill.
-3. Fill user stories, acceptance criteria (GWT), In/Out Scope, NFR, review conclusion.
-4. `hx prd check <slug>` — do not finish until green.
-5. Human reviewer: `hx approve prd <slug> --approver <name>` (or `hx gate approve --gate prd --prd <slug> ...`).
+## Output
+- `docs/prd/<slug>.md` (or scaffold path) + approval.
 
 ## Guardrails
-
-- Do not create change workspaces, delta specs, or implementation code.
-- Do not invent requirements — use Open Questions for ambiguity.
+- Org-level only — no change workspace, delta specs, or code.
+- Do not invent requirements — use Open Questions.
 
 ## Done when
-
-`hx prd check` passes and PRD is human-approved (`hx gate approve --gate prd`).
+PRD check is green and human approval is recorded.

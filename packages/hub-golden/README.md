@@ -64,6 +64,6 @@ See `seed-manifest.yaml` for the full catalog.
 
 Packages ship with `.review` status `approved` so they are consumable immediately after seeding.
 
-**Maintenance guide**: [docs/hxhub-usage.zh-CN.md](../../docs/hxhub-usage.zh-CN.md) (中文) · [docs/hub-asset-maintenance.en.md](../../docs/hub-asset-maintenance.en.md) (English stub)
+**Maintenance guide**: [docs/hxhub-usage.zh-CN.md](../../docs/hxhub-usage.zh-CN.md)
 
 **Note**: Bundle and Blueprint composite kinds were removed. Topology/path differences are expressed by tagging guide/sensor packages with `stage`/`task`.

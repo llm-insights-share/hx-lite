@@ -39,7 +39,7 @@ OpenSpec-compatible Delta Specs. Works alongside existing CI — local hooks plu
 ## Quick start (30 seconds)
 
 ```bash
-git clone https://github.com/llm-insights-share/harnessX.git && cd harnessX
+git clone https://github.com/llm-insights-share/hx-lite.git && cd hx-lite
 npm install && npm link    # hx / hxhub available globally
 
 hxhub seed ./harness-hub --profile standard --scenario core
@@ -54,7 +54,7 @@ hx propose my-feature --title "Your first feature"
 hx gate check my-feature --stage dev --task propose
 ```
 
-**Enterprise path** (req/arch/dev/test + work orders): `hx init --from-hub enterprise-sdlc@1.0.0 --hub <your-hub>`
+**Enterprise path**: `hx project create --profile enterprise --hub <your-hub>` (see Chinese delivery manual).
 
 ---
 
@@ -69,15 +69,16 @@ hx gate check my-feature --stage dev --task propose
 
 ## Documentation
 
+Primary manuals are Chinese (latest design). English stubs redirect here.
+
 | Doc | Description |
 | --- | --- |
-| [Usage guide (EN)](docs/usage-guide.en.md) | Concepts, init, customization |
-| [Operation guide (EN)](docs/operation-guide.en.md) | Commands by stage |
-| [Developer manual (ZH)](docs/dev-manual.zh-CN.md) | Dev delivery and multi-role collaboration |
+| [Enterprise AI delivery manual (ZH)](docs/enterprise-delivery.zh-CN.md) | By role: PM / tech manager / architect / dev / QA |
 | [hxhub manual (ZH)](docs/hxhub-usage.zh-CN.md) | Hub asset create, publish, governance |
-| [20 scenario walkthroughs](docs/examples/en/README.md) | Onboarding → enterprise SDLC |
 | [Four-stage model (ZH)](docs/delivery-stages.zh-CN.md) | Authoritative stage/task list |
-| [使用说明（中文）](docs/usage-guide.zh-CN.md) | Chinese documentation |
+| [Stage-task asset matrix (ZH)](docs/stage-task-assets.zh-CN.md) | Command / Skill / Template / Suite / Sensor per task |
+| [Glossary](docs/glossary.md) | Terminology |
+| [Scenario walkthroughs](docs/examples/en/README.md) | Onboarding → enterprise SDLC |
 
 ---
 

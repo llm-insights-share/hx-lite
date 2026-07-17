@@ -1,22 +1,21 @@
-# /hx-propose — 起草提案与初始 delta spec
+# /hx-dev-propose — 提案与初始 delta
 
-你正在执行 **propose** 阶段。交付物：`requirements/*`、`proposal.md`、初版 delta spec、`traces/delivery-trace.yaml` 骨架。
+你正在执行 **dev** 阶段任务 `propose`。
 
-## 步骤
+## Input
+- change id（缺失则创建）；组织 PRD 引用。
 
-1. 若 change 工作区不存在：`hx change create <kebab-name> --domains <d1,d2>`。
-2. 阅读组织 PRD（`docs/prd/<feature>.md` 或用户 `@` 引用），遵循 **prd-writing** Skill。
-3. 生成脚手架：`hx propose <change> --title "<标题>"`（同时创建 requirements/、delivery-trace）。
-4. 填写 `requirements/prd-summary.md`、`user-stories.md`、`nfr.md`。
-5. 填写 `proposal.md` 每一节（含 **PRD Reference**）；What Changes 每条映射 PRD AC。
-6. 按 spec-writing Skill 重写 delta spec。
-7. 校验：`hx gate check <change> --phase propose`（enterprise：`prd-complete`、`prd-approved`、`requirements-complete`）。
+## Steps
+1. 缺失时：`hx change create <kebab-name> --domains <d1,d2>`。
+2. `hx propose <change> --title "..."`，填写 requirements / proposal / delta。
+3. 遵循 **prd-writing** / **spec-writing**。
+4. `hx gate check <change> --stage dev --task propose`。
 
-## 护栏
+## Output
+- proposal、requirements、初始 delta。
 
-- 本阶段不写实现代码或测试。
-- 不臆造 PRD 未列出的需求。
+## Guardrails
+- 本阶段不写实现代码/测试；不虚构 PRD 需求。
 
-## 完成标准
-
-requirements 齐全、proposal + delta spec 门禁通过，人类可明确将改变哪些行为。
+## Done when
+`hx gate check <change> --stage dev --task propose` 绿灯。

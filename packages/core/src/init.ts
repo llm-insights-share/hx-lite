@@ -32,6 +32,41 @@ export interface InitOptions {
   /** Optional active stages (local); must be subset of profile stages when profile is set later. */
   stages?: DeliveryStage[];
   profile?: string;
+  /** When true, delete existing harnessX/ before scaffolding (destructive). */
+  overwrite?: boolean;
+}
+
+function agentDebugLog(payload: {
+  hypothesisId: string;
+  location: string;
+  message: string;
+  data: Record<string, unknown>;
+  runId?: string;
+}) {
+  // #region agent log
+  const body = {
+    sessionId: "57a8bf",
+    runId: payload.runId ?? "pre-fix",
+    hypothesisId: payload.hypothesisId,
+    location: payload.location,
+    message: payload.message,
+    data: payload.data,
+    timestamp: Date.now()
+  };
+  try {
+    fs.appendFileSync(
+      "/Users/zhangjr/apps/LlmDemo/hx-project/hx-lite/.cursor/debug-57a8bf.log",
+      `${JSON.stringify(body)}\n`
+    );
+  } catch {
+    /* ignore */
+  }
+  fetch("http://127.0.0.1:7307/ingest/88fb5b33-114f-42c3-b178-e43e3a7b2920", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "57a8bf" },
+    body: JSON.stringify(body)
+  }).catch(() => {});
+  // #endregion
 }
 
 const NEXT_STEPS_EN = [
@@ -53,17 +88,19 @@ const NEXT_STEPS_ZH = [
 const NEXT_STEPS_PROJECT_EN = [
   "1. Edit harnessX/constitution.md — write your project principles",
   "2. Commit & push harnessX/ to the project GitHub so teammates can pull",
-  "3. Teammates: git pull, then  hx init --stages <stage,...>",
-  "4. Sync adapters:             hx adapter sync",
-  "5. Install enforcement:       hx hooks install && hx ci init"
+  "3. Teammates: git pull (first time), then hx init --stages <stage,...>",
+  "4. Asset updates later:       hx project pull-assets && hx adapter sync",
+  "5. Owner hub upgrades:        hx project sync-hub  (then commit/push project GitHub)",
+  "6. Install enforcement:       hx hooks install && hx ci init"
 ];
 
 const NEXT_STEPS_PROJECT_ZH = [
   "1. 编辑 harnessX/constitution.md — 填写项目原则",
   "2. 将 harnessX/ 提交并推送到项目 GitHub，供成员 pull",
-  "3. 成员：git pull 后执行  hx init --stages <stage,...>",
-  "4. 同步适配器：               hx adapter sync",
-  "5. 安装强制机制：             hx hooks install && hx ci init"
+  "3. 成员首次：git pull 后执行  hx init --stages <stage,...>",
+  "4. 资产更新：                 hx project pull-assets && hx adapter sync",
+  "5. Owner 同步组织 Hub：       hx project sync-hub（再 commit/push 项目 GitHub）",
+  "6. 安装强制机制：             hx hooks install && hx ci init"
 ];
 
 function resolveScaffoldDir(scaffoldRoot: string, locale?: string): string {
@@ -85,7 +122,44 @@ export interface InitResult {
 export function initWorkspace(root: string, opts: InitOptions = {}): InitResult {
   const scaffoldRoot = opts.scaffoldDir ?? BUILTIN_SCAFFOLD_DIR;
   const ws = new Workspace(root);
-  if (fs.existsSync(ws.harnessFile)) throw new Error(`harnessX already initialized at ${ws.base}`);
+  const harnessExists = fs.existsSync(ws.harnessFile);
+  const changesExist = fs.existsSync(ws.changesDir);
+  let changeCount = 0;
+  try {
+    if (changesExist) changeCount = fs.readdirSync(ws.changesDir).filter((n) => !n.startsWith(".")).length;
+  } catch {
+    /* ignore */
+  }
+  agentDebugLog({
+    hypothesisId: "A",
+    location: "init.ts:initWorkspace",
+    message: "initWorkspace entry — harness existence check",
+    runId: opts.overwrite ? "post-fix" : "pre-fix",
+    data: {
+      root,
+      base: ws.base,
+      harnessFile: ws.harnessFile,
+      harnessExists,
+      changesExist,
+      changeCount,
+      overwrite: opts.overwrite === true
+    }
+  });
+  if (harnessExists) {
+    if (!opts.overwrite) {
+      throw new Error(
+        `harnessX already initialized at ${ws.base} — pass --overwrite to replace, or use hx project sync-hub / hx project pull-assets`
+      );
+    }
+    agentDebugLog({
+      hypothesisId: "A",
+      location: "init.ts:initWorkspace:overwrite",
+      message: "removing existing harnessX for overwrite",
+      runId: "post-fix",
+      data: { base: ws.base, changeCount }
+    });
+    fs.rmSync(ws.base, { recursive: true, force: true });
+  }
 
   const baseDir = resolveScaffoldDir(scaffoldRoot, opts.locale);
   ensureDir(ws.base);
@@ -136,6 +210,8 @@ export interface ProjectCreateOptions {
   actor?: string;
   /** Owner may set default active stages (defaults to all profile stages). */
   stages?: DeliveryStage[];
+  /** When true, replace an existing harnessX/ (destructive). */
+  overwrite?: boolean;
 }
 
 export interface ProjectCreateResult extends InitResult {
@@ -150,12 +226,31 @@ export function createProject(root: string, opts: ProjectCreateOptions): Project
     throw new Error(`unknown profile "${opts.profile}" — expected lite|standard|strict|enterprise`);
   }
 
+  {
+    const probe = new Workspace(root);
+    agentDebugLog({
+      hypothesisId: "B",
+      location: "init.ts:createProject",
+      message: "createProject entry — overwrite option presence",
+      runId: opts.overwrite ? "post-fix" : "pre-fix",
+      data: {
+        root,
+        profile: opts.profile,
+        hasOverwriteOpt: "overwrite" in opts,
+        overwrite: opts.overwrite === true,
+        harnessExists: fs.existsSync(probe.harnessFile),
+        cwd: process.cwd()
+      }
+    });
+  }
+
   const hubRoot = resolveHubSource(root, opts.hubRoot, { updateRemote: true });
   const res = initWorkspace(root, {
     locale: opts.locale,
     scaffoldDir: opts.scaffoldDir,
     profile: opts.profile,
-    stages: opts.stages ?? [...DEFAULT_PROFILE_STAGES[opts.profile].stages]
+    stages: opts.stages ?? [...DEFAULT_PROFILE_STAGES[opts.profile].stages],
+    overwrite: opts.overwrite
   });
 
   const config = res.ws.readConfig();

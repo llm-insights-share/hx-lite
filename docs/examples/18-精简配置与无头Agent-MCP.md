@@ -44,11 +44,20 @@ imports:
 profiles:
   standard:
     stages: [dev]
-    dev_tasks: [propose, design, plan, apply, verify, archive]
-    suites:
-      dev.propose: fast
-      dev.apply: fast
-      dev.verify: verification
+    tasks:
+      dev:
+        - id: propose
+          suite: propose-basic
+        - id: design
+          suite: design-basic
+        - id: plan
+          suite: plan-basic
+        - id: apply
+          suite: fast
+        - id: verify
+          suite: verification
+        - id: archive
+          suite: archive-check
 
 guides: []
 sensors: []
@@ -71,9 +80,9 @@ $ node -e "const {Workspace}=require('./packages/core');"
 
 ```console
 $ hx adapter sync --targets codex,generic
-codex (Tier 2): 1 file(s)
+codex (Tier 2): ... file(s)
   + AGENTS.md
-generic (Tier 2): 1 file(s)
+generic (Tier 2): ... file(s)
 
 $ cat .harnessx-adapter-tier
 2
