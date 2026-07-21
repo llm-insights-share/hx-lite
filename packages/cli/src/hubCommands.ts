@@ -155,7 +155,7 @@ async function interactiveCreateAsset(outDir?: string, sourceDir?: string) {
 }
 
 export function registerHubCommands(program: Command, opts: RegisterHubCommandsOptions): void {
-  const root = opts.mode === "hx" ? program.command("hub").description("Harness Hub (§11.5)") : program;
+  const root = opts.mode === "hx" ? program.command("hub").description("Harness Hub") : program;
   const prefix = opts.mode === "hxhub" ? "hxhub" : "hx hub";
 
   root.command("golden").description("List built-in golden hub assets").action(() => {
@@ -293,7 +293,14 @@ export function registerHubCommands(program: Command, opts: RegisterHubCommandsO
     .option("--branch <name>", "remote branch name (default: main)", "main")
     .option("--message <text>", "commit message", "chore: hub update")
     .option("--integrate <mode>", "how to integrate remote commits before push: rebase|merge|none (default: rebase)", "rebase")
-    .action((hubPath: string | undefined, cmdOpts: { remote: string; branch?: string; message?: string; integrate?: string }) => {
+    .option("--yes", "confirm push without prompt")
+    .action(async (hubPath: string | undefined, cmdOpts: { remote: string; branch?: string; message?: string; integrate?: string; yes?: boolean }) => {
+      const { requireDestructiveConfirmation } = await import("./confirm.js");
+      await requireDestructiveConfirmation({
+        yes: cmdOpts.yes,
+        action: `Push hub to ${cmdOpts.remote}`,
+        detail: "Commits local hub changes and pushes to the remote."
+      });
       hubCtx({}, "hub.push-github", false);
       const target = path.resolve(hubPath ?? "harness-hub");
       const integrateRaw = (cmdOpts.integrate ?? "rebase").toLowerCase();
@@ -311,10 +318,18 @@ export function registerHubCommands(program: Command, opts: RegisterHubCommandsO
 
   root
     .command("push")
+    .description("Commit and push the configured hub repository")
     .option("--hub <path>", "hub source (defaults to config.yaml hub)")
     .option("--message <text>", "commit message", "chore: hub update")
     .option("--branch <name>", "remote branch to push")
-    .action((cmdOpts: { hub?: string; message?: string; branch?: string }) => {
+    .option("--yes", "confirm push without prompt")
+    .action(async (cmdOpts: { hub?: string; message?: string; branch?: string; yes?: boolean }) => {
+      const { requireDestructiveConfirmation } = await import("./confirm.js");
+      await requireDestructiveConfirmation({
+        yes: cmdOpts.yes,
+        action: "Push hub repository",
+        detail: "Commits hub changes and pushes to the remote."
+      });
       const { hubRoot } = hubCtx(cmdOpts, "hub.push");
       const result = hubGitPush(hubRoot, { message: cmdOpts.message ?? "chore: hub update", branch: cmdOpts.branch });
       console.log(`push complete (committed=${result.committed}, pushed=${result.pushed})`);

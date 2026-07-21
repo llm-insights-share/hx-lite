@@ -4,7 +4,7 @@ English · **[中文](./README.md)**
 
 > The **outer control plane** that makes AI coding agents ship production software reliably — not another test runner, but a spec-driven harness with **Guides (feedforward)**, **Sensors (feedback)**, and **fail-closed Gates**.
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)](https://github.com/llm-insights-share/hx-lite)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue)](https://github.com/llm-insights-share/hx-lite)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](package.json)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](package.json)
 
@@ -31,6 +31,7 @@ HarnessX treats AI delivery as a **control-engineering problem**: inject the rig
 | **Steering loop** | Recurring failures become Skills, rubrics, and templates over time |
 | **Multi-tool, single source** | One asset set compiles to Cursor, Claude Code, Trae, Qoder, … |
 | **Hub supply chain** | Pull guide/sensor packages by profile into the project repo via `hxhub` |
+| **CLI navigation** | `hx doctor` / `hx next` / `hx tui` — workspace-context health check and next-step guidance ([cli-reference](docs/cli-reference.zh-CN.md)) |
 
 OpenSpec-compatible Delta Specs. Works alongside existing CI — local hooks plus remote replay.
 

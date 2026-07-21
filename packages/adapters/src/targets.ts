@@ -246,14 +246,20 @@ export const cursorEmitter: TargetEmitter = (ws, ctx) => {
   return { files: [], skipped: [] };
 };
 
-/* ── T-606 Trae: project rules + planner/executor agents + MCP ── */
+/* ── T-606 Trae: project rules + independent skills + planner/executor agents + MCP ── */
 
 export const traeEmitter: TargetEmitter = (_ws, ctx) => {
-  const entry = taskEntryInlineSection(ctx);
-  ctx.write(
-    `.trae/rules/project_rules.md`,
-    `${ctx.rules}\n\n## Skills\n\n${ctx.skills.map((s) => skillInlineBody(s)).join("\n\n---\n\n")}\n${entry}`
-  );
+  emitTaskEntrySkillDirs(ctx, ".trae/skills");
+  for (const s of ctx.skills) {
+    for (const f of s.files) {
+      const rel = f.rel.replace(/\\/g, "/");
+      const outRel = `.trae/skills/${s.id}/${rel}`;
+      const sourceNote = `${s.root}/${rel}`;
+      const style = outRel.endsWith(".json") ? "raw" : "html";
+      ctx.write(outRel, f.content, style, sourceNote);
+    }
+  }
+  ctx.write(`.trae/rules/project_rules.md`, ctx.rules);
   ctx.write(
     `.trae/agents.yaml`,
     YAML.stringify({

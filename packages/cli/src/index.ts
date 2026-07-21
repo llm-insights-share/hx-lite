@@ -11,6 +11,10 @@ import { registerArchCommands } from "./arch.js";
 import { registerApproveAliases } from "./approve.js";
 import { registerSdlcCommands } from "./sdlc.js";
 import { registerReqCommands, registerDevCommands, registerTestCommands, registerStageStatusCommand } from "./stages.js";
+import { registerDoctorCommand } from "./doctor.js";
+import { registerNextCommand } from "./next.js";
+import { registerTuiCommand } from "./tui.js";
+import { exitFromError } from "./exitCodes.js";
 import { VERSION } from "@harnessx/core";
 
 export const program = new Command("hx")
@@ -30,9 +34,9 @@ registerReqCommands(program);
 registerDevCommands(program);
 registerTestCommands(program);
 registerStageStatusCommand(program);
+registerDoctorCommand(program);
+registerNextCommand(program);
+registerTuiCommand(program);
 registerMcpCommand(program);
 
-program.parseAsync(process.argv).catch((e) => {
-  console.error(`hx: ${(e as Error).message}`);
-  process.exit(1);
-});
+program.parseAsync(process.argv).catch(exitFromError);

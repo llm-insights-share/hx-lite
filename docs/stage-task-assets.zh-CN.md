@@ -6,7 +6,7 @@ Harness 绑定：[`packages/scaffold/base/harness.yaml`](../packages/scaffold/ba
 
 原则：每个任务至少 **1 任务入口（command 壳或 skill 壳）+ 1 skill（或 template）+ 1 非空 suite**；任务入口只是壳，真正起作用的是绑定的 Guides。后续演进优先改资产，不改阶段模型。
 
-任务壳由 `guide.workflow`（内置作业正文，路径 `assets/workflows/<stage>/<task>.md`）与绑定的 skill/template **自动组装**；可选 `guide.command` 覆盖正文。`hx adapter sync` 按 IDE 能力投影：支持 slash command 的 IDE 落盘为 command；否则落盘为任务入口 skill（或 inline 进 `AGENTS.md` / rules）。
+任务壳由 `guide.workflow`（内置作业正文，路径 `assets/workflows/<stage>/<task>.md`）与绑定的 skill/template **自动组装**；可选 `guide.command` 覆盖正文。`hx adapter sync` 按 IDE 能力投影：Cursor / Claude / Qoder 落盘为 slash command；Trae 落盘为 `.trae/skills/hx-<stage>-<task>/SKILL.md`（领域 skill 同步落 `.trae/skills/<id>/`）；generic / Codex / OpenCode 则 inline 进 `AGENTS.md` / rules。
 
 ## 目标态（补充后）
 

@@ -40,13 +40,19 @@ $ hx propose member-badge --title "会员徽章展示"
 $ hx gate check member-badge --stage dev --task propose
 ```
 
-## 3. 需求变更（可选）
+## 3. 需求变更（可选）→ 变更轨 Change
 
 ```console
 $ hx cr create --kind requirement-change --action modify --prd member-badge \
     --original "旧段落" --change-note "澄清范围" --revised "新段落" --by pm.chen
 $ hx cr submit CR-00001 --by pm.chen
 $ hx wo approve WO-00002 --by tm.zhang
+# 批准后会提示：hx change create <id> --domains … --prd member-badge --from-cr CR-00001
+$ hx change create badge-cr1 --domains member --prd member-badge --from-cr CR-00001
+# 或关联已有 Change：hx cr link CR-00001 member-badge
+$ hx next                    # workspace tracks.delta 可见 CR→Change
+$ hx gate check badge-cr1 --stage dev --task propose
+# 同一 Change 后续进入 test（非独立 Test.Change）
 ```
 
 ## 4. 概要设计审核（架构 → 技术经理 → 详细设计工单）
@@ -85,7 +91,7 @@ $ hx archive member-badge
 | 能力 | 命令 |
 | --- | --- |
 | 工单 | `hx wo create/submit/approve/reject/done/inbox/extract` |
-| 变更单 | `hx cr create/submit/show/list` |
+| 变更单 | `hx cr create/submit/show/list/link`；`hx change create --from-cr` |
 | 测试用例 | `hx test-cases init/check/submit`；`hx gate check --stage test --task test-case-design` |
 | Bug | `hx bug create/list/fix/close` |
 | 模块 LLD 批准 | `hx approve arch-lld <module>` |

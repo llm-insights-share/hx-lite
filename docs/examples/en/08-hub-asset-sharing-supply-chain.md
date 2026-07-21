@@ -71,7 +71,7 @@ $ hx lock verify
 LOCK asset "clock-injection" content changed since lock (supply-chain check) — review and re-lock
 ```
 
-Register in `harness.yaml` guides (source points to hub-cache path); apply Context Pack carries company-wide clock injection norm; re-run `hx adapter sync` → lands in `.cursor/skills/` (and other tools) — marketing Cursor users auto-get it next session, no personal config.
+Register in `harness.yaml` guides (source points to hub-cache path); apply Context Pack carries company-wide clock injection norm; re-run `hx adapter sync` → lands in `.cursor/skills/`, `.trae/skills/` (and other tools) — marketing Cursor / Trae users auto-get it next session, no personal config.
 
 ### 4. Upgrade and local customization three-way reconciliation
 

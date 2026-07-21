@@ -4,7 +4,7 @@
 
 > 让 AI 编程 Agent 可靠交付生产级软件的外层控制平面 —— 不是又一个测试框架，而是 **规格驱动 + 前馈 Guide + 反馈 Sensor + fail-closed Gate** 的完整交付 Harness。
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)](https://github.com/llm-insights-share/hx-lite)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue)](https://github.com/llm-insights-share/hx-lite)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](package.json)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](package.json)
 
@@ -31,6 +31,7 @@ HarnessX 把 AI 交付当作**控制工程问题**来解：在每个 stage/task 
 | **Steering 自进化** | 重复失败沉淀为 Skill / Rubric / 模板，Harness 越用越准 |
 | **多工具单源** | 一套资产编译到 Cursor、Claude Code、Trae、Qoder 等 |
 | **Hub 资产供应链** | 组织级 Guide/Sensor 发布、评审、锁定；按 profile 拉入项目仓库 |
+| **CLI 导航** | `hx doctor` / `hx next` / `hx tui` — 工作区上下文健康检查与下一步指引（见 [docs/cli-reference.zh-CN.md](docs/cli-reference.zh-CN.md)） |
 
 兼容 [OpenSpec](https://github.com/Fission-AI/OpenSpec) Delta Spec；可与现有 CI 并存，本地 hooks + 远程 CI 双重 enforcement。
 

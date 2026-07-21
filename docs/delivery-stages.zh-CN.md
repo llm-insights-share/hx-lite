@@ -65,8 +65,17 @@
 req (org) → arch (org) → change create → dev (change) → test (change) → archive
 ```
 
+双轨（概念对齐）：
+
+```text
+基线轨:  req/arch → Dev.Change1..N (propose/design/apply/verify…) → 同 Change 的 test
+变更轨:  需求变更(CR) → Dev.ChangeX (--from-cr / cr link) → 同 Change 的 test
+```
+
+图中所谓 `Test.ChangeX` = **同一 Change 进入 test 阶段**，不是第二类实体。详见 [glossary.zh-CN.md](glossary.zh-CN.md)。
+
 - **lite**：仅 `dev`（短序列）
-- **standard / strict / enterprise**：四阶段；suite 绑定见 scaffold `harness.yaml` 的 `profiles.*.tasks[].suite`（命名 suite，见 [design1.md](../design1.md)）
+- **standard / strict / enterprise**：四阶段；suite 绑定见 scaffold `harness.yaml` 的 `profiles.*.tasks[].suite`（命名 suite，见 [glossary.zh-CN.md](glossary.zh-CN.md)）
 - **工单**：`roles.yaml` → `workflow.workorders: required`
 
 ## 常用命令
@@ -84,7 +93,7 @@ hx gate advance <change>
 hx stage status --stage req
 ```
 
-IDE 斜杠命名：`/hx-<stage>-<task>`（如 `/hx-dev-propose`、`/hx-arch-tech-selection`）。Command 正文为薄清单；Skills/Templates/Sensor 由 `hx adapter sync` 附录注入。
+IDE 入口命名：支持 slash 的 IDE 为 `/hx-<stage>-<task>`（如 `/hx-dev-propose`、`/hx-arch-tech-selection`）；Trae 为 `.trae/skills/hx-<stage>-<task>/SKILL.md`。正文为薄清单；Skills/Templates/Sensor 由 `hx adapter sync` 附录注入。
 
 ## Profile 与阶段
 
@@ -110,4 +119,4 @@ profiles:
           suite: fast
 ```
 
-任务目录（必选/标题）权威：[`packages/core/src/stages.ts`](../packages/core/src/stages.ts)；概念说明：[design1.md](../design1.md)。
+任务目录（必选/标题）权威：[`packages/core/src/stages.ts`](../packages/core/src/stages.ts)；概念说明：[glossary.zh-CN.md](glossary.zh-CN.md)、[stage-task-assets.zh-CN.md](stage-task-assets.zh-CN.md)。

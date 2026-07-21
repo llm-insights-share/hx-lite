@@ -238,14 +238,16 @@ describe("T-605..T-608 target emitters", () => {
     expect(hooksJson).not.toContain("<!--");
     expect(JSON.parse(hooksJson).version).toBe(1);
 
-    // trae: rules + planner/executor agents + inlined task entry shells
+    // trae: slim rules + independent skills (task-entry + domain) + planner/executor agents
     const agents = fs.readFileSync(path.join(ws.root, ".trae/agents.yaml"), "utf8");
     expect(agents).toContain("hx-planner");
     expect(agents).toContain("hx-executor");
     const traeRules = fs.readFileSync(path.join(ws.root, ".trae/rules/project_rules.md"), "utf8");
     expect(traeRules).toContain("HarnessX ground rules");
-    expect(traeRules).toContain("## Task entrypoints");
-    expect(traeRules).toContain("hx-dev-propose");
+    expect(traeRules).not.toContain("## Task entrypoints");
+    expect(fs.existsSync(path.join(ws.root, ".trae/skills/hx-dev-propose/SKILL.md"))).toBe(true);
+    expect(fs.readFileSync(path.join(ws.root, ".trae/skills/hx-dev-propose/SKILL.md"), "utf8")).toContain("hx-dev-propose");
+    expect(fs.existsSync(path.join(ws.root, ".trae/skills/coding-conventions/SKILL.md"))).toBe(true);
 
     // qoder: rules + skills + mcp
     expect(fs.existsSync(path.join(ws.root, ".qoder/rules/harnessx.md"))).toBe(true);
@@ -274,7 +276,7 @@ describe("T-605..T-608 target emitters", () => {
     }
   });
 
-  it("emits multi-file skill packages to cursor and inlines resources for trae", () => {
+  it("emits multi-file skill packages to cursor and trae", () => {
     const dir = tmp();
     const { ws } = initWorkspace(dir);
     const skillDir = path.join(ws.assetsDir, "guides", "packaged-skill");
@@ -294,9 +296,7 @@ describe("T-605..T-608 target emitters", () => {
 
     compileAdapters(ws, ["cursor", "trae"]);
     expect(fs.existsSync(path.join(ws.root, ".cursor/skills/packaged-skill/examples/note.md"))).toBe(true);
-    const traeRules = fs.readFileSync(path.join(ws.root, ".trae/rules/project_rules.md"), "utf8");
-    expect(traeRules).toContain("Skill resources: packaged-skill");
-    expect(traeRules).toContain("examples/note.md");
+    expect(fs.existsSync(path.join(ws.root, ".trae/skills/packaged-skill/examples/note.md"))).toBe(true);
   });
 
   it("cursor fixture hook blocks StrReplace preToolUse and reports violations on postToolUse", () => {

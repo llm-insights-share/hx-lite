@@ -18,6 +18,7 @@ import {
   submitChangeRequest,
   showChangeRequestDiff,
   listChangeRequests,
+  attachChangeToCr,
   createBug,
   listBugs,
   markBugFixed,
@@ -82,8 +83,9 @@ export function registerWorkOrderCommands(program: Command): void {
       for (const s of spawned) console.log(`  spawned ${s.id} (${s.type})`);
       const crRef = order.ref.changeRequest;
       if (crRef && (order.type === "req-change" || order.type === "arch-change")) {
-        approveChangeRequest(ws(), crRef, opts.by);
-        console.log(`  applied change request ${crRef}`);
+        const { cr: applied, suggestedCli } = approveChangeRequest(ws(), crRef, opts.by);
+        console.log(`  applied change request ${applied.id}`);
+        if (suggestedCli) console.log(`  next: ${suggestedCli}`);
       }
     });
 
@@ -217,9 +219,18 @@ export function registerChangeRequestCommands(program: Command): void {
 
   cr.command("list").action(() => {
     for (const r of listChangeRequests(ws())) {
-      console.log(`${r.id}\t${r.status}\t${r.kind}\t${r.action}`);
+      const link = r.linkedChange ? `\t→${r.linkedChange}` : "";
+      console.log(`${r.id}\t${r.status}\t${r.kind}\t${r.action}${link}`);
     }
   });
+
+  cr
+    .command("link <crId> <change>")
+    .description("Link an applied CR to an existing change (delta track)")
+    .action((crId: string, change: string) => {
+      const meta = attachChangeToCr(ws(), crId, change);
+      console.log(`linked ${crId} → ${change} (prd=${meta.prdRef ?? "-"})`);
+    });
 }
 
 export function registerBugCommands(program: Command): void {

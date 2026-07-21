@@ -1,11 +1,17 @@
-# 已合并
+# CLI 使用说明
 
-本手册已并入 **[企业 AI 交付全过程手册](enterprise-delivery.zh-CN.md)**。
+完整速查见 **[cli-reference.zh-CN.md](cli-reference.zh-CN.md)**。
 
-- 产品经理 → [§1 产品经理](enterprise-delivery.zh-CN.md#1-产品经理)
-- 技术经理 → [§2 技术经理](enterprise-delivery.zh-CN.md#2-技术经理)
-- 架构师 → [§3 架构师](enterprise-delivery.zh-CN.md#3-架构师)
-- 开发人员 → [§4 开发人员](enterprise-delivery.zh-CN.md#4-开发人员)
-- 测试人员 → [§5 测试人员](enterprise-delivery.zh-CN.md#5-测试人员)
+角色交付流程已并入 **[企业 AI 交付全过程手册](enterprise-delivery.zh-CN.md)**。
 
 Hub 资产：见 [hxhub 使用手册](hxhub-usage.zh-CN.md)。
+
+常用入口：
+
+```bash
+hx doctor          # 健康检查
+hx next            # 工作区/组织阶段/变更 的下一步建议
+hx tui             # 工作区上下文交互壳（单词指令，输入 help 查看；可选传 <change> 直达）
+hx change propose <id> --title "…"
+# 兼容别名仍可用：hx propose <id>
+```

@@ -57,7 +57,7 @@ distilled-flaky-time-dependent-assertion-in-file → trial
 
 从此 apply 阶段的 Context Pack 自动携带这条 Skill——**问题从"反馈拦截"前移到"前馈预防"**。
 
-别忘了最后一步：重跑 `hx adapter sync`，新 Skill 才会编译进 `.cursor/skills/distilled-.../SKILL.md`（以及 Claude/Trae/Qoder 的对应位置）。此后 Cursor 用户不需要做任何事——agent 在 apply 阶段写测试时，这条"注入 Clock、不比较绝对时间戳"的规范会作为 Skill 自动出现在其上下文里。验证方法很直接，在 Cursor 里问一句：
+别忘了最后一步：重跑 `hx adapter sync`，新 Skill 才会编译进 `.cursor/skills/distilled-.../SKILL.md`、`.trae/skills/distilled-.../SKILL.md`（以及 Claude / Qoder 的对应位置）。此后 Cursor / Trae 用户不需要做任何事——agent 在 apply 阶段写测试时，这条"注入 Clock、不比较绝对时间戳"的规范会作为 Skill 自动出现在其上下文里。验证方法很直接，在 Cursor 里问一句：
 
 ```text
 Cursor ▸ 给优惠券过期逻辑写个测试

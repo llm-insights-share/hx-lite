@@ -86,7 +86,9 @@ describe("M22-M27 enterprise SDLC workflow", () => {
       createdBy: "pm"
     });
     submitChangeRequest(ws, cr.id, "pm");
-    approveChangeRequest(ws, cr.id, "tm");
+    const { cr: applied, suggestedCli } = approveChangeRequest(ws, cr.id, "tm");
+    expect(applied.status).toBe("applied");
+    expect(suggestedCli).toContain("--from-cr");
 
     const content = fs.readFileSync(ws.prdFile("orders"), "utf8");
     expect(content).toContain("New requirement paragraph");

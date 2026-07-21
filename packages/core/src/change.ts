@@ -1,11 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Workspace, ensureDir } from "./paths.js";
-import { initMeta, readMeta } from "./metaStore.js";
+import { initMeta, readMeta, writeMeta } from "./metaStore.js";
 import { scaffoldDeliveryTrace } from "./deliveryTrace.js";
 import { checkReqReviewForPrd } from "./workorder.js";
 import { workordersRequired } from "./roles.js";
 import type { MetaYaml } from "./schemas.js";
+import { linkChangeRequest, readChangeRequest } from "./changeRequest.js";
 
 export interface OverlapWarning {
   otherChange: string;
@@ -39,25 +40,73 @@ export function createChange(
   id: string,
   domains: string[],
   profile?: string,
-  opts?: { prdRef?: string; archModules?: string[] }
+  opts?: { prdRef?: string; archModules?: string[]; fromCr?: string }
 ): CreateChangeResult {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) throw new Error(`invalid change id "${id}" (use kebab-case)`);
   if (fs.existsSync(ws.changeDir(id))) throw new Error(`change "${id}" already exists`);
   if (domains.length === 0) throw new Error("declare touched domains with --domains (FR-011)");
 
+  let prdRef = opts?.prdRef;
+  let sourceCr = opts?.fromCr;
+  if (opts?.fromCr) {
+    const cr = readChangeRequest(ws, opts.fromCr);
+    if (cr.status !== "applied" && cr.status !== "approved") {
+      throw new Error(`CR "${opts.fromCr}" must be approved/applied before --from-cr (status=${cr.status})`);
+    }
+    if (cr.linkedChange) {
+      throw new Error(`CR "${opts.fromCr}" already linked to change "${cr.linkedChange}" — use hx cr link to reassign`);
+    }
+    if (!prdRef && cr.target.prd) prdRef = cr.target.prd;
+  }
+
   const config = ws.readConfig();
   const chosenProfile = profile ?? config.profile;
-  if (workordersRequired(ws) && opts?.prdRef && !checkReqReviewForPrd(ws, opts.prdRef)) {
+  if (workordersRequired(ws) && prdRef && !checkReqReviewForPrd(ws, prdRef)) {
     throw new Error(
-      `PRD "${opts.prdRef}" requires an approved req-review work order before change create (hx prd submit ${opts.prdRef})`
+      `PRD "${prdRef}" requires an approved req-review work order before change create (hx prd submit ${prdRef})`
     );
   }
 
   const warnings = detectOverlaps(ws, domains);
-  const meta = initMeta(ws, id, chosenProfile, domains, opts);
+  const meta = initMeta(ws, id, chosenProfile, domains, {
+    prdRef,
+    archModules: opts?.archModules,
+    sourceCr
+  });
   for (const sub of ["specs", "traces", "runs", "requirements", "design"]) ensureDir(path.join(ws.changeDir(id), sub));
   for (const sub of ["api", "ui/components", "data", "sequences"]) ensureDir(path.join(ws.changeDir(id), "design", sub));
+
+  if (opts?.fromCr) {
+    linkChangeRequest(ws, opts.fromCr, id);
+  }
+
   return { meta, warnings };
+}
+
+/** List active changes, optionally filtered by PRD ref or source CR. */
+export function listChangesFiltered(
+  ws: Workspace,
+  opts?: { prd?: string; fromCr?: string }
+): { id: string; meta: MetaYaml }[] {
+  const rows: { id: string; meta: MetaYaml }[] = [];
+  for (const id of ws.listChanges()) {
+    const meta = readMeta(ws, id);
+    if (opts?.prd && meta.prdRef !== opts.prd) continue;
+    if (opts?.fromCr && meta.sourceCr !== opts.fromCr) continue;
+    rows.push({ id, meta });
+  }
+  return rows;
+}
+
+/** Attach an existing change to a CR (delta track). */
+export function attachChangeToCr(ws: Workspace, crId: string, changeId: string): MetaYaml {
+  if (!fs.existsSync(ws.changeDir(changeId))) throw new Error(`change "${changeId}" not found`);
+  const cr = linkChangeRequest(ws, crId, changeId);
+  const meta = readMeta(ws, changeId);
+  meta.sourceCr = crId;
+  if (!meta.prdRef && cr.target.prd) meta.prdRef = cr.target.prd;
+  writeMeta(ws, meta);
+  return meta;
 }
 
 function readTemplate(ws: Workspace, source: string): string {

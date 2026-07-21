@@ -55,7 +55,7 @@ distilled-flaky-time-dependent-assertion-in-file → trial
 
 Apply phase Context Pack now carries this Skill — **problem moves from "feedback intercept" to "feedforward prevention"**.
 
-Do not skip: re-run `hx adapter sync` so new Skill compiles to `.cursor/skills/distilled-.../SKILL.md` (and Claude/Trae/Qoder equivalents). Cursor users need do nothing — agent writing tests in apply phase auto-gets "inject Clock, don't compare absolute timestamps". Quick verification in Cursor:
+Do not skip: re-run `hx adapter sync` so new Skill compiles to `.cursor/skills/distilled-.../SKILL.md`, `.trae/skills/distilled-.../SKILL.md` (and Claude / Qoder equivalents). Cursor / Trae users need do nothing — agent writing tests in apply phase auto-gets "inject Clock, don't compare absolute timestamps". Quick verification in Cursor:
 
 ```text
 Cursor ▸ Write a test for coupon expiry logic

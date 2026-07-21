@@ -35,8 +35,8 @@ export const TARGETS: Record<string, TargetSpec> = {
   },
   trae: {
     name: "Trae",
-    // No native slash-command surface; task shells land as inlined entry skills in rules.
-    capabilities: { commands: false, skills: false, rules: true, hooks: false, agents: true, mcp: true, permissions: false }
+    // No native slash-command surface; task shells and domain skills land under .trae/skills/.
+    capabilities: { commands: false, skills: true, rules: true, hooks: false, agents: true, mcp: true, permissions: false }
   },
   qoder: {
     name: "Qoder",

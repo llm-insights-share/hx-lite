@@ -35,7 +35,7 @@ Cursor ▸ /hx-dev-propose partial-refund
          Product doc: @docs/prd/partial-refund.md
 ```
 
-The `/hx-dev-propose` body (compiled from `harnessX/assets/commands/propose.md`) directs the agent to:
+The `/hx-dev-propose` body (compiled from `harnessX/assets/workflows/dev/propose.md`) directs the agent to:
 
 1. Run `hx propose partial-refund --title "Support partial refund"` to scaffold (proposal.md + delta spec skeleton);
 2. Fill proposal.md Why / What Changes / Impact / Out of Scope from the PRD — remove template placeholders — **incomplete proposal blocks the design gate**;

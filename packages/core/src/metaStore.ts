@@ -69,7 +69,7 @@ export function initMeta(
   change: string,
   profile: string,
   domains: string[],
-  opts?: { prdRef?: string; archModules?: string[] }
+  opts?: { prdRef?: string; archModules?: string[]; sourceCr?: string }
 ): MetaYaml {
   const meta = MetaYaml.parse({
     change,
@@ -79,6 +79,7 @@ export function initMeta(
     task: "propose",
     stageProgress: { dev: { current: "propose", completed: [] } },
     ...(opts?.prdRef ? { prdRef: opts.prdRef } : {}),
+    ...(opts?.sourceCr ? { sourceCr: opts.sourceCr } : {}),
     ...(opts?.archModules?.length ? { archModules: opts.archModules } : {})
   });
   ensureDir(ws.changeDir(change));

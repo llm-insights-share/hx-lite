@@ -10,8 +10,8 @@
 
 | CLI | 职责 |
 | --- | --- |
-| `hxhub` | Hub 运维：种子化、资产创建/发布、评审、诊断 |
-| `hx` / `hx hub …` | 项目交付；兼容部分 Hub 子命令 |
+| `hxhub` | Hub 运维：种子化、资产创建/发布、评审、诊断（含 `doctor` / `fix` / AI `help`） |
+| `hx` / `hx hub …` | 项目交付；`hx hub` 与 `hxhub` **共享同一实现**（seed 旗标一致）；维护者专属子命令仅在 `hxhub` |
 
 **Harness Hub** 是组织级 Guide / Sensor 资产仓库（通常独立 Git 仓库）。业务项目 **Owner** 用 `hx project create --profile … --hub …` 按 Profile 拉取相关 stage.task 资产写入业务仓库；**成员** `git pull`（或 clone）后用 `hx init --stages …` 选择本地激活阶段。后续资产更新：Owner `hx project sync-hub`，成员 `hx project pull-assets`。
 
@@ -309,7 +309,7 @@ Steering 闭环（业务仓失败沉淀 → Hub）：见交付手册「技术经
 | 评审、策略、推远程 | Owner：`hx project sync-hub`；成员：`hx project pull-assets` |
 | `resolve --profile` 看装配面 | Adapter sync、hooks、lock、CI |
 
-`hx adapter sync` 会按 `harness.yaml` 里各 task 绑定的 `guide.skill` / `guide.template` **自动组装任务壳**（Context Pack 加载步骤、绑定清单；多个 Skill/Template 时要求 Agent 自选并先向用户确认）。支持 slash command 的 IDE（Cursor / Claude / Qoder）落盘为 `/hx-<stage>-<task>`；不支持 command 的 IDE（generic / Codex / OpenCode / Trae）则将同一壳安装为任务入口 skill（或 inline 进 `AGENTS.md` / rules）。手改 IDE 生成物会被下次 sync 覆盖；改绑定只需改 `assets/workflows/`、资产或 `harness.yaml` 后重新 sync。
+`hx adapter sync` 会按 `harness.yaml` 里各 task 绑定的 `guide.skill` / `guide.template` **自动组装任务壳**（Context Pack 加载步骤、绑定清单；多个 Skill/Template 时要求 Agent 自选并先向用户确认）。支持 slash command 的 IDE（Cursor / Claude / Qoder）落盘为 `/hx-<stage>-<task>`；不支持 command 但支持 skills 的 IDE（Trae）将同一壳安装为 `.trae/skills/hx-<stage>-<task>/SKILL.md`；仅有 rules 的 IDE（generic / Codex / OpenCode）则 inline 进 `AGENTS.md` / rules。手改 IDE 生成物会被下次 sync 覆盖；改绑定只需改 `assets/workflows/`、资产或 `harness.yaml` 后重新 sync。
 
 在 Cursor 项目中，`hx adapter sync` 生成的 hooks 还会在 Agent 回合结束后自动触发 `hx gate check`（通过 `stop` hook），Gate 失败会以 followup message 回注到 IDE 供 Agent 迭代修复（默认最多 3 轮）；若为审批类/缺输入阻塞，Agent 应停止并提示人工处理。
 

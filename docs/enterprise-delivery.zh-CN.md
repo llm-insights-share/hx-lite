@@ -5,7 +5,9 @@
 **Hub 运维**：[hxhub 使用手册](hxhub-usage.zh-CN.md)  
 **阶段权威定义**：[delivery-stages.zh-CN.md](delivery-stages.zh-CN.md)
 
-本手册按角色说明「谁在什么阶段做什么」。**写文档走 IDE（斜杠命令）；脚手架、门禁、批准、归档走 CLI。**
+本手册按角色说明「谁在什么阶段做什么」。**写文档走 IDE（斜杠命令或 Trae skill）；脚手架、门禁、批准、归档走 CLI。**
+
+CLI 速查（命名空间、`doctor`/`next`/`tui`、退出码、`--yes`）：[cli-reference.zh-CN.md](cli-reference.zh-CN.md)。
 
 ---
 
@@ -14,11 +16,23 @@
 ### 0.1 分层与模型
 
 ```text
-L1 IDE（Cursor 等） ← Adapter 斜杠命令 / Skills / Pack
+L1 IDE（Cursor / Trae 等） ← Adapter 斜杠命令或 .trae/skills / Pack
 L2 hxhub            ← Guide / Sensor 供应链
-L3 hx CLI           ← Gate / Change / 工单
+L3 hx CLI           ← Gate / Change / doctor / next / 工单
 ```
 
+### 0.1.1 日常导航命令
+
+| 命令 | 用途 |
+| --- | --- |
+| `hx doctor` | 检查 harness 完整性、lock、adapter tier（失败 exit 3） |
+| `hx next [change]` | 工作区/组织阶段/change 的建议 CLI、IDE 入口（Cursor slash 或 Trae skill） |
+| `hx tui [change]` | 工作区上下文轻量交互壳（需 TTY；可无参启动） |
+| `hx change …` | 规范路径；`hx propose` 等仍为兼容别名 |
+
+破坏性操作（`--overwrite`、`archive`、`hub push*`）需 `--yes` 或交互确认。退出码：0 成功 / 1 业务失败 / 2 用法 / 3 配置。
+
+---
 ```text
 Profile → Stage → Task → Guide（前馈）+ Sensor（反馈）
 ```
@@ -35,6 +49,15 @@ Profile → Stage → Task → Guide（前馈）+ Sensor（反馈）
 ```text
 req → arch → change create → dev → test → archive
 ```
+
+双轨：
+
+```text
+基线轨:  req/arch → 多个 Change (propose/design/apply/verify…) → 各 Change 的 test
+变更轨:  hx cr（需求变更）→ change create --from-cr / cr link → 同 Change 的 test
+```
+
+`test` 是 Change 的阶段，不是独立 `Test.Change`。词表见 [glossary.zh-CN.md](glossary.zh-CN.md)。
 
 ### 0.2 角色对照
 
@@ -72,14 +95,14 @@ req → arch → change create → dev → test → archive
 | 列 | 含义 |
 | --- | --- |
 | **任务** | Stage 任务 ID（或流程步骤名） |
-| **CLI / IDE** | `CLI:` 终端命令；`IDE:` 斜杠命令（`hx adapter sync` 后）。命名规则：`/hx-<stage>-<task>`（下划线变连字符） |
+| **CLI / IDE** | `CLI:` 终端命令；`IDE:` 斜杠命令 `/hx-<stage>-<task>`（Cursor/Claude/Qoder）或 Trae 任务入口 skill `.trae/skills/hx-<stage>-<task>`（`hx adapter sync` 后） |
 | **任务说明** | 该步要交付什么 |
-| **Guide** | 前馈资产（Skill / Template / Command） |
+| **Guide** | 前馈资产（Skill / Template / Workflow） |
 | **Sensor** | 反馈检查项（suite 内执行） |
 | **Gate** | 过门命令：`hx gate check` / `hx req\|arch check` / `hx approve` 等 |
 | **备注** | 人批准、工单、易错点等 |
 
-**原则**：正文与设计用 **IDE**；`init` / `check` / `approve` / `archive` / 工单用 **CLI**。斜杠命令内部也会提示你跑 CLI——最终审计记录以 CLI 为准。Command 正文为薄清单（Input / Steps / Output / Guardrails / Done when）；Skills、Templates、suite Sensors 由 `adapter sync` 自动附录注入（见 [design1.md](../design1.md)）。
+**原则**：正文与设计用 **IDE**；`init` / `check` / `approve` / `archive` / 工单用 **CLI**。斜杠命令 / 任务入口 skill 内部也会提示你跑 CLI——最终审计记录以 CLI 为准。任务壳正文为薄清单（Input / Steps / Output / Guardrails / Done when）；Skills、Templates、suite Sensors 由 `adapter sync` 自动附录注入（见 [stage-task-assets.zh-CN.md](stage-task-assets.zh-CN.md)）。
 
 ---
 
@@ -158,7 +181,7 @@ workflow: { workorders: required }
 | 2. 拉取项目 | **CLI:** `git clone <业务项目 GitHub URL> && cd <repo>`；已有仓则 `git pull` | **资产已在仓库** `harnessX/`（Owner 曾 `--hub` 写入，不是再连组织 Hub） |
 | 3. 依赖 | **CLI:** `npm install`（若项目有 package.json） | 按仓库约定 |
 | 4. 激活阶段 | **CLI:** `hx init --stages req` | 只开需求阶段（可按需加 `arch` 只读浏览） |
-| 5. 同步 IDE | **CLI:** `hx adapter sync` | 生成 `/hx-req-*` 等斜杠命令与 Skills |
+| 5. 同步 IDE | **CLI:** `hx adapter sync` | Cursor/Claude/Qoder：`/hx-req-*` 斜杠命令与 Skills；Trae：`.trae/skills/hx-req-*` 与领域 Skills |
 | 6. 可选校验 | **CLI:** `hx lock verify`；`hx req status` | 确认锁与任务清单正常 |
 
 资产有更新时：`hx project pull-assets`（可选 `--adapter-sync`）；勿用全仓 `git pull` 覆盖本地未提交的 change/文档工作——该命令只同步 harness 资产路径。
@@ -181,8 +204,9 @@ workflow: { workorders: required }
 
 ### 2.2 与研发衔接
 
-- Change：`hx change create … --prd <slug>`（**CLI**）
+- Change：`hx change create … --prd <slug>`（**CLI**）；同 PRD 可并行多个 Change
 - 需求变更：`hx cr create --kind requirement-change`（**CLI**），勿静默改已批准 PRD
+- 变更轨闭环：CR 批准/应用后 → `hx change create <id> --domains … --from-cr <CR-id>`（或 `hx cr link <CR-id> <change>`）→ 同 Change 走完 `dev`/`test`
 
 ---
 
@@ -198,7 +222,7 @@ workflow: { workorders: required }
 | 1. 安装工具 | **CLI:** 安装 `hx`（同 §1.0） | — |
 | 2. 拉取项目 | **CLI:** `git clone <业务项目 GitHub>` 或 `git pull` | 取得已含 hxhub 资产的 `harnessX/` |
 | 3. 激活阶段 | **CLI:** `hx init --stages arch`（建议加 `req` 以便对照 PRD：`req,arch`） | 本地 `active_stages` |
-| 4. 同步 IDE | **CLI:** `hx adapter sync` | `/hx-arch-*`、arch Skills |
+| 4. 同步 IDE | **CLI:** `hx adapter sync` | Cursor/Claude/Qoder：`/hx-arch-*` 与 arch Skills；Trae：`.trae/skills/hx-arch-*` |
 | 5. 可选校验 | **CLI:** `hx lock verify`；`hx stage status --stage arch` | — |
 
 勿在本机重复 `hx project create`（会冲突）；Hub 升级靠 Owner `sync-hub` push 后成员 `hx project pull-assets`。
@@ -241,7 +265,7 @@ workflow: { workorders: required }
 | 1. 安装工具 | **CLI:** 安装 `hx` | — |
 | 2. 拉取项目 | **CLI:** `git clone <业务项目 GitHub>` 或 `git pull` | `harnessX/` 内 Guide/Sensor 已由 Owner 从 hxhub 写入 |
 | 3. 激活阶段 | **CLI:** `hx init --stages dev`（常开 `dev,test`；需读 PRD/架构时加 `req,arch`） | — |
-| 4. 同步 IDE | **CLI:** `hx adapter sync` | `/hx-dev-*` 与 coding Skills |
+| 4. 同步 IDE | **CLI:** `hx adapter sync` | Cursor/Claude/Qoder：`/hx-dev-*` 与 coding Skills；Trae：`.trae/skills/hx-dev-*` |
 | 5. 可选 hooks | **CLI:** `hx hooks install`（若仓库未统一装） | 本地 commit 前快检 |
 | 6. 可选校验 | **CLI:** `hx lock verify`；`hx change list` | — |
 
@@ -287,7 +311,7 @@ harnessX/changes/<id>/
 | 1. 安装工具 | **CLI:** 安装 `hx` | — |
 | 2. 拉取项目 | **CLI:** `git clone <业务项目 GitHub>` 或 `git pull` | 含 UAT/用例相关 template 等已入库资产 |
 | 3. 激活阶段 | **CLI:** `hx init --stages test`（建议 `dev,test`，便于对照 change 制品） | — |
-| 4. 同步 IDE | **CLI:** `hx adapter sync` | `/hx-test-test-case-design` 等 |
+| 4. 同步 IDE | **CLI:** `hx adapter sync` | Cursor/Claude/Qoder：`/hx-test-*`；Trae：`.trae/skills/hx-test-*` |
 | 5. 可选校验 | **CLI:** `hx lock verify`；`hx test status <change>`（已有 change 时） | — |
 
 测某 change 前先 `git pull`，确保与开发现场的 `changes/<id>/`、规格一致。

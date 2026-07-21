@@ -189,11 +189,39 @@ function invalidateArchApproval(ws: Workspace, module?: string): void {
   writeStageApprovals(ws, store);
 }
 
-export function approveChangeRequest(ws: Workspace, crId: string, by: string): ChangeRequestYaml {
+export function approveChangeRequest(
+  ws: Workspace,
+  crId: string,
+  by: string
+): { cr: ChangeRequestYaml; suggestedCli?: string } {
   const cr = readChangeRequest(ws, crId);
   cr.status = "approved";
   writeChangeRequest(ws, cr);
-  return applyChangeRequest(ws, crId, by);
+  const applied = applyChangeRequest(ws, crId, by);
+  let suggestedCli: string | undefined;
+  if (!applied.linkedChange) {
+    const prd = applied.target.prd ?? "<slug>";
+    suggestedCli = `hx change create <id> --domains <domain> --prd ${prd} --from-cr ${applied.id}`;
+  }
+  return { cr: applied, suggestedCli };
+}
+
+/** Link a CR to an existing change id (writes CR.linkedChange). */
+export function linkChangeRequest(ws: Workspace, crId: string, changeId: string): ChangeRequestYaml {
+  const cr = readChangeRequest(ws, crId);
+  if (cr.linkedChange && cr.linkedChange !== changeId) {
+    throw new Error(`CR "${crId}" already linked to "${cr.linkedChange}"`);
+  }
+  cr.linkedChange = changeId;
+  writeChangeRequest(ws, cr);
+  return cr;
+}
+
+/** CRs that are applied/approved but not yet linked to a Dev Change (delta track pending). */
+export function listUnlinkedAppliedCrs(ws: Workspace): ChangeRequestYaml[] {
+  return listChangeRequests(ws).filter(
+    (cr) => (cr.status === "applied" || cr.status === "approved") && !cr.linkedChange
+  );
 }
 
 export function listChangeRequests(ws: Workspace): ChangeRequestYaml[] {
@@ -209,6 +237,7 @@ export function showChangeRequestDiff(cr: ChangeRequestYaml): string {
     `- Status: ${cr.status}`,
     ""
   ];
+  if (cr.linkedChange) parts.push(`- Linked change: ${cr.linkedChange}`, "");
   if (cr.payload.original) parts.push("## Original\n", cr.payload.original, "");
   if (cr.payload.changeNote) parts.push("## Change Note\n", cr.payload.changeNote, "");
   if (cr.payload.revised) parts.push("## Revised\n", cr.payload.revised, "");

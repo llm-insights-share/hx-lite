@@ -1,12 +1,14 @@
 import { Command } from "commander";
 import fs from "node:fs";
 import path from "node:path";
-import {
+  import {
   Workspace,
   initWorkspace,
   localInit,
   createProject,
   createChange,
+  listChangesFiltered,
+  attachChangeToCr,
   scaffoldProposal,
   scaffoldExplore,
   importOpenspec,
@@ -21,6 +23,8 @@ import {
   type DeliveryStage
 } from "@harnessx/core";
 import { compileAdapters } from "@harnessx/adapters";
+import { requireDestructiveConfirmation } from "./confirm.js";
+import { EXIT_FAIL, UsageError } from "./exitCodes.js";
 
 export const ws = () => Workspace.locate(process.cwd());
 
@@ -34,6 +38,65 @@ function parseIdsCsv(csv?: string): string[] | undefined {
   if (!csv) return undefined;
   const ids = csv.split(",").map((s) => s.trim()).filter(Boolean);
   return ids.length ? ids : undefined;
+}
+
+function registerProposeAction(cmd: Command): void {
+  cmd
+    .argument("<change>")
+    .description("Scaffold proposal.md and an initial delta spec")
+    .option("--title <title>", "proposal title", "Untitled")
+    .action((changeId: string, opts: { title: string }) => {
+      const w = ws();
+      const res = scaffoldProposal(w, changeId, opts.title);
+      console.log(`Wrote ${res.proposalFile}`);
+      console.log(`Wrote ${res.deltaFile}`);
+      try {
+        const meta = readMeta(w, changeId);
+        if (meta.profile === "enterprise") {
+          for (const f of scaffoldExtendedRequirements(w, changeId)) console.log(`Wrote harnessX/changes/${changeId}/${f}`);
+        }
+      } catch {
+        /* ignore */
+      }
+    });
+}
+
+function registerExploreAction(cmd: Command): void {
+  cmd
+    .argument("<change>")
+    .description("Read-only exploration notes")
+    .option("--topic <topic>", "exploration topic", "unscoped")
+    .action((changeId: string, opts: { topic: string }) => {
+      console.log(`Wrote ${scaffoldExplore(ws(), changeId, opts.topic)}`);
+      console.log("Read-only phase: do not modify code. Gate check will flag staged code edits.");
+    });
+}
+
+function registerArchiveAction(cmd: Command): void {
+  cmd
+    .argument("<change>")
+    .description("Merge delta specs into main specs and archive the change")
+    .option("--force", "skip verified-state requirement (lite profile)")
+    .option("--yes", "confirm destructive archive without prompt")
+    .option("--dry-run", "preview archive without writing")
+    .action(async (changeId: string, opts: { force?: boolean; yes?: boolean; dryRun?: boolean }) => {
+      if (opts.dryRun) {
+        console.log(`dry-run: would archive change "${changeId}"${opts.force ? " (force)" : ""}`);
+        return;
+      }
+      await requireDestructiveConfirmation({
+        yes: opts.yes,
+        action: `Archive change "${changeId}"`,
+        detail: "Merges delta specs into main specs and moves the change to archive/."
+      });
+      const res = archiveChange(ws(), changeId, { force: opts.force });
+      if (!res.ok) {
+        for (const p of res.problems) console.error(`BLOCKED: ${p}`);
+        process.exit(EXIT_FAIL);
+      }
+      console.log(`Archived to ${res.archivedTo}`);
+      console.log(`Merged capabilities: ${res.capabilities.join(", ")}`);
+    });
 }
 
 export function registerFoundationCommands(program: Command): void {
@@ -57,7 +120,7 @@ export function registerFoundationCommands(program: Command): void {
         return;
       }
       if (exists) {
-        throw new Error("harnessX already initialized — pass --stages <csv> to set local active stages");
+        throw new UsageError("harnessX already initialized — pass --stages <csv> to set local active stages");
       }
 
       const res = initWorkspace(process.cwd(), {
@@ -82,8 +145,9 @@ export function registerFoundationCommands(program: Command): void {
     .option("--actor <name>", "hub consumer identity (written to config.yaml hub.actor)")
     .option("--stages <csv>", "comma-separated active stages (defaults to all profile stages)")
     .option("--overwrite", "replace existing harnessX/ (destructive: deletes changes/specs/assets)")
+    .option("--yes", "confirm --overwrite without prompt")
     .action(
-      (opts: {
+      async (opts: {
         profile: string;
         hub: string;
         locale?: string;
@@ -91,40 +155,15 @@ export function registerFoundationCommands(program: Command): void {
         actor?: string;
         stages?: string;
         overwrite?: boolean;
+        yes?: boolean;
       }) => {
-        // #region agent log
-        {
-          const body = {
-            sessionId: "57a8bf",
-            runId: opts.overwrite ? "post-fix" : "pre-fix",
-            hypothesisId: "B",
-            location: "foundation.ts:project.create",
-            message: "CLI project create invoked",
-            data: {
-              cwd: process.cwd(),
-              profile: opts.profile,
-              adapter: opts.adapter,
-              actor: opts.actor,
-              cliKeys: Object.keys(opts),
-              overwrite: opts.overwrite === true
-            },
-            timestamp: Date.now()
-          };
-          try {
-            fs.appendFileSync(
-              "/Users/zhangjr/apps/LlmDemo/hx-project/hx-lite/.cursor/debug-57a8bf.log",
-              `${JSON.stringify(body)}\n`
-            );
-          } catch {
-            /* ignore */
-          }
-          fetch("http://127.0.0.1:7307/ingest/88fb5b33-114f-42c3-b178-e43e3a7b2920", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "57a8bf" },
-            body: JSON.stringify(body)
-          }).catch(() => {});
+        if (opts.overwrite) {
+          await requireDestructiveConfirmation({
+            yes: opts.yes,
+            action: "Overwrite existing harnessX/",
+            detail: "Deletes changes/, specs/, and assets/ under harnessX/."
+          });
         }
-        // #endregion
         const stages = parseStagesCsv(opts.stages);
         const res = createProject(process.cwd(), {
           profile: opts.profile,
@@ -148,6 +187,7 @@ export function registerFoundationCommands(program: Command): void {
     .description("Owner: sync org hxhub into project assets/harness/lock (then commit to project GitHub)")
     .option("--hub <path>", "hub source (defaults to config.yaml hub)")
     .option("--dry-run", "preview hub sync state without applying")
+    .option("--json", "print machine-readable JSON summary")
     .option("--no-apply", "skip hubSyncApply; only land cache → assets + lock")
     .option("--force", "apply merges even when conflicts occur")
     .option("--only <ids>", "comma-separated package ids")
@@ -162,6 +202,7 @@ export function registerFoundationCommands(program: Command): void {
       (opts: {
         hub?: string;
         dryRun?: boolean;
+        json?: boolean;
         apply?: boolean;
         force?: boolean;
         only?: string;
@@ -187,6 +228,24 @@ export function registerFoundationCommands(program: Command): void {
           only: parseIdsCsv(opts.only),
           installAvailable: opts.installAvailable
         });
+
+        if (opts.json) {
+          console.log(
+            JSON.stringify(
+              {
+                ok: true,
+                dryRun: !!opts.dryRun,
+                syncResults: res.syncResults,
+                installedAvailable: res.installedAvailable,
+                landed: res.landed.map((a) => ({ id: a.id, version: a.version })),
+                lockAssets: res.lock ? Object.keys(res.lock.assets).length : 0
+              },
+              null,
+              2
+            )
+          );
+          return;
+        }
 
         for (const r of res.syncResults) {
           console.log(`sync\t${r.id}\t${r.action}\t${r.detail ?? ""}${r.toVersion ? ` → ${r.toVersion}` : ""}`);
@@ -256,15 +315,17 @@ export function registerFoundationCommands(program: Command): void {
       for (const s of res.nextSteps) console.log(`  ${s}`);
     });
 
-  const change = program.command("change").description("Manage change workspaces");
+  const change = program.command("change").description("Manage change workspaces and delivery verbs");
   change
     .command("create <id>")
-    .option("--domains <list>", "comma-separated touched domains (FR-011); inferred from issue labels with --from-issue")
+    .description("Create a change workspace")
+    .option("--domains <list>", "comma-separated touched domains; inferred from issue labels with --from-issue")
     .option("--profile <name>", "workflow profile override")
-    .option("--from-issue <url>", "scaffold from a GitHub issue URL (v0.2)")
+    .option("--from-issue <url>", "scaffold from a GitHub issue URL")
     .option("--prd <slug>", "link organization PRD slug (docs/prd/)")
+    .option("--from-cr <id>", "link from approved/applied change request (delta track)")
     .option("--arch-modules <list>", "comma-separated arch module ids")
-    .action(async (id: string, opts: { domains?: string; profile?: string; fromIssue?: string; prd?: string; archModules?: string }) => {
+    .action(async (id: string, opts: { domains?: string; profile?: string; fromIssue?: string; prd?: string; fromCr?: string; archModules?: string }) => {
       if (opts.fromIssue) {
         const res = await scaffoldFromIssue(ws(), {
           issueUrl: opts.fromIssue,
@@ -279,70 +340,53 @@ export function registerFoundationCommands(program: Command): void {
           console.warn(`WARNING: overlaps with active change "${w.otherChange}" on domains: ${w.domains.join(", ")}`);
         return;
       }
-      if (!opts.domains) throw new Error("--domains required (or use --from-issue)");
+      if (!opts.domains) throw new UsageError("--domains required (or use --from-issue)");
       const domains = opts.domains.split(",").map((s) => s.trim()).filter(Boolean);
       const archModules = opts.archModules?.split(",").map((s) => s.trim()).filter(Boolean);
       const res = createChange(ws(), id, domains, opts.profile, {
         prdRef: opts.prd,
+        fromCr: opts.fromCr,
         archModules: archModules?.length ? archModules : undefined
       });
       console.log(`Created change "${id}" (profile: ${res.meta.profile}, domains: ${domains.join(", ")})`);
+      if (res.meta.sourceCr) console.log(`  sourceCr: ${res.meta.sourceCr}`);
+      if (res.meta.prdRef) console.log(`  prd: ${res.meta.prdRef}`);
       for (const w of res.warnings)
         console.warn(`WARNING: overlaps with active change "${w.otherChange}" on domains: ${w.domains.join(", ")}`);
     });
-  change.command("list").action(() => {
-    const w = ws();
-    for (const id of w.listChanges()) {
-      const meta = w.readMetaRaw(id);
-      console.log(`${id}\t${meta.stage}/${meta.task}\t${meta.profile}\t[${meta.touchedDomains.join(",")}]`);
-    }
-  });
-
-  program
-    .command("propose <change>")
-    .description("Scaffold proposal.md and an initial delta spec (FR-003)")
-    .option("--title <title>", "proposal title", "Untitled")
-    .action((changeId: string, opts: { title: string }) => {
-      const w = ws();
-      const res = scaffoldProposal(w, changeId, opts.title);
-      console.log(`Wrote ${res.proposalFile}`);
-      console.log(`Wrote ${res.deltaFile}`);
-      try {
-        const meta = readMeta(w, changeId);
-        if (meta.profile === "enterprise") {
-          for (const f of scaffoldExtendedRequirements(w, changeId)) console.log(`Wrote harnessX/changes/${changeId}/${f}`);
-        }
-      } catch {
-        /* ignore */
+  change
+    .command("list")
+    .description("List active changes")
+    .option("--prd <slug>", "filter by PRD ref")
+    .option("--from-cr <id>", "filter by source change request")
+    .action((opts: { prd?: string; fromCr?: string }) => {
+      const rows = listChangesFiltered(ws(), { prd: opts.prd, fromCr: opts.fromCr });
+      for (const { id, meta } of rows) {
+        const extra = [
+          meta.prdRef ? `prd=${meta.prdRef}` : "",
+          meta.sourceCr ? `cr=${meta.sourceCr}` : ""
+        ]
+          .filter(Boolean)
+          .join(" ");
+        console.log(
+          `${id}\t${meta.stage}/${meta.task}\t${meta.profile}\t[${meta.touchedDomains.join(",")}]${extra ? `\t${extra}` : ""}`
+        );
       }
     });
 
-  program
-    .command("explore <change>")
-    .description("Read-only exploration notes (FR-002)")
-    .option("--topic <topic>", "exploration topic", "unscoped")
-    .action((changeId: string, opts: { topic: string }) => {
-      console.log(`Wrote ${scaffoldExplore(ws(), changeId, opts.topic)}`);
-      console.log("Read-only phase: do not modify code. Gate check will flag staged code edits.");
-    });
+  registerProposeAction(change.command("propose"));
+  registerExploreAction(change.command("explore"));
+  registerArchiveAction(change.command("archive"));
 
-  program
-    .command("archive <change>")
-    .description("Merge delta specs into main specs and archive the change (FR-009)")
-    .option("--force", "skip verified-state requirement (lite profile)")
-    .action((changeId: string, opts: { force?: boolean }) => {
-      const res = archiveChange(ws(), changeId, { force: opts.force });
-      if (!res.ok) {
-        for (const p of res.problems) console.error(`BLOCKED: ${p}`);
-        process.exit(1);
-      }
-      console.log(`Archived to ${res.archivedTo}`);
-      console.log(`Merged capabilities: ${res.capabilities.join(", ")}`);
-    });
+  // Top-level aliases (compat)
+  registerProposeAction(program.command("propose").description("Alias of hx change propose"));
+  registerExploreAction(program.command("explore").description("Alias of hx change explore"));
+  registerArchiveAction(program.command("archive").description("Alias of hx change archive"));
 
-  const openspec = program.command("openspec").description("OpenSpec interoperability (NFR-004)");
+  const openspec = program.command("openspec").description("OpenSpec interoperability");
   openspec
     .command("import")
+    .description("Import OpenSpec directory into harnessX")
     .option("--from <dir>", "openspec directory", "openspec")
     .action((opts: { from: string }) => {
       const w = new Workspace(process.cwd());

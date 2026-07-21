@@ -46,17 +46,24 @@ export function registerBehaviourCommands(program: Command): void {
       if (failed) process.exit(1);
     });
 
-  program
-    .command("verify <change>")
-    .description("Run the verification suite + traceability; sets state to verified (FR-008)")
-    .action(async (change: string) => {
-      const w = ws();
-      const res = await verifyChange(w, change, runnerOpts(w));
-      for (const b of res.gate.blockers) console.error(`BLOCKER  ${b}`);
-      for (const wmsg of res.gate.warnings) console.warn(`warning  ${wmsg}`);
-      console.log(res.verified ? "VERIFIED" : "NOT VERIFIED");
-      if (!res.verified) process.exit(1);
-    });
+  const registerVerify = (cmd: Command) => {
+    cmd
+      .argument("<change>")
+      .description("Run the verification suite + traceability; sets state to verified")
+      .action(async (change: string) => {
+        const w = ws();
+        const res = await verifyChange(w, change, runnerOpts(w));
+        for (const b of res.gate.blockers) console.error(`BLOCKER  ${b}`);
+        for (const wmsg of res.gate.warnings) console.warn(`warning  ${wmsg}`);
+        console.log(res.verified ? "VERIFIED" : "NOT VERIFIED");
+        if (!res.verified) process.exit(1);
+      });
+  };
+  const change =
+    (program.commands.find((c) => c.name() === "change") as Command | undefined) ??
+    program.command("change").description("Manage change workspaces and delivery verbs");
+  registerVerify(change.command("verify"));
+  registerVerify(program.command("verify").description("Alias of hx change verify"));
 
   const fixture = program.command("fixture").description("Approved fixtures (FR-025)");
   fixture

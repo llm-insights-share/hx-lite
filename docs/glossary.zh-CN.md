@@ -22,7 +22,29 @@
 
 ### Change
 
-一次交付工作单元（功能、修复、迁移）。每个 change 有 `meta.yaml`（阶段/任务状态）、delta spec、可选设计与任务，以及 `changes/<id>/assets/` 下的资产覆盖层。
+一次 **开发+测试一体** 的交付工作单元（功能、修复、迁移）。目录在 `harnessX/changes/<id>/`，含 `meta.yaml`（阶段/任务状态）、delta spec、可选设计与任务，以及 `changes/<id>/assets/` 资产覆盖层。
+
+- **dev** 典型任务：`propose` → `design` → `apply` → `verify`（profile 还可含 `plan` / `archive`）
+- **test** 是同一 Change 的后续阶段（`test-case-design` → `test-execution`），**不是**独立的 `Test.Change` 实体
+- 一次组织需求（PRD）下可并行多个 Change（`hx change create --prd <slug>`）
+
+### 需求变更 / Change Request（CR）
+
+对 **组织级** 已批准制品的结构化补丁（`hx cr`），不是 Dev Change：
+
+- `kind`: `requirement-change` | `design-change`
+- 存储：`harnessX/change-requests/CR-*.yaml`
+- 流程：创建 → submit → 工单批准 → 写入 PRD/LLD（并作废过期批准）
+- 批准后通常再 `hx change create … --from-cr <id>`（或 `hx cr link`）进入 **变更轨** 开发与测试
+
+### 双轨交付
+
+| 轨 | 路径 | 说明 |
+| --- | --- | --- |
+| **基线轨** | req/arch（org）→ 多个 Dev Change → 各 Change 的 test | 新功能/新需求切片 |
+| **变更轨** | CR（需求变更）→ linked Change → 同 Change 的 test | 基线批准后的需求/设计变更 |
+
+`hx next` / `hx tui` 工作区报告用 `tracks.baseline` / `tracks.delta` 展示双轨。
 
 ### Profile（工作流配置）
 
@@ -50,7 +72,23 @@
 
 ### TaskShell（任务壳）
 
-任务级 command / skill **只是壳**：`assembleTaskShell` 将 workflow（或 command 覆盖）与绑定的 skill/template、suite sensors、gate 提醒组装成同一内容，再按 IDE 能力投影为 slash command 或任务入口 skill。
+任务级 command / skill **只是壳**：`assembleTaskShell` 将 workflow（或 command 覆盖）与绑定的 skill/template、suite sensors、gate 提醒组装成同一内容，再按 IDE 能力投影为 slash command（Cursor / Claude / Qoder）、`.trae/skills/` 任务入口 skill（Trae），或 inline 进 `AGENTS.md` / rules（generic 等）。
+
+### Doctor / Next / Exit codes
+
+- **`hx doctor`**：聚合 harness 完整性、lock、adapter tier、hub 配置；错误级问题以 exit code **3** 退出。
+- **`hx next`**：支持三种上下文（workspace / org / change），建议下一条 CLI，并给出 IDE 入口（slash 或 Trae skill 路径）。
+- **退出码**：0 成功；1 业务失败（gate/sensor）；2 用法错误；3 环境/配置。详见 [cli-reference.zh-CN.md](cli-reference.zh-CN.md)。
+
+### ContextReport / Workspace Focus
+
+`hx next` 与 `hx tui` 使用统一的上下文报告（ContextReport）：
+
+- `workspace`：工作区首页，展示 profile、active stages、change 列表与推断焦点
+- `org`：组织级阶段任务（`req` / `arch`）
+- `change`：change 级任务（`dev` / `test`）
+
+工作区焦点推断优先级：**未完成的 org 必选任务 > 单一 active change > workspace 导航模式**。
 
 ### Sensor（FeedBack）
 

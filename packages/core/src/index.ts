@@ -29,6 +29,8 @@ export { bindTaskSensorToSuites, defaultSuiteName } from "./suiteBind.js";
 export * from "./stageGate.js";
 export * from "./orgStageGate.js";
 export * from "./orgStageProgress.js";
+export * from "./orgNavigation.js";
+export * from "./navigationReport.js";
 export * from "./guideEngine.js";
 export * from "./designLayout.js";
 export * from "./archRegistry.js";

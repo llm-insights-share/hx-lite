@@ -19,7 +19,7 @@ Pain: cannot maintain separate rule files per tool — four copies destined to d
 ```console
 $ hx adapter sync
 cursor (Tier 1): ... file(s)
-trae (Tier 1): ... file(s)
+trae (Tier 2): ... file(s)
 qoder (Tier 1): ... file(s)
 claude (Tier 1): ... file(s)
 generic (Tier 2): ... file(s)
@@ -27,17 +27,17 @@ generic (Tier 2): ... file(s)
 
 File counts depend on the profile tasks and bound assets; the sample count is not a stable contract.
 
-Same commands and rules land in each tool's native locations. Command **prompt bodies** come from single-source `harnessX/assets/commands/<task>.md` (`guide.command` type): each slash command is a thin task checklist; adapter sync appends the Context Pack, bound Skills/Templates, suite Sensors, and Gate reminder automatically. Running `/hx-dev-propose` in-tool gives the agent that task checklist and generated context.
+The same task shells and rules land in each tool's native locations. Task-shell bodies come from single-source `harnessX/assets/workflows/<stage>/<task>.md` (`guide.workflow`; optional `guide.command` override): each entry is a thin task checklist; adapter sync appends the Context Pack, bound Skills/Templates, suite Sensors, and Gate reminder. Cursor users run `/hx-dev-propose`; Trae users trigger `.trae/skills/hx-dev-propose` — same thin shell plus generated appendix.
 
 | Tool | Generated artifacts | Notes |
 | --- | --- | --- |
 | Cursor | `.cursor/commands/hx-*.md`, `.cursor/skills/*/SKILL.md`, `.cursor/rules/harnessx.mdc`, `.cursor/hooks.json` | Command files carry thin task checklists plus auto-enriched context/sensor appendices; hooks run `hx gate hook-check` before commit prompts, `hx fixture verify` after editing fixtures/meta.yaml |
 | Claude Code | `CLAUDE.md`, `.claude/commands/hx-*.md`, `.claude/settings.json` | Same command files; settings **deny editing meta.yaml / fixtures / lock files** (L2 enforcement) |
-| Trae | `.trae/rules/project_rules.md`, `.trae/agents.yaml` | agents.yaml defines `hx-planner` (propose/design/plan) and `hx-executor` (apply/verify), with separate command whitelists |
+| Trae | `.trae/rules/project_rules.md`, `.trae/skills/*/SKILL.md`, `.trae/agents.yaml` | No slash commands; task shells and domain skills land as independent skill packages (with resource files); agents.yaml defines `hx-planner` (propose/design/plan) and `hx-executor` (apply/verify), with separate command whitelists |
 | Qoder | `.qoder/rules/harnessx.md`, `.qoder/skills/*.md`, `.qoder/commands/hx-*.md`, `.qoder/mcp.json` | Plus Quest export (step 3) |
-| Other (Copilot etc.) | `AGENTS.md` | Tier 2 fallback: rules + command docs — at least "know the rules" |
+| Other (Copilot etc.) | `AGENTS.md` | Tier 2 fallback: rules + inlined task entrypoints + CLI reference |
 
-Change command workflows only in `harnessX/assets/commands/` single source, re-run `hx adapter sync` → all tools updated; same prompts also enter Context Pack (`hx guide pack`) — CLI and tools see the same playbook.
+Change task shells only under `harnessX/assets/workflows/` (or an optional `guide.command` override), re-run `hx adapter sync` → all tools updated; same prompts also enter Context Pack (`hx guide pack`) — CLI and tools see the same playbook.
 
 Same change, same phase, four people's entry points:
 
@@ -48,13 +48,20 @@ Li (Cursor)      ▸ Agent dialog /hx-dev-propose fee-recalc
 Zhou (Claude Code) ▸ Terminal claude, session /hx-dev-propose fee-recalc
                       (commands from .claude/commands/; settings.json denies
                         meta.yaml/fixtures/lock edits — harder than discipline)
-Zheng (Trae)        ▸ Select hx-planner agent for planning tasks
-                      (agents.yaml limits to propose/design/plan hx commands;
-                        implementation must switch to hx-executor, whitelist changes)
+Zheng (Trae)        ▸ Select hx-planner, or trigger .trae/skills/hx-dev-propose
+                      (task shells + domain skills under .trae/skills/; agents.yaml
+                        limits planner to propose/design/plan; switch to hx-executor for apply)
 Contractor (Qoder)  ▸ Open .qoder/quests/fee-recalc.md to start Quest (step 3)
 ```
 
 Four paths, one change workspace, same gates — tools are steering wheels, harness is the same reins.
+
+When unsure what to run next:
+
+```console
+$ hx next fee-recalc
+# prints gate / suggested CLI, plus Cursor slash or .trae/skills/hx-… path
+```
 
 ### 2. Hand-edit detection: compile output is not an edit surface
 

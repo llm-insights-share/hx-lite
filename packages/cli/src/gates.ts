@@ -2,8 +2,6 @@ import { Command } from "commander";
 import fs from "node:fs";
 import {
   Workspace,
-  gateCheck,
-  gateAdvance,
   nextTask,
   stageGateCheck,
   stageAdvance,
@@ -22,7 +20,6 @@ import {
   recordStageApproval,
   scaffoldDesign,
   readMeta,
-  scaffoldFromIssue,
   agentGateCheck,
   gateStopHookResponse,
   markAgentSessionFromPrompt,
@@ -32,6 +29,7 @@ import {
 import { builtinSensors } from "@harnessx/sensors";
 import { registerPrdGuidePack } from "./prd.js";
 import { registerArchGuidePack } from "./arch.js";
+import { EXIT_FAIL } from "./exitCodes.js";
 
 const ws = () => Workspace.locate(process.cwd());
 const runnerOpts = (w: Workspace): RunnerOptions => ({
@@ -46,47 +44,114 @@ function printGate(res: { blockers: string[]; warnings: string[]; passed: boolea
   console.log(res.passed ? `GATE PASS (${label})` : `GATE BLOCKED (${label})`);
 }
 
+function changeCmd(program: Command): Command {
+  return (
+    (program.commands.find((c) => c.name() === "change") as Command | undefined) ??
+    program.command("change").description("Manage change workspaces and delivery verbs")
+  );
+}
+
+function registerDesign(cmd: Command): void {
+  cmd
+    .argument("<change>")
+    .description("Scaffold design.md; requires the propose gate to pass")
+    .action(async (change: string) => {
+      const w = ws();
+      const res = await stageGateCheck(w, change, "dev", "design", runnerOpts(w));
+      if (!res.passed) {
+        printGate(res);
+        process.exit(EXIT_FAIL);
+      }
+      console.log(`wrote ${scaffoldDesign(w, change)}`);
+    });
+}
+
+function registerPlan(cmd: Command): void {
+  cmd
+    .argument("<change>")
+    .description("Generate dual-track tasks.md from delta specs")
+    .action((change: string) => {
+      const res = generateTasks(ws(), change);
+      console.log(`wrote ${res.file} (${res.tasks.length} tasks)`);
+      const missing = missingTestTasks(res.tasks);
+      for (const m of missing) console.warn(`warning: requirement without test task (needs waiver): ${m}`);
+    });
+}
+
+function registerApply(cmd: Command): void {
+  cmd
+    .argument("<change>")
+    .description("Drive implementation task-by-task with fast-suite self-correction")
+    .option("--runner <cmd>", "command executed per task; receives HX_TASK_* env vars")
+    .option("--max-retries <n>", "self-correction attempts per task", "3")
+    .option("--limit <n>", "process at most N tasks")
+    .option("--parallel <n>", "max concurrent tasks within the same @group", "1")
+    .option("--fan-out <n>", "run apply+verify in N isolated worktrees; pick best")
+    .option("--dry-run", "print apply plan without running runners")
+    .action(
+      async (
+        change: string,
+        opts: { runner?: string; maxRetries: string; limit?: string; parallel?: string; fanOut?: string; dryRun?: boolean }
+      ) => {
+        if (opts.dryRun) {
+          console.log(
+            `dry-run: would apply change "${change}" (retries=${opts.maxRetries}, limit=${opts.limit ?? "all"}, parallel=${opts.parallel ?? "1"})`
+          );
+          return;
+        }
+        const { runApplyCommand } = await import("./orchestration.js");
+        await runApplyCommand(change, opts);
+      }
+    );
+}
+
 export function registerGateCommands(program: Command): void {
-  const gate = program.command("gate").description("Quality gates (FR-020, fail-closed)");
+  const gate = program.command("gate").description("Quality gates (fail-closed)");
 
   gate
     .command("check [change]")
+    .description("Run stage/task gate sensors")
     .requiredOption("--stage <stage>", "delivery stage: req|arch|dev|test")
     .requiredOption("--task <task>", "task within stage")
     .option("--prd <slug>", "PRD slug (req stage)")
     .option("--module <id>", "module id (arch internal-interface)")
+    .option("--json", "print machine-readable JSON")
     .action(
       async (
         change: string | undefined,
-        opts: { stage: DeliveryStage; task: string; prd?: string; module?: string }
+        opts: { stage: DeliveryStage; task: string; prd?: string; module?: string; json?: boolean }
       ) => {
         const w = ws();
+        let res: Awaited<ReturnType<typeof stageGateCheck>> | Awaited<ReturnType<typeof orgStageGateCheck>>;
         if (isOrgStage(opts.stage)) {
-          const res = await orgStageGateCheck(w, opts.stage, opts.task, runnerOpts(w), {
+          res = await orgStageGateCheck(w, opts.stage, opts.task, runnerOpts(w), {
             prdSlug: opts.prd,
             moduleId: opts.module
           });
-          printGate(res);
-          if (!res.passed) process.exit(1);
-          return;
+        } else {
+          if (!change) throw new Error("change id required for dev/test gate check");
+          res = await stageGateCheck(w, change, opts.stage, opts.task, runnerOpts(w));
         }
-        if (!change) throw new Error("change id required for dev/test gate check");
-        const res = await stageGateCheck(w, change, opts.stage, opts.task, runnerOpts(w));
-        printGate(res);
-        if (!res.passed) process.exit(1);
+        if (opts.json) {
+          console.log(JSON.stringify({ ok: res.passed, code: res.passed ? 0 : EXIT_FAIL, ...res }, null, 2));
+        } else {
+          printGate(res);
+        }
+        if (!res.passed) process.exit(EXIT_FAIL);
       }
     );
 
-  gate.command("advance <change>").action(async (change: string) => {
+  gate.command("advance <change>").description("Advance change to next stage/task after gate passes").action(async (change: string) => {
     const w = ws();
     const res = await stageAdvance(w, change, runnerOpts(w));
     printGate(res);
     if (res.toTask) console.log(`advanced: ${res.fromStage}/${res.fromTask} → ${res.toStage}/${res.toTask}`);
-    if (!res.passed) process.exit(1);
+    if (!res.passed) process.exit(EXIT_FAIL);
   });
 
   gate
     .command("approve [change]")
+    .description("Record a human approval for a named gate")
     .requiredOption("--gate <gate>", "gate being approved (design-to-plan|prd|arch|arch-lld|test-cases)")
     .requiredOption("--approver <name>")
     .option("--prd <slug>", "PRD slug (required when --gate prd)")
@@ -109,7 +174,6 @@ export function registerGateCommands(program: Command): void {
       console.log(`approved gate "${rec.gate}" by ${rec.approver} at ${rec.at} (artifact ${rec.artifactHash.slice(0, 12)})`);
     });
 
-
   gate
     .command("agent-check")
     .description("Run machine-readable gate check for IDE hooks")
@@ -127,7 +191,7 @@ export function registerGateCommands(program: Command): void {
       } else {
         printGate(res);
       }
-      if (!res.passed) process.exit(1);
+      if (!res.passed) process.exit(EXIT_FAIL);
     });
 
   gate
@@ -172,11 +236,11 @@ export function registerGateCommands(program: Command): void {
         failed = true;
       }
     }
-    if (failed) process.exit(1);
+    if (failed) process.exit(EXIT_FAIL);
     console.log("[hx] gate hook-check ok");
   });
 
-  gate.command("replay").description("CI replay: re-run gates for all active changes (FR-051)").action(async () => {
+  gate.command("replay").description("CI replay: re-run gates for all active changes").action(async () => {
     const w = ws();
     const harness = w.readHarness();
     let failed = false;
@@ -191,12 +255,13 @@ export function registerGateCommands(program: Command): void {
         failed = true;
       }
     }
-    if (failed) process.exit(1);
+    if (failed) process.exit(EXIT_FAIL);
   });
 
-  const guide = program.command("guide").description("Guide engine (FR-030)");
+  const guide = program.command("guide").description("Guide / context pack engine");
   guide
     .command("pack <change>")
+    .description("Assemble stage/task Context Pack")
     .requiredOption("--stage <stage>", "req|arch|dev|test")
     .requiredOption("--task <task>", "task id within stage")
     .option("--out <file>", "write pack to file instead of stdout")
@@ -213,6 +278,7 @@ export function registerGateCommands(program: Command): void {
 
   guide
     .command("task-pack <change> <taskId>")
+    .description("Write apply-task context pack")
     .option("--out <file>", "write pack to file (default: changes/<id>/tasks/<taskId>-pack.md)")
     .action((change: string, taskId: string, opts: { out?: string }) => {
       const w = ws();
@@ -227,46 +293,19 @@ export function registerGateCommands(program: Command): void {
   registerPrdGuidePack(guide);
   registerArchGuidePack(guide);
 
-  program
-    .command("plan <change>")
-    .description("Generate dual-track tasks.md from delta specs (FR-006)")
-    .action((change: string) => {
-      const res = generateTasks(ws(), change);
-      console.log(`wrote ${res.file} (${res.tasks.length} tasks)`);
-      const missing = missingTestTasks(res.tasks);
-      for (const m of missing) console.warn(`warning: requirement without test task (needs waiver): ${m}`);
-    });
+  const change = changeCmd(program);
+  registerDesign(change.command("design"));
+  registerPlan(change.command("plan"));
+  registerApply(change.command("apply"));
 
-  program
-    .command("apply <change>")
-    .description("Drive implementation task-by-task with fast-suite self-correction (FR-007)")
-    .option("--runner <cmd>", "command executed per task; receives HX_TASK_* env vars")
-    .option("--max-retries <n>", "self-correction attempts per task", "3")
-    .option("--limit <n>", "process at most N tasks")
-    .option("--parallel <n>", "max concurrent tasks within the same @group (v0.2)", "1")
-    .option("--fan-out <n>", "run apply+verify in N isolated worktrees; pick best (v0.2)")
-    .action(async (change: string, opts: { runner?: string; maxRetries: string; limit?: string; parallel?: string; fanOut?: string }) => {
-      const { runApplyCommand } = await import("./orchestration.js");
-      await runApplyCommand(change, opts);
-    });
-
-  program
-    .command("design <change>")
-    .description("Scaffold design.md; requires the propose gate to pass (FR-004)")
-    .action(async (change: string) => {
-      const w = ws();
-      const res = await stageGateCheck(w, change, "dev", "design", runnerOpts(w));
-      if (!res.passed) {
-        printGate(res);
-        process.exit(1);
-      }
-      console.log(`wrote ${scaffoldDesign(w, change)}`);
-    });
+  registerDesign(program.command("design").description("Alias of hx change design"));
+  registerPlan(program.command("plan").description("Alias of hx change plan"));
+  registerApply(program.command("apply").description("Alias of hx change apply"));
 
   program
     .command("hooks")
     .argument("<action>", "install")
-    .description("Install git hooks for local enforcement (FR-051 L2)")
+    .description("Install git hooks for local enforcement")
     .action((action: string) => {
       if (action !== "install") throw new Error(`unknown hooks action: ${action}`);
       for (const f of installHooks(ws().root)) console.log(`installed ${f}`);
@@ -275,15 +314,16 @@ export function registerGateCommands(program: Command): void {
   program
     .command("ci")
     .argument("<action>", "init")
-    .description("Generate CI replay workflow + branch protection docs (FR-051 L3)")
+    .description("Generate CI replay workflow + branch protection docs")
     .action((action: string) => {
       if (action !== "init") throw new Error(`unknown ci action: ${action}`);
       for (const f of ciInit(ws().root)) console.log(`wrote ${f}`);
     });
 
-  const meta = program.command("meta").description("meta.yaml integrity (FR-050)");
+  const meta = program.command("meta").description("meta.yaml integrity");
   meta
     .command("verify [change]")
+    .description("Verify meta.yaml content hashes")
     .option("--all", "verify every active change")
     .action((change: string | undefined, opts: { all?: boolean }) => {
       const w = ws();
@@ -295,6 +335,6 @@ export function registerGateCommands(program: Command): void {
         for (const p of res.problems) console.error(`  - ${p}`);
         if (!res.ok) failed = true;
       }
-      if (failed) process.exit(1);
+      if (failed) process.exit(EXIT_FAIL);
     });
 }

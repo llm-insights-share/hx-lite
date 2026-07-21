@@ -22,7 +22,29 @@ An initialized project workspace: `harnessX/` containing `harness.yaml` (asset r
 
 ### Change
 
-A unit of delivery work (feature, fix, migration). Each change has `meta.yaml` (stage/task state), delta specs, optional design/tasks, and an isolated asset overlay under `changes/<id>/assets/`.
+A **dev+test** delivery unit (feature, fix, migration) under `harnessX/changes/<id>/`, with `meta.yaml`, delta specs, optional design/tasks, and an asset overlay under `changes/<id>/assets/`.
+
+- Typical **dev** tasks: `propose` → `design` → `apply` → `verify` (profiles may add `plan` / `archive`)
+- **test** is the same Change's later stage — not a separate `Test.Change` entity
+- One org PRD may fan out into multiple parallel Changes (`hx change create --prd <slug>`)
+
+### Change Request (CR) / requirement change
+
+A structured **org-level** patch (`hx cr`), not a Dev Change:
+
+- `kind`: `requirement-change` | `design-change`
+- Stored under `harnessX/change-requests/CR-*.yaml`
+- Flow: create → submit → work-order approve → apply to PRD/LLD (invalidates stale approvals)
+- After apply, usually open or link a Change: `hx change create … --from-cr <id>` or `hx cr link`
+
+### Dual delivery tracks
+
+| Track | Path | Role |
+| --- | --- | --- |
+| **Baseline** | org req/arch → many Dev Changes → each Change's test | New feature slices |
+| **Delta** | CR → linked Change → same Change's test | Post-baseline requirement/design changes |
+
+`hx next` / `hx tui` expose `tracks.baseline` / `tracks.delta` on the workspace report.
 
 ### Profile
 
@@ -50,7 +72,23 @@ Rules, templates, skills, constraints, workflows, commands — injected into age
 
 ### TaskShell
 
-Task-level commands/skills are thin shells: `assembleTaskShell` composes the workflow (or command override) with bound skills/templates, suite sensors, and gate reminders, then projects the same content as a slash command or a task-entry skill depending on IDE capabilities.
+Task-level commands/skills are thin shells: `assembleTaskShell` composes the workflow (or command override) with bound skills/templates, suite sensors, and gate reminders, then projects the same content as a slash command (Cursor / Claude / Qoder), a `.trae/skills/` task-entry skill (Trae), or an inline section in `AGENTS.md` / rules (generic, etc.).
+
+### Doctor / Next / Exit codes
+
+- **`hx doctor`**: harness completeness, lock, adapter tier, hub config; config errors exit **3**.
+- **`hx next`**: supports three contexts (`workspace` / `org` / `change`), then suggests the next CLI and IDE entry (slash or Trae skill path).
+- **Exit codes**: 0 ok; 1 business failure; 2 usage; 3 config. See [cli-reference.zh-CN.md](cli-reference.zh-CN.md).
+
+### ContextReport / Workspace focus
+
+`hx next` and `hx tui` share a unified ContextReport model:
+
+- `workspace`: workspace home, profile + active stages + changes + inferred focus
+- `org`: org-scoped stage tasks (`req` / `arch`)
+- `change`: change-scoped tasks (`dev` / `test`)
+
+Focus inference priority: **incomplete required org task > single active change > workspace navigation mode**.
 
 ### Sensor (FeedBack)
 

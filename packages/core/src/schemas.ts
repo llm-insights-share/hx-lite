@@ -442,6 +442,8 @@ export const MetaYaml = z.object({
   profile: z.string(),
   touchedDomains: z.array(z.string()).default([]),
   prdRef: z.string().optional(),
+  /** Change Request id that spawned or is linked to this change (delta track). */
+  sourceCr: z.string().optional(),
   archModules: z.array(z.string()).optional(),
   archPromoted: ArchPromotedRecord.optional(),
   profileRecommendation: z

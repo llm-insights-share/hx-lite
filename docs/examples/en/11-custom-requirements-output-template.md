@@ -117,7 +117,7 @@ cursor (Tier 1): ... file(s)
   ...
 ```
 
-`hx harness lint` checks new Skill entries against constitution and Bundle constraints. `adapter sync` compiles templates and Skills into `.cursor/skills/` and slash commands — **no per-developer rule copying**.
+`hx harness lint` checks new Skill entries against constitution and Bundle constraints. `adapter sync` compiles templates and Skills into `.cursor/skills/`, `.trae/skills/`, and slash commands (or Trae task-entry skills) — **no per-developer rule copying**.
 
 ### 5. Verify: `hx propose` uses the new template
 
