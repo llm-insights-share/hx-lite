@@ -13,14 +13,14 @@ import {
   loadAssetDir,
   type AssetStatus
 } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 import { compileAdapters, adapterDrift, availableTargets, exportQoderQuest, TARGETS, computeTier } from "@harnessx/adapters";
 import { runScheduled, startWatcher, buildFixPack } from "@harnessx/core";
 import { registerHubCommands } from "./hubCommands.js";
 import { EXIT_FAIL } from "./exitCodes.js";
 
 const ws = () => Workspace.locate(process.cwd());
-const runnerOpts = () => ({ builtins: builtinSensors });
+const runnerOpts = () => ({ builtins: builtinSensors, engines: sensorEngines });
 
 export function registerAssetCommands(program: Command): void {
   const asset = program.command("asset").description("Local asset model");

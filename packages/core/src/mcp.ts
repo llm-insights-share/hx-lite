@@ -239,7 +239,8 @@ export async function callMcpTool(
         kind: "sensor.drift" as const,
         execution: "computational" as const,
         trigger: "task" as const,
-        builtin: "drift",
+        check: "inline" as const,
+        expr: "drift.ok == true",
         on_fail: "block" as const,
         max_retries: 0,
         timeout_ms: 120000

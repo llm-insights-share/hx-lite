@@ -1,0 +1,2 @@
+check: inline
+expr: "handler.typecheck"

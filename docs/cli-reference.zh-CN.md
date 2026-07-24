@@ -17,6 +17,20 @@
 
 `hx hub …` 与独立二进制 `hxhub` **共享同一实现**（`registerHubCommands`）。维护者专用子命令（`init` / `doctor` / `fix` / AI `help`）仅在 `hxhub` 上暴露。
 
+## Sensor 可配置化
+
+反馈检查在 `harness.yaml` 的 `sensors:` 中声明。**对外三种 `check`**：`inline`（谓词 `expr`）、`shell`（`run` + `HX_*`/`$OUTPUT`）、`rules`（`rules_text`/`rules_file` + `input`）。完整手册见 **[Sensor 配置使用手册](sensor-config-manual.zh-CN.md)**。
+
+| 字段 | 含义 |
+| --- | --- |
+| `check` | `inline` / `shell` / `rules`（可省略，由 `expr`/`run`/`rules_*` 推断） |
+| `expr` | inline 谓词，如 `approval.prd == true`、`spec.ears_ok == true` |
+| `run` / `output` | shell 命令与 `$OUTPUT` 路径模板 |
+| `rules_text` / `rules_file` / `input` | rules 准则与检查对象 globs |
+| `source` / `config` | 资产目录与内联覆盖（深度合并） |
+
+场景示例：[examples/en/10-custom-sensors-triggers.md](examples/en/10-custom-sensors-triggers.md)。`hx harness lint --completeness` / `hx doctor` 会校验 sensor 路径。
+
 ## 兼容别名
 
 下列顶层命令仍可用，等价于 `hx change …`：
@@ -58,50 +72,43 @@
 
 `hx next` / `hx doctor` 会按 `config.adapter.target` 提示正确入口。
 
-## TUI 单词指令（`hx tui` 工作区首页；`hx tui [change]` 直达变更）
+## TUI 完整菜单（`hx tui`）
 
-输入英文单词后回车；**不支持单字符快捷键**。任意屏可用 `help` / `quit`（或 `exit`）。
+`hx tui` 是与 `hx` / `hxhub` **对等的菜单驱动 TUI**：在进程内执行同一套 Commander 命令，无需切换终端。也可继续使用纯 CLI。
 
-### 首页（WorkspaceHome）
+**中文界面**：`hx tui --locale zh`，或 `config.yaml` 中 `locale: zh-CN`。
 
-| 指令 | 动作 |
+### 全局操作
+
+| 输入 | 动作 |
 | --- | --- |
-| `focus` / `next` | 进入系统推断焦点（org / pending CR / change） |
-| `req` | 进入 req 上下文 |
-| `arch` | 进入 arch 上下文 |
-| `changes` | 进入 change 列表 |
-| `status` | 打印 stage status 建议命令 |
-| `doctor` | 跑 doctor 摘要 |
-| `suggested` | 打印 workspace suggested CLI |
-| `gate` | 打印 gate CLI（若有） |
-| `guide` | 打印 guide CLI（若有） |
-| `help` | 当前屏完整命令表 |
-| `quit` / `exit` | 退出 |
+| `menu` / `菜单` | 打开完整命令菜单（全部命名空间） |
+| `open <n>` / `<n>` | 选择当前列表第 n 项 |
+| `home` | 回到工作区上下文首页 |
+| `back` | 返回上一屏 |
+| `help` / `帮助` | 帮助 |
+| `quit` / `exit` / `退出` | 退出 |
 
-### 详情页（Org / Change）
+### 工作区上下文屏
 
-| 指令 | 动作 |
+| 输入 | 动作 |
 | --- | --- |
-| `next` / `suggested` | 打印 suggested CLI |
-| `gate` | 打印 gate check 命令 |
-| `guide` / `pack` | 打印 guide pack 命令 |
-| `status` | 打印 status 命令 |
-| `doctor` | 跑 doctor 摘要 |
-| `back` | 返回首页 |
-| `changes` | （仅 change 页）切换 change |
-| `prd` | （仅 req 页）选择 / 切换 PRD |
-| `help` | 帮助 |
-| `quit` / `exit` | 退出 |
+| `focus` / `next` | 进入推断焦点 |
+| `req` / `arch` / `changes` | 进入组织/变更上下文 |
+| `doctor` | **执行** `hx doctor`（非仅打印） |
+| `gate` / `guide` / `status` | 进入对应命令子菜单 |
 
-### 列表选择（change / PRD picker）
+### 菜单命名空间（与 CLI 对齐）
 
-| 指令 | 动作 |
-| --- | --- |
-| `open <n>` 或 `<n>` | 打开第 n 项 |
-| `back` | 返回 |
-| `help` / `quit` | 同上 |
+`workspace` · `quick`（doctor/next）· `project` · `change` · `gate` · `guide` · `req` · `arch` · `stage` · `hub` · `hxhub` · `sdlc` · `adapter` · `asset-lock` · `behaviour` · `steering` · `orchestration` · `approve` · `hooks-ci` · `openspec` · `mcp`
 
-无 TTY 时请改用 `hx next` / `hx doctor`。
+选择 `[run]` 项后在 TUI 内执行；带参数的命令会提示输入；破坏性操作需输入 `yes` 确认。
+
+无 TTY 时请改用 `hx` / `hxhub` CLI。
+
+### Hub / HXHub（菜单内）
+
+原 TUI 单词 Hub 指令已并入 `hub` / `hxhub` 子菜单，直接执行 `hx project sync-hub`、`hx hub search`、`hxhub doctor` 等。
 
 ## 典型下一步
 

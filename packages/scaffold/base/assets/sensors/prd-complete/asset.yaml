@@ -1,0 +1,8 @@
+id: prd-complete
+kind: sensor.script
+stage: req
+task: prd-writing
+version: 0.1.0
+origin: builtin
+status: enforced
+execution: computational

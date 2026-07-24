@@ -59,11 +59,11 @@ export function recordStageApproval(
     if (!artifactHash) throw new Error(`PRD file missing for slug "${prdSlug}"`);
   } else if (gate === "arch") {
     artifactHash = archArtifactHash(ws);
-    if (!artifactHash) throw new Error("architecture overview/registry missing — run hx arch init");
+    if (!artifactHash) throw new Error("architecture overview/registry missing — run hx arch init (dirs), then author architecture docs.");
   } else {
     if (!moduleId) throw new Error("--module <id> required for gate arch-lld");
     artifactHash = archLldArtifactHash(ws, moduleId);
-    if (!artifactHash) throw new Error(`module LLD missing for "${moduleId}" — run hx arch lld init`);
+    if (!artifactHash) throw new Error(`module LLD missing for "${moduleId}" — run hx arch lld init (dirs), then author LLD.`);
   }
   const record: ApprovalRecord = {
     gate,

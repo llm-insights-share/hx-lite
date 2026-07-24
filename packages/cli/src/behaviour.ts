@@ -22,11 +22,11 @@ import {
   type RunnerOptions,
   type WaiverRecord
 } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 import crypto from "node:crypto";
 
 const ws = () => Workspace.locate(process.cwd());
-const runnerOpts = (w: Workspace): RunnerOptions => ({ builtins: builtinSensors, changedFiles: gitChangedFiles(w.root) });
+const runnerOpts = (w: Workspace): RunnerOptions => ({ builtins: builtinSensors, engines: sensorEngines, changedFiles: gitChangedFiles(w.root) });
 
 export function registerBehaviourCommands(program: Command): void {
   const trace = program.command("trace").description("Traceability (FR-023)");

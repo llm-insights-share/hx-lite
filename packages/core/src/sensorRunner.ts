@@ -3,27 +3,40 @@ import { Workspace } from "./paths.js";
 import { SensorReport, type HarnessYaml, type SensorDef, type SuiteResult } from "./schemas.js";
 import { appendRun } from "./telemetry.js";
 import { recordFailure } from "./failureCatalog.js";
+import {
+  buildShellSensorEnv,
+  resolveSensorConfig,
+  type ResolvedSensorConfig
+} from "./sensorConfig.js";
 
-export type BuiltinSensorFn = (ctx: {
+/** Registered TS sensor handlers (invoked via inline expr `handler.<id>`). */
+export type SensorHandlerFn = (ctx: {
   ws: Workspace;
   change?: string;
   def: SensorDef;
   changedFiles?: string[];
   prdSlug?: string;
   archModule?: string;
+  config?: Record<string, unknown>;
+  resolved?: ResolvedSensorConfig;
 }) => Promise<SensorReport> | SensorReport;
 
+/** @deprecated Use SensorHandlerFn — kept as type alias for call sites. */
+export type BuiltinSensorFn = SensorHandlerFn;
+export type SensorEngineFn = SensorHandlerFn;
+
 export interface RunnerOptions {
-  builtins: Record<string, BuiltinSensorFn>;
+  /** TS handlers for `handler.<id>` predicates. */
+  builtins: Record<string, SensorHandlerFn>;
+  engines?: Record<string, SensorEngineFn>;
   changedFiles?: string[];
-  /** Sensor ids waived for this run (valid, unexpired waivers). */
   waivedSensors?: string[];
   prdSlug?: string;
   archModule?: string;
 }
 
 /**
- * T-201 (FR-021/FR-024/FR-053): executes one sensor with retry semantics.
+ * Executes one sensor with retry semantics.
  * Fail-closed: crashes, timeouts and unparseable output all yield status=error → blocker.
  */
 export async function runSensor(
@@ -38,7 +51,6 @@ export async function runSensor(
     report = await runOnce(ws, def, change, opts);
     if (report.status === "pass") break;
   }
-  // full report is persisted on failure so `hx fix` can rebuild context (T-611)
   appendRun(ws, {
     kind: "sensor",
     change,
@@ -50,24 +62,64 @@ export async function runSensor(
   return report;
 }
 
+function stripBoolEq(s: string): string {
+  return s.replace(/\s*==\s*true\s*$/i, "").trim();
+}
+
 async function runOnce(ws: Workspace, def: SensorDef, change: string | undefined, opts: RunnerOptions): Promise<SensorReport> {
   try {
-    if (def.builtin) {
-      const fn = opts.builtins[def.builtin];
-      if (!fn) return errorReport(def, `builtin sensor "${def.builtin}" is not registered`);
-      const r = await fn({ ws, change, def, changedFiles: opts.changedFiles, prdSlug: opts.prdSlug, archModule: opts.archModule });
-      return SensorReport.parse(r);
+    const resolved = resolveSensorConfig(ws, def);
+    const ctx = {
+      ws,
+      change,
+      def,
+      changedFiles: opts.changedFiles,
+      prdSlug: opts.prdSlug,
+      archModule: opts.archModule,
+      config: resolved.config,
+      resolved
+    };
+
+    if (resolved.check === "inline") {
+      const expr = stripBoolEq(resolved.expr ?? "");
+      const handlerMatch = expr.match(/^handler\.([\w-]+)$/i);
+      if (handlerMatch) {
+        const id = handlerMatch[1]!;
+        const fn = opts.builtins[id];
+        if (!fn) return errorReport(def, `handler "${id}" is not registered`);
+        return SensorReport.parse(await fn(ctx));
+      }
+      const fn = opts.engines?.inline;
+      if (!fn) return errorReport(def, 'inline check requires "inline" engine registration');
+      return SensorReport.parse(await fn(ctx));
     }
-    if (def.run) {
-      return runShellSensor(ws, def, change);
+
+    if (resolved.check === "rules") {
+      const fn = opts.engines?.rules;
+      if (!fn) return errorReport(def, 'rules check requires "rules" engine registration');
+      return SensorReport.parse(await fn(ctx));
     }
-    if (def.plugin) {
-      const { runPluginSensor } = await import("./pluginApi.js");
-      return await runPluginSensor(ws, def, change);
+
+    if (resolved.check === "shell") {
+      if (!resolved.run) return errorReport(def, "shell sensor missing run command");
+      let profile = "";
+      try {
+        profile = ws.readConfig().profile ?? "";
+      } catch {
+        /* ignore */
+      }
+      return runShellSensor(ws, { ...def, run: resolved.run }, change, {
+        env: buildShellSensorEnv(ws, def, change, {
+          config: resolved.config,
+          prdSlug: opts.prdSlug,
+          changedFiles: opts.changedFiles,
+          profile
+        })
+      });
     }
-    return errorReport(def, "sensor has neither builtin, run, nor plugin");
+
+    return errorReport(def, `unknown check kind`);
   } catch (e) {
-    // fail-closed (FR-053)
     return errorReport(def, `sensor crashed: ${(e as Error).message}`);
   }
 }
@@ -79,14 +131,40 @@ function errorReport(def: SensorDef, message: string): SensorReport {
     summary: message,
     findings: [{ severity: "block", message }],
     fix_hint: def.fix_hint,
-    agent_instruction: "This sensor errored; the gate is blocked (fail-closed). Fix the sensor configuration or the underlying issue."
+    agent_instruction:
+      "This sensor errored; the gate is blocked (fail-closed). Fix the sensor configuration or the underlying issue."
   };
 }
 
+export interface ShellSensorOpts {
+  env?: Record<string, string>;
+}
+
 /** Shell sensor protocol: exit 0 = pass; JSON on stdout is parsed as a SensorReport when present. */
-export function runShellSensor(ws: Workspace, def: SensorDef, change?: string): SensorReport {
-  const cmd = (def.run as string).replaceAll("$CHANGE", change ?? "");
-  const res = spawnSync(cmd, { shell: true, cwd: ws.root, timeout: def.timeout_ms, encoding: "utf8" });
+export function runShellSensor(
+  ws: Workspace,
+  def: SensorDef,
+  change?: string,
+  opts: ShellSensorOpts = {}
+): SensorReport {
+  let cmd = (def.run as string).replaceAll("$CHANGE", change ?? "");
+  const env = opts.env ?? {};
+  cmd = cmd
+    .replaceAll("$ROOT", env.HX_ROOT ?? ws.root)
+    .replaceAll("$BASE", env.HX_BASE ?? ws.base)
+    .replaceAll("$SENSOR_ID", env.HX_SENSOR_ID ?? def.id)
+    .replaceAll("$OUTPUT_FILE", env.HX_OUTPUT_FILE ?? "")
+    .replaceAll("$OUTPUT", env.HX_OUTPUT ?? "")
+    .replaceAll("$SCOPE", env.HX_SCOPE ?? "")
+    .replaceAll("$PROFILE", env.HX_PROFILE ?? "");
+
+  const res = spawnSync(cmd, {
+    shell: true,
+    cwd: ws.root,
+    timeout: def.timeout_ms,
+    encoding: "utf8",
+    env: { ...process.env, ...env }
+  });
   if (res.error) return errorReport(def, `spawn failed: ${res.error.message}`);
   if (res.signal) return errorReport(def, `sensor timed out or was killed (${res.signal})`);
 
@@ -94,8 +172,7 @@ export function runShellSensor(ws: Workspace, def: SensorDef, change?: string): 
   const jsonLine = stdout.split("\n").find((l) => l.startsWith("{"));
   if (jsonLine) {
     try {
-      const parsed = SensorReport.parse({ sensor: def.id, ...JSON.parse(jsonLine) });
-      return parsed;
+      return SensorReport.parse({ sensor: def.id, ...JSON.parse(jsonLine) });
     } catch {
       if (res.status !== 0) return errorReport(def, "sensor emitted unparseable JSON report (fail-closed)");
     }
@@ -116,7 +193,7 @@ export function runShellSensor(ws: Workspace, def: SensorDef, change?: string): 
   };
 }
 
-/** Runs a named Sensor Suite from harness.yaml; aggregates blockers/warnings (FR-021). */
+/** Runs a named Sensor Suite from harness.yaml; aggregates blockers/warnings. */
 export async function runSuite(
   ws: Workspace,
   harness: HarnessYaml,
@@ -154,6 +231,12 @@ export async function runSuite(
     if (report.fix_hint) result.fixHints.push(`${def.id}: ${report.fix_hint}`);
   }
   result.passed = result.blockers.length === 0;
-  appendRun(ws, { kind: "suite", change, name: suiteName, status: result.passed ? "pass" : "fail", detail: { blockers: result.blockers } });
+  appendRun(ws, {
+    kind: "suite",
+    change,
+    name: suiteName,
+    status: result.passed ? "pass" : "fail",
+    detail: { blockers: result.blockers }
+  });
   return result;
 }

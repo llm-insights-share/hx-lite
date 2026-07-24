@@ -1,10 +1,10 @@
 import { Command } from "commander";
 import fs from "node:fs";
 import { Workspace, scaffoldPrd, listPrdSlugs, runSensor, buildPrdPack, renderContextPack, createWorkOrder, submitWorkOrder } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 
 const ws = () => Workspace.locate(process.cwd());
-const runnerOpts = () => ({ builtins: builtinSensors });
+const runnerOpts = () => ({ builtins: builtinSensors, engines: sensorEngines });
 
 function printSensorReport(sensor: string, status: string, summary: string) {
   if (status === "pass") console.log(`PASS  ${sensor}: ${summary}`);
@@ -18,10 +18,12 @@ export function registerPrdOnParent(prd: Command): void {
 
   prd
     .command("init <slug>")
-    .requiredOption("--title <title>", "PRD title")
-    .description("Scaffold docs/prd/<slug>.md from prd-template")
-    .action((slug: string, opts: { title: string }) => {
-      console.log(`Wrote ${scaffoldPrd(ws(), slug, opts.title)}`);
+    .option("--title <title>", "unused: templates are now created via guides/skills")
+    .description("Scaffold req directories only; author content via commands/skills")
+    .action((slug: string, opts: { title?: string }) => {
+      const root = scaffoldPrd(ws(), slug, opts.title ?? slug);
+      console.log(`Created dirs: ${root}`);
+      console.log("Next: author docs/prd/<slug>.md via req command/skill using prd-template.");
     });
 
   prd

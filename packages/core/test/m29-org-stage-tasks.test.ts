@@ -6,7 +6,6 @@ import {
   initWorkspace,
   createChange,
   scaffoldPrd,
-  scaffoldPrdSidecars,
   scaffoldArchHld,
   scaffoldArchLld,
   orgStageGateCheck,
@@ -25,12 +24,13 @@ import {
   testReportComplete,
   prototypeComplete,
   bugsClosed,
-  uatComplete
+  uatComplete,
+  builtinSensors,
+  sensorEngines
 } from "@harnessx/sensors";
-import { builtinSensors } from "@harnessx/sensors";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "hx-m29-"));
-const opts = { builtins: builtinSensors };
+const opts = { builtins: builtinSensors, engines: sensorEngines };
 
 function fillResearch(ws: ReturnType<typeof initWorkspace>["ws"], slug: string) {
   fs.writeFileSync(
@@ -48,13 +48,23 @@ function fillAnalysis(ws: ReturnType<typeof initWorkspace>["ws"], slug: string) 
   );
 }
 
+function fillPrototype(ws: ReturnType<typeof initWorkspace>["ws"], slug: string) {
+  fs.writeFileSync(
+    ws.prdPrototypePagesFile(slug),
+    `# Prototype\n\n| Page | Route | Shell |\n| --- | --- | --- |\n| Home | / | new |\n`,
+    "utf8"
+  );
+}
+
 describe("M29 org stage tasks + test-execution", () => {
-  it("scaffoldPrd creates org sidecars", () => {
+  it("scaffoldPrd creates org dirs only", () => {
     const { ws } = initWorkspace(tmp());
     scaffoldPrd(ws, "badge", "Badge");
-    expect(fs.existsSync(ws.prdResearchFile("badge"))).toBe(true);
-    expect(fs.existsSync(ws.prdAnalysisFile("badge"))).toBe(true);
-    expect(fs.existsSync(ws.prdPrototypePagesFile("badge"))).toBe(true);
+    expect(fs.statSync(ws.prdArtifactDir("badge")).isDirectory()).toBe(true);
+    expect(fs.statSync(path.join(ws.prdArtifactDir("badge"), "prototype")).isDirectory()).toBe(true);
+    expect(fs.existsSync(ws.prdResearchFile("badge"))).toBe(false);
+    expect(fs.existsSync(ws.prdAnalysisFile("badge"))).toBe(false);
+    expect(fs.existsSync(ws.prdPrototypePagesFile("badge"))).toBe(false);
   });
 
   it("org research/analysis/prototype sensors gate content", () => {
@@ -76,8 +86,13 @@ describe("M29 org stage tasks + test-execution", () => {
       "pass"
     );
 
-    const proto = orgPrototypeComplete({ ws, prdSlug: "badge", def: { id: "org-prototype-complete" } as never });
-    expect(proto.status).toBe("pass");
+    expect(orgPrototypeComplete({ ws, prdSlug: "badge", def: { id: "org-prototype-complete" } as never }).status).toBe(
+      "fail"
+    );
+    fillPrototype(ws, "badge");
+    expect(orgPrototypeComplete({ ws, prdSlug: "badge", def: { id: "org-prototype-complete" } as never }).status).toBe(
+      "pass"
+    );
   });
 
   it("orgStageGateCheck binds req.prototype-design suite and records progress", async () => {
@@ -88,6 +103,7 @@ describe("M29 org stage tasks + test-execution", () => {
     expect(resolveSuiteName(harness, "standard", "test", "test-execution")).toBe("test-execution-sdlc");
 
     scaffoldPrd(ws, "badge", "Badge");
+    fillPrototype(ws, "badge");
     const res = await orgStageGateCheck(ws, "req", "prototype-design", opts, { prdSlug: "badge" });
     expect(res.passed).toBe(true);
     const progress = fs.readFileSync(path.join(ws.root, "docs", ".stage-progress.yaml"), "utf8");
@@ -96,12 +112,11 @@ describe("M29 org stage tasks + test-execution", () => {
 
   it("arch section sensors require new HLD sections", () => {
     const { ws } = initWorkspace(tmp());
-    const { overview } = scaffoldArchHld(ws, "Shop");
+    scaffoldArchHld(ws, "Shop");
     expect(archTechSelectionComplete({ ws, def: { id: "x" } as never }).status).toBe("fail");
     fs.writeFileSync(
-      overview,
-      fs.readFileSync(overview, "utf8") +
-        `\n## 技术选型\nNode\n## 数据库设计\nPostgres\n## 接口设计\nREST\n## 关键设计机制\n幂等\n`
+      ws.archOverviewFile(),
+      `# HLD\n## 技术选型\nNode\n## 数据库设计\nPostgres\n## 接口设计\nREST\n## 关键设计机制\n幂等\n`
     );
     expect(archTechSelectionComplete({ ws, def: { id: "x" } as never }).status).toBe("pass");
     expect(archDatabaseDesignComplete({ ws, def: { id: "x" } as never }).status).toBe("pass");
@@ -111,6 +126,7 @@ describe("M29 org stage tasks + test-execution", () => {
   it("prototype-complete accepts org pages when change UI in scope", () => {
     const { ws } = initWorkspace(tmp());
     scaffoldPrd(ws, "badge", "Badge");
+    fillPrototype(ws, "badge");
     createChange(ws, "c1", ["api"], "standard", { prdRef: "badge" });
     const designDir = ws.designDir("c1");
     fs.mkdirSync(designDir, { recursive: true });
@@ -129,7 +145,8 @@ describe("M29 org stage tasks + test-execution", () => {
     const { ws } = initWorkspace(tmp());
     createChange(ws, "c1", ["api"]);
     expect(testReportComplete({ ws, change: "c1", def: { id: "test-report-complete" } as never }).status).toBe("fail");
-    const reportFile = scaffoldTestReport(ws, "c1");
+    const changeDir = scaffoldTestReport(ws, "c1");
+    const reportFile = path.join(changeDir, "test-report.md");
     fs.writeFileSync(
       reportFile,
       `# Test Report\n\n## Execution summary\n| Suite | Result |\n| --- | --- |\n| smoke | Pass |\n\n## UAT\nok\n`,
@@ -148,9 +165,9 @@ describe("M29 org stage tasks + test-execution", () => {
 
   it("orgStageGateCheck arch.tech-selection", async () => {
     const { ws } = initWorkspace(tmp());
-    const { overview } = scaffoldArchHld(ws, "S");
+    scaffoldArchHld(ws, "S");
     fs.writeFileSync(
-      overview,
+      ws.archOverviewFile(),
       `# HLD\n## 系统边界与上下游\nb\n## 架构方案与模块划分\na\n### 模块职责\n| m | r | i | o | c |\n| a | a | a | a | a |\n## 技术选型\nnode\n## 数据库设计\npg\n## 接口设计\napi\n## 数据流与关键流程\nf\n## 关键设计机制\nidem\n## 非功能设计\nn\n## ADR\n### ADR-001\n- Decision: x\n- Alternatives: y\n- Consequences: z\n## 风险清单\nr\n`
     );
     const reg = readArchRegistry(ws);

@@ -6,7 +6,7 @@
 - `registry.yaml` 中的 module id。
 
 ## Steps
-1. 缺失时：`hx arch lld init <module> --title "..."`。
+1. 缺失时先建目录：`hx arch lld init <module>`，再通过 arch 命令/技能按 `arch-lld-template` 撰写 `lld.md`。
 2. 填写模块 LLD。
 3. `hx arch check --task internal-interface --module <module>`。
 4. 需要时人工批准。

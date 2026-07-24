@@ -37,7 +37,7 @@ describe("T-001 core schemas", () => {
           source: "assets/guides/conv/SKILL.md"
         }
       ],
-      sensors: [{ id: "lint", kind: "sensor.rule", execution: "computational", run: "npm run lint", on_fail: "retry", max_retries: 3 }]
+      sensors: [{ id: "lint", kind: "sensor.rule", execution: "computational", check: "shell", run: "npm run lint", on_fail: "retry", max_retries: 3 }]
     });
     expect(h.sensors[0].max_retries).toBe(3);
     expect(h.guides[0].kind).toBe("guide.skill");

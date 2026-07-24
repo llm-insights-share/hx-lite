@@ -1,0 +1,9 @@
+rules:
+  - id: no-todo-in-prd
+    when:
+      files: ["docs/prd/**/*.md"]
+    assert:
+      not_match: "(?i)\\bTODO\\b"
+    severity: warn
+    message: "PRD 含未关闭 TODO"
+    fix_hint: "清理或转为工单"

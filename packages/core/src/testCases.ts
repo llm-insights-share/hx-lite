@@ -58,57 +58,23 @@ export function requirementsExtendedProblems(ws: Workspace, change: string): str
 export function scaffoldTestCases(ws: Workspace, change: string): string {
   const dir = ws.testCasesDir(change);
   ensureDir(dir);
-  const overview = path.join(dir, "overview.md");
-  if (!fs.existsSync(overview)) {
-    fs.writeFileSync(
-      overview,
-      `# Test Cases: ${change}
-
-| Case ID | Scenario | Priority | Steps | Expected | Status |
-|---------|----------|----------|-------|----------|--------|
-| TC-001 | | P1 | | | draft |
-`,
-      "utf8"
-    );
-  }
-  return overview;
+  return dir;
 }
 
 /** Scaffold change-level test execution report. */
 export function scaffoldTestReport(ws: Workspace, change: string): string {
-  const file = path.join(ws.changeDir(change), "test-report.md");
-  if (!fs.existsSync(file)) {
-    fs.writeFileSync(
-      file,
-      `# Test Report: ${change}
-
-## Execution summary
-
-| Suite | Result | Notes |
-| --- | --- | --- |
-| | Pass/Fail | |
-
-## UAT
-
-- Checklist: uat-checklist.md
-- Sign-off:
-
-## Open defects
-
-| Bug ID | Severity | Status |
-| --- | --- | --- |
-`,
-      "utf8"
-    );
-  }
-  return file;
+  const dir = ws.changeDir(change);
+  ensureDir(dir);
+  return dir;
 }
 
 export function testCasesProblems(ws: Workspace, change: string): string[] {
   const problems: string[] = [];
   const overview = path.join(ws.testCasesDir(change), "overview.md");
   if (!fs.existsSync(overview)) {
-    problems.push("test-cases/overview.md missing — run hx test-cases init");
+    problems.push(
+      "test-cases/overview.md missing — run hx test-cases init (dirs), then author via test-case-design command/skill"
+    );
     return problems;
   }
   const text = fs.readFileSync(overview, "utf8");

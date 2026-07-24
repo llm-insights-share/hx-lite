@@ -6,8 +6,8 @@
 - PRD slug；可用的调研笔记。
 
 ## Steps
-1. 缺失时：`hx req analysis init <slug>`。
-2. 填写问题/机会、用户场景、P0/P1 与方案要点。
+1. 缺失时先建目录：`hx req analysis init <slug>`。
+2. 通过 req 命令/技能撰写 `docs/prd/<slug>/analysis.md`。
 3. `hx req check --task requirements-analysis --prd <slug>`。
 
 ## Output

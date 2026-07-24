@@ -33,7 +33,10 @@ export const prdComplete = (ctx: SensorContext): SensorReport => {
   const file = ctx.ws.prdFile(slug);
   const findings: Finding[] = [];
   if (!fs.existsSync(file)) {
-    findings.push({ severity: "block", message: `PRD missing — run: hx prd init ${slug} --title "..."` });
+    findings.push({
+      severity: "block",
+      message: `PRD missing at docs/prd/${slug}.md — run hx req prd init ${slug} (dirs), then author PRD via req command/skill (prd-template).`
+    });
     return block(findings, ctx, "PRD file missing");
   }
   const text = fs.readFileSync(file, "utf8");

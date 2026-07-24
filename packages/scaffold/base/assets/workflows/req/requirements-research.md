@@ -6,8 +6,8 @@ You are running the **req** stage task `requirements-research`.
 - PRD slug and stakeholder / research materials.
 
 ## Steps
-1. Scaffold: `hx req research init <slug>` if missing.
-2. Fill stakeholder list, methods, findings, and open questions in `docs/prd/<slug>/research.md` (or scaffold path).
+1. Scaffold dirs: `hx req research init <slug>` if missing.
+2. Author `docs/prd/<slug>/research.md` via req command/skill (requirements-research-outline).
 3. Follow bound Skills (e.g. requirements-research-outline).
 4. `hx req check --task requirements-research --prd <slug>`.
 

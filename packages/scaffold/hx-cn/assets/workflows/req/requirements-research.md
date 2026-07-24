@@ -6,8 +6,8 @@
 - PRD slug 与调研材料。
 
 ## Steps
-1. 缺失时：`hx req research init <slug>`。
-2. 填写干系人、方法、发现与待确认问题。
+1. 缺失时先建目录：`hx req research init <slug>`。
+2. 通过 req 命令/技能撰写 `docs/prd/<slug>/research.md`。
 3. 遵循已绑定 Skill。
 4. `hx req check --task requirements-research --prd <slug>`。
 

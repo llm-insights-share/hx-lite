@@ -188,6 +188,75 @@ export function validateHarnessCompleteness(ws: Workspace, opts: CompletenessOpt
     }
   }
 
+  for (const s of harness.sensors) {
+    const hasExec = !!(
+      s.check ||
+      s.expr ||
+      s.run ||
+      s.rules_text ||
+      s.rules_file ||
+      (s.rules && s.rules.length)
+    );
+    if (!hasExec) {
+      findings.push({
+        level: "error",
+        code: "sensor_missing_check",
+        message: `sensor "${s.id}" has neither check, expr, run, nor rules_text/rules_file`,
+        suggestion: "Set check: inline|shell|rules with expr / run / rules_text|rules_file"
+      });
+    }
+    if (s.source) {
+      const abs = path.join(ws.base, s.source);
+      if (!fs.existsSync(abs)) {
+        findings.push({
+          level: "error",
+          code: "sensor_missing_source",
+          message: `sensor "${s.id}" source missing: ${s.source}`,
+          suggestion: "Restore assets/sensors/<id>/ or fix the source path"
+        });
+      } else {
+        const configFile = fs.statSync(abs).isDirectory() ? path.join(abs, "config.yaml") : abs;
+        if (
+          fs.statSync(abs).isDirectory() &&
+          !fs.existsSync(configFile) &&
+          !s.run &&
+          !s.expr &&
+          !s.rules_text &&
+          !s.rules_file
+        ) {
+          findings.push({
+            level: "warn",
+            code: "sensor_pack_incomplete",
+            message: `sensor "${s.id}" pack has no config.yaml and no expr/run/rules`,
+            suggestion: "Add config.yaml with check + expr|run|rules_file"
+          });
+        }
+      }
+    }
+    for (const rf of s.rules ?? []) {
+      const abs = path.isAbsolute(rf) ? rf : path.join(ws.base, rf);
+      if (!fs.existsSync(abs)) {
+        findings.push({
+          level: "error",
+          code: "sensor_missing_rules",
+          message: `sensor "${s.id}" rules file missing: ${rf}`,
+          suggestion: "Restore the rules.yaml or fix the path"
+        });
+      }
+    }
+    if (s.rules_file) {
+      const abs = path.isAbsolute(s.rules_file) ? s.rules_file : path.join(ws.base, s.rules_file);
+      if (!fs.existsSync(abs)) {
+        findings.push({
+          level: "error",
+          code: "sensor_missing_rules_file",
+          message: `sensor "${s.id}" rules_file missing: ${s.rules_file}`,
+          suggestion: "Restore the rules file or fix the path"
+        });
+      }
+    }
+  }
+
   if (!opts.skipHubCache) {
     for (const { id, dir } of listHubCachePackages(ws)) {
       const manifest = readCacheManifest(dir);

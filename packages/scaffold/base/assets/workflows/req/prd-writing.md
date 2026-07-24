@@ -6,7 +6,7 @@ You are running the **req** stage task `prd-writing`.
 - PRD slug and title; research/analysis/prototype as available.
 
 ## Steps
-1. Scaffold: `hx req prd init <slug> --title "<title>"` if missing.
+1. Scaffold dirs: `hx req prd init <slug>` if missing, then author `docs/prd/<slug>.md` via req command/skill (`prd-template`).
 2. Fill stories, GWT acceptance criteria, In/Out Scope, NFR per **prd-authoring** / **prd-writing** Skill.
 3. `hx req check --task prd-writing --prd <slug>`.
 4. Human: `hx gate approve --gate prd --prd <slug> --approver <name>`.

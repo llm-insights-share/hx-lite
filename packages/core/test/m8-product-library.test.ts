@@ -12,10 +12,10 @@ import {
   hubReviewStatus,
   runSuite
 } from "@harnessx/core";
-import { builtinSensors, analyzeTestStrength, mutationProbe } from "@harnessx/sensors";
+import { builtinSensors, analyzeTestStrength, mutationProbe, sensorEngines } from "@harnessx/sensors";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "hx-m8-"));
-const opts = () => ({ builtins: builtinSensors });
+const opts = () => ({ builtins: builtinSensors, engines: sensorEngines });
 
 describe("design-template on English base scaffold", () => {
   it("registers design-template and hx design renders the full template", () => {

@@ -188,6 +188,7 @@ describe("overall verification: full delivery cycle through the CLI", () => {
       id: "crasher",
       kind: "sensor.script",
       execution: "computational",
+      check: "shell",
       run: "exit 99",
       on_fail: "block",
       stage: "dev",

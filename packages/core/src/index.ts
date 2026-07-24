@@ -8,6 +8,7 @@ export * from "./change.js";
 export * from "./openspecImport.js";
 export * from "./archive.js";
 export * from "./sensorRunner.js";
+export * from "./sensorConfig.js";
 export type { DeliveryStage } from "./stages.js";
 export { DELIVERY_STAGES, STAGE_TASKS, STAGE_INFO } from "./stages.js";
 export {

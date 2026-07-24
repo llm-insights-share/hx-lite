@@ -1,0 +1,9 @@
+check: rules
+execution: inferential
+rules_file: assets/rubrics/team-review/rules.yaml
+input:
+  - proposal.md
+  - specs/**/spec.md
+# Or use free-text:
+# rules_text: |
+#   变更说明与 delta 必须可测试；禁止模糊词；API 变更须有对应 Scenario.

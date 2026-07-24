@@ -6,8 +6,8 @@
 - PRD slug；可用的分析/PRD。
 
 ## Steps
-1. 缺失时：`hx req prototype init <slug>`。
-2. 填写页面清单/线框说明。
+1. 缺失时先建目录：`hx req prototype init <slug>`。
+2. 通过 req 命令/技能撰写 `docs/prd/<slug>/prototype/pages.md`。
 3. 遵循 **prototype-wireframe** Skill（若已绑定）。
 4. `hx req check --task prototype-design --prd <slug>`。
 

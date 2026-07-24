@@ -11,11 +11,11 @@ import {
   isOrgStage,
   type DeliveryStage
 } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 import { registerPrdOnParent } from "./prd.js";
 
 const ws = () => Workspace.locate(process.cwd());
-const runnerOpts = () => ({ builtins: builtinSensors });
+const runnerOpts = () => ({ builtins: builtinSensors, engines: sensorEngines });
 
 function printGate(res: { blockers: string[]; warnings: string[]; passed: boolean; stage?: string; task?: string }) {
   for (const b of res.blockers) console.error(`BLOCKER  ${b}`);
@@ -112,31 +112,31 @@ export function registerReqCommands(program: Command): void {
       if (failed) process.exit(1);
     });
 
-  const research = req.command("research").description("Requirements research sidecar");
+  const research = req.command("research").description("Requirements research directory scaffold");
   research
     .command("init <slug>")
-    .option("--title <title>")
+    .option("--title <title>", "unused: templates are now created via guides/skills")
     .action(async (slug: string, opts: { title?: string }) => {
       const { scaffoldPrdResearch } = await import("@harnessx/core");
-      console.log(`Wrote ${scaffoldPrdResearch(ws(), slug, opts.title)}`);
+      console.log(`Created dirs: ${scaffoldPrdResearch(ws(), slug, opts.title)}`);
     });
 
-  const analysis = req.command("analysis").description("Requirements analysis sidecar");
+  const analysis = req.command("analysis").description("Requirements analysis directory scaffold");
   analysis
     .command("init <slug>")
-    .option("--title <title>")
+    .option("--title <title>", "unused: templates are now created via guides/skills")
     .action(async (slug: string, opts: { title?: string }) => {
       const { scaffoldPrdAnalysis } = await import("@harnessx/core");
-      console.log(`Wrote ${scaffoldPrdAnalysis(ws(), slug, opts.title)}`);
+      console.log(`Created dirs: ${scaffoldPrdAnalysis(ws(), slug, opts.title)}`);
     });
 
-  const prototype = req.command("prototype").description("Org-level product prototype");
+  const prototype = req.command("prototype").description("Org-level prototype directory scaffold");
   prototype
     .command("init <slug>")
-    .option("--title <title>")
+    .option("--title <title>", "unused: templates are now created via guides/skills")
     .action(async (slug: string, opts: { title?: string }) => {
       const { scaffoldPrdPrototype } = await import("@harnessx/core");
-      console.log(`Wrote ${scaffoldPrdPrototype(ws(), slug, opts.title)}`);
+      console.log(`Created dirs: ${scaffoldPrdPrototype(ws(), slug, opts.title)}`);
     });
 
   const prd = req.command("prd").description("PRD authoring");
@@ -176,7 +176,8 @@ export function registerTestCommands(program: Command): void {
     .command("init <change>")
     .action(async (change: string) => {
       const { scaffoldTestReport } = await import("@harnessx/core");
-      console.log(`wrote ${scaffoldTestReport(ws(), change)}`);
+      console.log(`Created dirs: ${scaffoldTestReport(ws(), change)}`);
+      console.log("Next: author test-report.md and uat-checklist.md via test-execution command/skill.");
     });
 }
 

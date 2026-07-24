@@ -1,0 +1,8 @@
+id: ai-spec-review
+kind: sensor.rubric
+stage: dev
+task: verify
+version: 0.1.0
+origin: builtin
+status: enforced
+execution: inferential

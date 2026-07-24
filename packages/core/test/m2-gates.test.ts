@@ -30,11 +30,11 @@ import {
   type SensorDef,
   type RunnerOptions
 } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 import YAML from "yaml";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "hx-m2-"));
-const opts = (extra: Partial<RunnerOptions> = {}): RunnerOptions => ({ builtins: builtinSensors, ...extra });
+const opts = (extra: Partial<RunnerOptions> = {}): RunnerOptions => ({ builtins: builtinSensors, engines: sensorEngines, ...extra });
 
 const GOOD_DELTA = `## ADDED Requirements
 
@@ -53,6 +53,27 @@ function setup(profile = "standard") {
   // fill proposal sections so completeness passes
   const p = path.join(ws.changeDir("c1"), "proposal.md");
   fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace("{{title}}", "Session expiry"));
+  // Minimal HLD so gateAdvance (checks next task = design) can pass design-hld-complete
+  const designDir = path.join(ws.changeDir("c1"), "design");
+  fs.mkdirSync(designDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(designDir, "overview.md"),
+    [
+      "## Context",
+      "x",
+      "## API Surface",
+      "y",
+      "## Decisions (ADR)",
+      "z",
+      "## Architecture Constraints",
+      "a",
+      "## Observability",
+      "b",
+      "## Rollback Plan",
+      "c",
+      ""
+    ].join("\n")
+  );
   return ws;
 }
 
@@ -61,6 +82,7 @@ const shellSensor = (id: string, run: string, over: Partial<SensorDef> = {}): Se
   kind: "sensor.script",
   execution: "computational",
   trigger: "task",
+  check: "shell",
   run,
   on_fail: "block",
   max_retries: 0,

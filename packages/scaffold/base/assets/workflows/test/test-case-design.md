@@ -6,7 +6,7 @@ You are running the **test** stage task `test-case-design`.
 - Change id; specs/design from Context Pack.
 
 ## Steps
-1. `hx test-cases init <change>` if missing; fill cases mapped to Scenario / AC.
+1. Run `hx test-cases init <change>` if missing (dirs only), then author `test-cases/overview.md` via test-case-design command/skill.
 2. `hx gate check <change> --stage test --task test-case-design`.
 3. Human approve when required.
 

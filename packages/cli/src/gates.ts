@@ -26,14 +26,14 @@ import {
   type RunnerOptions,
   type DeliveryStage
 } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 import { registerPrdGuidePack } from "./prd.js";
 import { registerArchGuidePack } from "./arch.js";
 import { EXIT_FAIL } from "./exitCodes.js";
 
 const ws = () => Workspace.locate(process.cwd());
 const runnerOpts = (w: Workspace): RunnerOptions => ({
-  builtins: builtinSensors,
+  builtins: builtinSensors, engines: sensorEngines,
   changedFiles: gitChangedFiles(w.root)
 });
 

@@ -11,7 +11,7 @@ Hub 资产：见 [hxhub 使用手册](hxhub-usage.zh-CN.md)。
 ```bash
 hx doctor          # 健康检查
 hx next            # 工作区/组织阶段/变更 的下一步建议
-hx tui             # 工作区上下文交互壳（单词指令，输入 help 查看；可选传 <change> 直达）
+hx tui             # 完整菜单 TUI（与 hx/hxhub CLI 对等；--locale zh）
 hx change propose <id> --title "…"
 # 兼容别名仍可用：hx propose <id>
 ```

@@ -27,7 +27,8 @@ Cursor ▸ /hx-req-prd-writing
 ```
 
 ```console
-$ hx req prd init member-badge --title "Member badge"
+$ hx req prd init member-badge
+# then author docs/prd/member-badge.md via IDE command/skill (prd-template)
 Wrote docs/prd/member-badge.md
 
 $ hx req prd check member-badge
@@ -46,7 +47,8 @@ Record stored in `docs/.stage-approvals.yaml` with content hash binding.
 ## 2. arch stage — global HLD (`/hx-arch-subsystem-division`)
 
 ```console
-$ hx arch init --title "Member commerce"
+$ hx arch init
+# then author overview.md via IDE command/skill
 $ hx arch check
 $ hx approve arch --approver lin.arch
 ```
@@ -54,7 +56,8 @@ $ hx approve arch --approver lin.arch
 ## 3. arch stage — module LLD (`/hx-arch-internal-interface`)
 
 ```console
-$ hx arch lld init member --title "Member module"
+$ hx arch lld init member
+# then author modules/member/lld.md via IDE command/skill
 $ hx arch lld check member
 ```
 

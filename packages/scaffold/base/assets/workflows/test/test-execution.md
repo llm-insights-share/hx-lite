@@ -6,7 +6,7 @@ You are running the **test** stage task `test-execution`.
 - Change id with approved test cases.
 
 ## Steps
-1. Execute cases; record UAT / bugs; `hx test report init <change>` if needed.
+1. Execute cases; record UAT / bugs. Run `hx test report init <change>` for dirs, then author `test-report.md` via test-execution command/skill.
 2. `hx gate check <change> --stage test --task test-execution`.
 
 ## Output

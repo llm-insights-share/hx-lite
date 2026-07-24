@@ -11,6 +11,7 @@ import { profileTaskIds, resolveProfile } from "./profileResolve.js";
 import { SKILL_ENTRY } from "./skill.js";
 import { bindTaskSensorToSuites } from "./suiteBind.js";
 import { assertHarnessCompleteness } from "./harnessCompleteness.js";
+import { sensorDefFromHubAsset } from "./sensorConfig.js";
 
 export interface ProfileTaskRef {
   stage: DeliveryStage;
@@ -185,24 +186,6 @@ function findAssetContentFile(assetDir: string): string {
   throw new Error(`no content file in asset dir ${assetDir}`);
 }
 
-function sensorDefFromHubAsset(ws: Workspace, assetDir: string, manifest: AssetManifest): SensorDef {
-  const kind = SENSOR_KINDS.find((k) => k === manifest.kind);
-  if (!kind) throw new Error(`asset ${manifest.id} is not a sensor kind`);
-  const runRel = path.relative(ws.base, path.join(assetDir, findAssetContentFile(assetDir))).replace(/\\/g, "/");
-  return {
-    id: manifest.id,
-    kind,
-    execution: manifest.execution ?? "computational",
-    stage: manifest.stage,
-    task: manifest.task,
-    trigger: "task",
-    run: runRel,
-    on_fail: "block",
-    max_retries: 0,
-    timeout_ms: 120000
-  };
-}
-
 function copyDir(src: string, dest: string) {
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
@@ -247,7 +230,15 @@ export function applyProfileAssets(ws: Workspace, hubRoot: string, profile: stri
       if (idx >= 0) harness.guides[idx] = def;
       else harness.guides.push(def);
     } else if (asset.kind.startsWith("sensor.")) {
-      const def = sensorDefFromHubAsset(ws, localDir, manifest);
+      const kind = SENSOR_KINDS.find((k) => k === manifest.kind);
+      if (!kind) throw new Error(`asset ${manifest.id} is not a sensor kind`);
+      const def = sensorDefFromHubAsset(ws, localDir, {
+        id: manifest.id,
+        kind,
+        execution: manifest.execution,
+        stage: manifest.stage!,
+        task: manifest.task
+      });
       const idx = harness.sensors.findIndex((s) => s.id === asset.id);
       if (idx >= 0) harness.sensors[idx] = def;
       else harness.sensors.push(def);

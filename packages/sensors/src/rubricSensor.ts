@@ -5,7 +5,7 @@ import type { SensorReport } from "@harnessx/core/schemas.js";
 import type { SensorContext } from "./types.js";
 
 /**
- * T-504: sensor.rubric executor (builtin: rubric).
+ * T-504: sensor.rubric executor (used via check:rules / handler.rubric).
  * Loads every rules.yaml under assets/rubrics/, gathers the change's artifacts
  * (redacted + budget-capped by the core runner), and evaluates rule-by-rule.
  * `HX_JUDGE_CMD` selects a local/remote LLM judge; default is the offline

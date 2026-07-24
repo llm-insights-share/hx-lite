@@ -27,7 +27,8 @@ Cursor ▸ /hx-req-prd-writing
 ```
 
 ```console
-$ hx req prd init member-badge --title "会员徽章"
+$ hx req prd init member-badge
+# 再通过 IDE 命令/技能按 prd-template 撰写 docs/prd/member-badge.md
 Wrote docs/prd/member-badge.md
 
 $ hx req prd check member-badge
@@ -48,9 +49,10 @@ approved PRD "member-badge" by chen.pm (artifact a1b2c3d4e5f6)
 ## 2. 全局架构 — `/hx-arch-subsystem-division`
 
 ```console
-$ hx arch init --title "会员电商"
-Wrote docs/architecture/overview.md
-Wrote docs/architecture/registry.yaml
+$ hx arch init
+# 再通过 IDE 命令/技能撰写 overview.md
+Created dirs: docs/architecture
+Initialized: docs/architecture/registry.yaml
 
 $ hx arch check
 BLOCKER  arch-approved: global architecture not approved
@@ -69,7 +71,8 @@ approved global arch by lin.arch (artifact ...)
 ## 3. 模块 LLD — `/hx-arch-internal-interface`
 
 ```console
-$ hx arch lld init member --title "会员模块"
+$ hx arch lld init member
+# 再通过 IDE 命令/技能撰写 modules/member/lld.md
 Wrote docs/architecture/modules/member/lld.md
 
 $ hx arch lld check member

@@ -6,7 +6,7 @@ You are running the **arch** stage task `subsystem-division`.
 - System title; approved PRDs as context.
 
 ## Steps
-1. Scaffold: `hx arch init --title "<system>"` if missing.
+1. Scaffold dirs: `hx arch init` if missing, then author `docs/architecture/overview.md` via arch command/skill (`arch-hld-template`).
 2. Fill global HLD boundaries, modules, flows, NFR, ADR; keep `registry.yaml` in sync.
 3. Follow **arch-authoring** Skill / HLD template.
 4. `hx arch check --task subsystem-division`.

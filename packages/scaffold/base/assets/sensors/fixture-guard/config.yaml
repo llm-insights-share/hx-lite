@@ -1,0 +1,2 @@
+check: inline
+expr: "fixture.hash_ok == true"

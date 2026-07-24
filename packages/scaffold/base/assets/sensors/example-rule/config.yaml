@@ -1,0 +1,2 @@
+check: inline
+expr: "rules.list_ok"

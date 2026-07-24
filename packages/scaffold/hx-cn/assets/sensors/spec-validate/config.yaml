@@ -1,0 +1,7 @@
+check: inline
+expr: "spec.ears_ok == true"
+require_scenario: true
+ears:
+  require_shall: true
+  patterns: [WHEN, WHILE, WHERE, IF]
+  vague_words: [quickly, user-friendly, appropriately, as needed, robust, seamless, etc]

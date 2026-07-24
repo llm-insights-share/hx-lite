@@ -44,7 +44,10 @@ export const archHldComplete = (ctx: SensorContext): SensorReport => {
   const findings: Finding[] = [];
   const overview = ctx.ws.archOverviewFile();
   if (!fs.existsSync(overview)) {
-    findings.push({ severity: "block", message: "docs/architecture/overview.md missing — run hx arch init" });
+    findings.push({
+      severity: "block",
+      message: "docs/architecture/overview.md missing — run hx arch init (dirs), then author HLD via arch command/skill (arch-hld-template)."
+    });
     return block(findings, ctx, "global HLD missing");
   }
   const text = fs.readFileSync(overview, "utf8");
@@ -76,7 +79,7 @@ export const archRegistryComplete = (ctx: SensorContext): SensorReport => {
   const findings: Finding[] = [];
   const registry = readArchRegistry(ctx.ws);
   if (!fs.existsSync(ctx.ws.archRegistryFile())) {
-    findings.push({ severity: "block", message: "registry.yaml missing — run hx arch init" });
+    findings.push({ severity: "block", message: "registry.yaml missing — run hx arch init to scaffold arch directories and registry." });
     return block(findings, ctx, "registry missing");
   }
   const capOwners = new Map<string, string>();
@@ -107,7 +110,10 @@ export const archLldComplete = (ctx: SensorContext): SensorReport => {
   const findings: Finding[] = [];
   const lld = ctx.ws.archModuleLld(moduleId);
   if (!fs.existsSync(lld)) {
-    findings.push({ severity: "block", message: `module LLD missing — run: hx arch lld init ${moduleId}` });
+    findings.push({
+      severity: "block",
+      message: `module LLD missing at docs/architecture/modules/${moduleId}/lld.md — run hx arch lld init ${moduleId} (dirs), then author LLD via arch command/skill (arch-lld-template).`
+    });
     return block(findings, ctx, "LLD missing");
   }
   const text = fs.readFileSync(lld, "utf8");

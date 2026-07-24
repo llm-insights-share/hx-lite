@@ -6,7 +6,7 @@ You are running the **arch** stage task `internal-interface`.
 - Module id from `registry.yaml`.
 
 ## Steps
-1. Scaffold: `hx arch lld init <module> --title "..."` if missing.
+1. Scaffold dirs: `hx arch lld init <module>` if missing, then author `docs/architecture/modules/<module>/lld.md` via arch command/skill (`arch-lld-template`).
 2. Fill module LLD (boundaries, APIs, data, constraints).
 3. `hx arch check --task internal-interface --module <module>`.
 4. Human approve when required: `hx gate approve --gate arch-lld --module <module> --approver <name>`.

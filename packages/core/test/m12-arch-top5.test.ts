@@ -19,10 +19,10 @@ import {
   hub as hubBoundary,
   type HarnessYaml
 } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "hx-m12-"));
-const opts = () => ({ builtins: builtinSensors });
+const opts = () => ({ builtins: builtinSensors, engines: sensorEngines });
 
 describe("arch review Top 5", () => {
   it("createProject installs profile-resolved hub guides into harness.yaml", () => {

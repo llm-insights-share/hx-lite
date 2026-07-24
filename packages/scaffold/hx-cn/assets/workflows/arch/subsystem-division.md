@@ -6,7 +6,7 @@
 - 系统标题；已批准 PRD 作为上下文。
 
 ## Steps
-1. 缺失时：`hx arch init --title "<system>"`。
+1. 缺失时先建目录：`hx arch init`，再通过 arch 命令/技能按 `arch-hld-template` 撰写 `docs/architecture/overview.md`。
 2. 填写全局 HLD，并维护 `registry.yaml`。
 3. 遵循 **arch-authoring**。
 4. `hx arch check --task subsystem-division`。

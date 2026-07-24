@@ -81,10 +81,10 @@ req (org) → arch (org) → change create → dev (change) → test (change) �
 ## 常用命令
 
 ```bash
-hx req prd init <slug> --title "..."
+hx req prd init <slug>                         # dirs only; author PRD via IDE command/skill
 hx req check --prd <slug>                    # 跑全部必选 req 任务
 hx gate check --stage req --task prd-writing --prd <slug>
-hx arch init --title "..."
+hx arch init                                 # dirs + empty registry; author HLD via IDE
 hx arch check --task tech-selection
 hx change create <id> --domains api --prd <slug>
 hx gate check <change> --stage dev --task propose

@@ -1,0 +1,8 @@
+id: example-rule
+kind: sensor.rule
+stage: req
+task: prd-writing
+version: 0.1.0
+origin: builtin
+status: draft
+execution: computational

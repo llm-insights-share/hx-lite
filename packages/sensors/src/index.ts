@@ -47,6 +47,7 @@ import {
   archKeyMechanismsComplete,
   testReportComplete
 } from "./orgTasks.js";
+import { sensorEngines, registerEngine } from "./engines/index.js";
 
 export * from "./sdlc.js";
 export * from "./delivery.js";
@@ -74,6 +75,9 @@ export { budget } from "./budget.js";
 export { rubricSensor } from "./rubricSensor.js";
 export { typecheck, lint, unitChanged } from "./fastSuite.js";
 export { mutationProbe, analyzeTestStrength } from "./mutation.js";
+
+export * from "./engines/index.js";
+export { sensorEngines, registerEngine };
 
 export const builtinSensors: Record<string, BuiltinSensor> = {
   "spec-validate": specValidate,
@@ -128,4 +132,18 @@ export const builtinSensors: Record<string, BuiltinSensor> = {
 
 export function registerBuiltin(name: string, sensor: BuiltinSensor): void {
   builtinSensors[name] = sensor;
+}
+
+/** Default runner options for CLI / MCP: builtins + config-driven engines. */
+export function defaultRunnerOptions(
+  extra: { changedFiles?: string[]; waivedSensors?: string[]; prdSlug?: string; archModule?: string } = {}
+): {
+  builtins: typeof builtinSensors;
+  engines: typeof sensorEngines;
+  changedFiles?: string[];
+  waivedSensors?: string[];
+  prdSlug?: string;
+  archModule?: string;
+} {
+  return { builtins: builtinSensors, engines: sensorEngines, ...extra };
 }

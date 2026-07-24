@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import { spawnSync } from "node:child_process";
-import { AssetManifest, type SensorDef, SENSOR_KINDS, type HarnessLock } from "./schemas.js";
+import { AssetManifest, SENSOR_KINDS, type HarnessLock } from "./schemas.js";
 import { Workspace, writeYaml } from "./paths.js";
 import { loadAssetDir, writeLock } from "./assets.js";
 import { guideDefFromHubAsset } from "./harnessCompose.js";
@@ -11,6 +11,7 @@ import { DEFAULT_PROFILE_STAGES } from "./stages.js";
 import { resolveProfileAssets } from "./profileAssets.js";
 import { bindTaskSensorToSuites } from "./suiteBind.js";
 import { assertHarnessCompleteness } from "./harnessCompleteness.js";
+import { sensorDefFromHubAsset } from "./sensorConfig.js";
 
 function copyDir(src: string, dest: string) {
   fs.mkdirSync(dest, { recursive: true });
@@ -20,34 +21,6 @@ function copyDir(src: string, dest: string) {
     if (entry.isDirectory()) copyDir(s, d);
     else fs.copyFileSync(s, d);
   }
-}
-
-function findAssetContentFile(assetDir: string): string {
-  for (const name of ["SKILL.md", "template.md", "COMMAND.md", "constraint.yaml", "rules.yaml"]) {
-    if (fs.existsSync(path.join(assetDir, name))) return name;
-  }
-  for (const e of fs.readdirSync(assetDir, { withFileTypes: true })) {
-    if (e.isFile() && /\.(md|yaml|yml)$/.test(e.name) && e.name !== "asset.yaml") return e.name;
-  }
-  throw new Error(`no content file in asset dir ${assetDir}`);
-}
-
-function sensorDefFromHubAsset(ws: Workspace, assetDir: string, manifest: AssetManifest): SensorDef {
-  const kind = SENSOR_KINDS.find((k) => k === manifest.kind);
-  if (!kind) throw new Error(`asset ${manifest.id} is not a sensor kind`);
-  const runRel = path.relative(ws.base, path.join(assetDir, findAssetContentFile(assetDir))).replace(/\\/g, "/");
-  return {
-    id: manifest.id,
-    kind,
-    execution: manifest.execution ?? "computational",
-    stage: manifest.stage,
-    task: manifest.task,
-    trigger: "task",
-    run: runRel,
-    on_fail: "block",
-    max_retries: 0,
-    timeout_ms: 120000
-  };
 }
 
 function upsertDependency(deps: string[], id: string, version: string): void {
@@ -117,7 +90,15 @@ export function landHubAssets(ws: Workspace, hubRoot: string, opts: LandHubAsset
       if (idx >= 0) harness.guides[idx] = def;
       else harness.guides.push(def);
     } else {
-      const def = sensorDefFromHubAsset(ws, localDir, AssetManifest.parse(YAML.parse(fs.readFileSync(path.join(localDir, "asset.yaml"), "utf8"))));
+      const kind = SENSOR_KINDS.find((k) => k === manifest.kind);
+      if (!kind) throw new Error(`asset ${manifest.id} is not a sensor kind`);
+      const def = sensorDefFromHubAsset(ws, localDir, {
+        id: manifest.id,
+        kind,
+        execution: manifest.execution,
+        stage: manifest.stage!,
+        task: manifest.task
+      });
       const idx = harness.sensors.findIndex((s) => s.id === id);
       if (idx >= 0) harness.sensors[idx] = def;
       else harness.sensors.push(def);

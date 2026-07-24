@@ -6,7 +6,7 @@
 - change id；规格与设计。
 
 ## Steps
-1. 缺失时：`hx test-cases init <change>`；用例映射 Scenario/AC。
+1. 缺失时先建目录：`hx test-cases init <change>`，再通过 test-case-design 命令/技能撰写 `test-cases/overview.md`。
 2. `hx gate check <change> --stage test --task test-case-design`。
 3. 需要时人工批准。
 

@@ -12,7 +12,7 @@ import {
   profileStages,
   type MetaYaml
 } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "hx-m32-"));
 

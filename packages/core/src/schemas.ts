@@ -63,6 +63,10 @@ export type GuideDef = z.infer<typeof GuideDef>;
 
 export const OnFail = z.enum(["block", "warn", "retry"]);
 
+/** User-facing check kinds: inline predicates, shell command, or rules+judge. */
+export const SensorCheck = z.enum(["inline", "shell", "rules"]);
+export type SensorCheck = z.infer<typeof SensorCheck>;
+
 export const SensorDef = z.object({
   id: z.string(),
   kind: z.enum(SENSOR_KINDS),
@@ -71,9 +75,26 @@ export const SensorDef = z.object({
   task: z.string().optional(),
   trigger: z.enum(["task", "file-save", "schedule"]).default("task"),
   scope: z.array(z.string()).optional(),
+  /** inline | shell | rules (required; may be filled from pack config). */
+  check: SensorCheck.optional(),
+  /** inline: predicate expression, e.g. approval.prd == true or handler.spec-trace */
+  expr: z.string().optional(),
+  /** shell: explicit HX_OUTPUT path template */
+  output: z.string().optional(),
+  /** rules: natural-language or markdown rule text */
+  rules_text: z.string().optional(),
+  /** rules: path to rules.md / rules.yaml relative to harnessX/ */
+  rules_file: z.string().optional(),
+  /** rules: globs of task output to judge (relative to change dir or root) */
+  input: z.array(z.string()).optional(),
+  /** Sensor asset dir or config file path relative to harnessX/. */
+  source: z.string().optional(),
+  /** Inline config merged over source/config.yaml. */
+  config: z.record(z.unknown()).optional(),
+  /** Extra rule/rubric paths relative to harnessX/. */
+  rules: z.array(z.string()).optional(),
+  /** shell: command to run (cwd = repo root). */
   run: z.string().optional(),
-  builtin: z.string().optional(),
-  plugin: z.string().optional(),
   on_fail: OnFail.default("block"),
   max_retries: z.number().int().min(0).default(0),
   fix_hint: z.string().optional(),

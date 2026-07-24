@@ -52,8 +52,8 @@ describe("M22-M27 enterprise SDLC workflow", () => {
     roles.members = { "pm.chen": "product-manager", "tm.zhang": "tech-manager" };
     writeRoles(ws, roles);
 
-    const prdFile = scaffoldPrd(ws, "member-badge", "Member Badge");
-    fs.writeFileSync(prdFile, fs.readFileSync(prdFile, "utf8") + "\n\n## Goals\nTest PRD\n", "utf8");
+    scaffoldPrd(ws, "member-badge", "Member Badge");
+    fs.writeFileSync(ws.prdFile("member-badge"), `# PRD: Member Badge\n\n## Goals\nTest PRD\n`, "utf8");
 
     const wo = createWorkOrder(ws, {
       type: "req-review",
@@ -76,6 +76,7 @@ describe("M22-M27 enterprise SDLC workflow", () => {
   it("change request apply patches PRD and invalidates approval", () => {
     const ws = initWorkspace(tmp()).ws;
     scaffoldPrd(ws, "orders", "Orders");
+    fs.writeFileSync(ws.prdFile("orders"), `# PRD: Orders\n\n## Goals\nOrders\n`, "utf8");
     recordPrephaseApproval(ws, "prd", "tm", "orders");
 
     const cr = createChangeRequest(ws, {

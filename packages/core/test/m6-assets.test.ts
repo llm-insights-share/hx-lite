@@ -37,13 +37,13 @@ import {
   approveFixture,
   type SensorDef
 } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 import { compileAdapters, adapterDrift, checkGeneratedFile, computeTier, TARGETS, exportQoderQuest, collectCommands } from "@harnessx/adapters";
 import YAML from "yaml";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "hx-m6-"));
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const opts = () => ({ builtins: builtinSensors });
+const opts = () => ({ builtins: builtinSensors, engines: sensorEngines });
 
 function makeAsset(dir: string, id: string, over: Record<string, unknown> = {}, content = `# Skill: ${id}\n\n- Be excellent.\n`) {
   fs.mkdirSync(dir, { recursive: true });
@@ -79,7 +79,7 @@ describe("T-600 asset model + lifecycle", () => {
     const ws = initWorkspace(tmp()).ws;
     const dir = path.join(ws.assetsDir, "sensors/my-sensor");
     makeAsset(dir, "my-sensor", { kind: "sensor.script" });
-    const def: SensorDef = { id: "my-sensor", kind: "sensor.script", execution: "computational", trigger: "task", run: "exit 1", on_fail: "block", max_retries: 0, timeout_ms: 5000 };
+    const def: SensorDef = { id: "my-sensor", kind: "sensor.script", execution: "computational", trigger: "task", check: "shell", run: "exit 1", on_fail: "block", max_retries: 0, timeout_ms: 5000 };
     await runSensor(ws, def, "c1", opts());
     const m = backfillMetrics(ws, loadAssetDir(dir, "local")!);
     expect(m.metrics["runs"]).toBe(1);
@@ -459,7 +459,7 @@ describe("T-609 triggers", () => {
   it("schedule trigger runs scheduled sensors", async () => {
     const ws = initWorkspace(tmp()).ws;
     const harness = ws.readHarness();
-    harness.sensors.push({ id: "nightly", kind: "sensor.script", execution: "computational", trigger: "schedule", run: "true", on_fail: "warn", max_retries: 0, timeout_ms: 5000 });
+    harness.sensors.push({ id: "nightly", kind: "sensor.script", execution: "computational", trigger: "schedule", check: "shell", run: "true", on_fail: "warn", max_retries: 0, timeout_ms: 5000 });
     fs.writeFileSync(ws.harnessFile, YAML.stringify(harness));
     const reports = await runScheduled(ws, opts());
     expect(reports.map((r) => r.sensor)).toEqual(["nightly"]);
@@ -476,8 +476,11 @@ describe("T-610 plugin API", () => {
       pluginFile,
       `export default { api: "1.2.0", id: "my-plugin", execute: (ctx) => ({ status: "fail", summary: "found issue in " + ctx.sensor.id, findings: [{ severity: "block", message: "plugin finding" }] }) };\n`
     );
-    const def: SensorDef = { id: "custom", kind: "sensor.script", execution: "computational", trigger: "task", plugin: "plugins/my-plugin.mjs", on_fail: "block", max_retries: 0, timeout_ms: 5000 };
-    const report = await runPluginSensor(ws, def, "c1");
+    const report = await runPluginSensor(
+      ws,
+      { id: "custom", plugin: "plugins/my-plugin.mjs", timeout_ms: 5000 },
+      "c1"
+    );
     expect(report.status).toBe("fail");
     expect(report.findings[0].message).toBe("plugin finding");
 
@@ -488,15 +491,17 @@ describe("T-610 plugin API", () => {
     // dynamic import caches by URL; use a new file to test incompatibility
     const badFile = path.join(ws.base, "plugins/bad-plugin.mjs");
     fs.writeFileSync(badFile, `export default { api: "2.0.0", id: "bad", execute: () => ({ status: "pass", summary: "ok" }) };\n`);
-    const badDef = { ...def, plugin: "plugins/bad-plugin.mjs" };
-    await expect(runPluginSensor(ws, badDef, "c1")).rejects.toThrow(/incompatible/);
+    await expect(runPluginSensor(ws, { id: "custom", plugin: "plugins/bad-plugin.mjs" }, "c1")).rejects.toThrow(/incompatible/);
   });
 
   it("command-protocol plugin (python-style) via JSON stdin/stdout", async () => {
     const ws = initWorkspace(tmp()).ws;
     const cmd = `node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const ctx=JSON.parse(d);console.log(JSON.stringify({status:'pass',summary:'checked '+ctx.sensor.id}))})"`;
-    const def: SensorDef = { id: "cmd-plug", kind: "sensor.script", execution: "computational", trigger: "task", plugin: `cmd:${cmd}`, on_fail: "block", max_retries: 0, timeout_ms: 10000 };
-    const report = await runPluginSensor(ws, def);
+    const report = await runPluginSensor(ws, {
+      id: "cmd-plug",
+      plugin: `cmd:${cmd}`,
+      timeout_ms: 10000
+    });
     expect(report.status).toBe("pass");
     expect(report.summary).toBe("checked cmd-plug");
   });
@@ -509,7 +514,7 @@ describe("T-611 hx fix", () => {
     fs.mkdirSync(path.join(ws.deltaSpecsDir("c1"), "auth"), { recursive: true });
     fs.writeFileSync(path.join(ws.deltaSpecsDir("c1"), "auth/spec.md"), "## ADDED Requirements\n\n### Requirement: R1\nTHE SYSTEM SHALL r1.\n\n#### Scenario: s1\n- THEN ok\n");
     const json = `{"status":"fail","summary":"1 issue","findings":[{"severity":"block","message":"bad thing","fix_hint":"do good thing"}]}`;
-    const def: SensorDef = { id: "linter", kind: "sensor.rule", execution: "computational", trigger: "task", run: `echo '${json}'; exit 1`, on_fail: "block", max_retries: 0, timeout_ms: 5000 };
+    const def: SensorDef = { id: "linter", kind: "sensor.rule", execution: "computational", trigger: "task", check: "shell", run: `echo '${json}'; exit 1`, on_fail: "block", max_retries: 0, timeout_ms: 5000 };
     await runSensor(ws, def, "c1", opts());
 
     const pack = buildFixPack(ws, "c1", "linter");

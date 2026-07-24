@@ -1,0 +1,22 @@
+check: inline
+expr: "doc.sections_complete"
+target:
+  path_template: "@arch-overview"
+sections:
+  - id: system-boundary
+    heading: "##\\s*(系统边界|System Boundary)"
+  - id: architecture
+    heading: "##\\s*(架构方案|Architecture)"
+  - id: module-resp
+    heading: "##\\s*(模块职责|Module Responsibilities)"
+  - id: data-flow
+    heading: "##\\s*(数据流|Data Flow)"
+  - id: nfr
+    heading: "##\\s*(非功能|Non-Functional)"
+  - id: adr
+    heading: "##\\s*ADR"
+  - id: risks
+    heading: "##\\s*(风险|Risks)"
+placeholder:
+  enabled: true
+missing_file_message: "docs/architecture/overview.md missing — run hx arch init, then author HLD"

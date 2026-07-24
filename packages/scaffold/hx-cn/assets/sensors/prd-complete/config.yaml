@@ -1,0 +1,30 @@
+check: inline
+expr: "doc.sections_complete"
+target:
+  path_template: "@prd"
+sections:
+  - id: user-stories
+    heading: "##\\s*(用户故事|User Stories)"
+    severity: block
+  - id: acceptance
+    heading: "##\\s*(验收标准|Acceptance Criteria)"
+    severity: block
+  - id: in-scope
+    heading: "###\\s*In Scope|##\\s*范围|In Scope"
+    severity: block
+  - id: out-of-scope
+    heading: "Out of Scope"
+    severity: block
+  - id: nfr
+    heading: "非功能|Non-Functional|NFR"
+    severity: block
+  - id: review
+    heading: "评审结论|Review Conclusion"
+    severity: block
+require_any:
+  - id: ac-or-gwt
+    patterns: ["\\bAC-\\d+", "Given|When|Then|GIVEN|WHEN|THEN"]
+    message: "no acceptance criteria (AC-xxx or GWT) found"
+placeholder:
+  enabled: true
+missing_file_message: "PRD missing — run hx req prd init (dirs), then author via req command/skill"

@@ -50,13 +50,13 @@ const ORG_RUNS: Record<string, string> = {
   "req.requirements-research": "hx req research init <slug>",
   "req.requirements-analysis": "hx req analysis init <slug>",
   "req.prototype-design": "hx req prototype init <slug>",
-  "req.prd-writing": 'hx req prd init <slug> --title "..."',
-  "arch.subsystem-division": 'hx arch init --title "..."',
+  "req.prd-writing": "hx req prd init <slug>",
+  "arch.subsystem-division": "hx arch init",
   "arch.tech-selection": "hx arch check --task tech-selection",
   "arch.database-design": "hx arch check --task database-design",
   "arch.interface-design": "hx arch check --task interface-design",
   "arch.key-mechanisms": "hx arch check --task key-mechanisms",
-  "arch.internal-interface": 'hx arch lld init <module> --title "..."',
+  "arch.internal-interface": "hx arch lld init <module>",
   "test.test-case-design": "hx test-cases init <change>",
   "test.test-execution": "hx test report init <change>"
 };

@@ -60,7 +60,7 @@ function reqInitCli(task: string, slug: string): string {
     case "prototype-design":
       return `hx req prototype init ${slug}`;
     case "prd-writing":
-      return `hx req prd init ${slug} --title "..."`;
+      return `hx req prd init ${slug}`;
     default:
       return `hx req check --task ${task} --prd ${slug}`;
   }
@@ -69,7 +69,7 @@ function reqInitCli(task: string, slug: string): string {
 function archInitCli(task: string, moduleId?: string): string {
   switch (task) {
     case "subsystem-division":
-      return `hx arch init --title "..."`;
+      return `hx arch init`;
     case "internal-interface":
       return moduleId ? `hx arch lld init ${moduleId}` : `hx arch lld init <module>`;
     default:
@@ -158,7 +158,7 @@ export function buildOrgNavigationReport(
     stage === "req"
       ? prdSlug
         ? reqInitCli(task, prdSlug)
-        : `hx req prd init <slug> --title "..."`
+        : `hx req prd init <slug>`
       : archInitCli(task, moduleId);
 
   return {
@@ -173,7 +173,7 @@ export function buildOrgNavigationReport(
     gateCli,
     guideCli: stage === "req" && prdSlug ? `hx guide prd-pack ${prdSlug}` : `hx guide arch-pack`,
     statusCli: `hx stage status --stage ${stage}`,
-    hint: prdSlug ? `PRD context: ${prdSlug}` : "set PRD slug with hx req prd init <slug>"
+    hint: prdSlug ? `PRD context: ${prdSlug}` : "set PRD slug with hx req prd init <slug> (dirs only)"
   };
 }
 
@@ -217,7 +217,7 @@ export function buildWorkspaceNavigationReport(ws: Workspace): WorkspaceNavigati
       moduleId: focus.moduleId
     });
     suggestedCli = org.suggestedCli;
-    gateCli = org.gateCli;
+    gateCli = org.gateCli ?? gateCli;
     guideCli = org.guideCli;
     statusCli = org.statusCli ?? statusCli;
     hint = `focus: ${focus.stage}/${focus.task}`;
@@ -228,16 +228,16 @@ export function buildWorkspaceNavigationReport(ws: Workspace): WorkspaceNavigati
   } else if (focus.kind === "change") {
     const ch = buildChangeNavigationReport(ws, focus.change);
     suggestedCli = ch.suggestedCli;
-    gateCli = ch.gateCli;
-    guideCli = ch.guideCli;
-    statusCli = ch.statusCli;
+    gateCli = ch.gateCli ?? gateCli;
+    guideCli = ch.guideCli ?? guideCli;
+    statusCli = ch.statusCli ?? statusCli;
     hint = `focus: change ${focus.change} (${ch.stage}/${ch.task})`;
   } else if (changes.length === 0) {
     hint = stages.includes("req")
-      ? "start with hx req prd init <slug> or hx stage status --stage req"
+      ? "start with hx req prd init <slug> (dirs only) or hx stage status --stage req"
       : "run hx change create <id> --domains <domain>";
     if (stages.includes("req") && listPrdSlugs(ws).length === 0) {
-      suggestedCli = 'hx req prd init <slug> --title "..."';
+      suggestedCli = "hx req prd init <slug>";
     } else if (!stages.includes("req") && !stages.includes("arch")) {
       suggestedCli = "hx change create <id> --domains <domain>";
     }

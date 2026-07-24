@@ -6,7 +6,7 @@
 - 已有用例的 change。
 
 ## Steps
-1. 执行用例；记录 UAT/缺陷；必要时 `hx test report init <change>`。
+1. 执行用例；记录 UAT/缺陷。必要时先 `hx test report init <change>` 建目录，再通过 test-execution 命令/技能撰写 `test-report.md`。
 2. `hx gate check <change> --stage test --task test-execution`。
 
 ## Output

@@ -21,10 +21,10 @@ import {
   writeTaskPack,
   type RunnerOptions
 } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 
 const ws = () => Workspace.locate(process.cwd());
-const runnerOpts = (w: Workspace): RunnerOptions => ({ builtins: builtinSensors, changedFiles: gitChangedFiles(w.root) });
+const runnerOpts = (w: Workspace): RunnerOptions => ({ builtins: builtinSensors, engines: sensorEngines, changedFiles: gitChangedFiles(w.root) });
 
 function makeExecutor(runner?: string, w?: Workspace, change?: string) {
   const root = w ?? ws();

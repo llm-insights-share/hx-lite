@@ -4,7 +4,7 @@
 
 > 让 AI 编程 Agent 可靠交付生产级软件的外层控制平面 —— 不是又一个测试框架，而是 **规格驱动 + 前馈 Guide + 反馈 Sensor + fail-closed Gate** 的完整交付 Harness。
 
-[![Version](https://img.shields.io/badge/version-0.4.0-blue)](https://github.com/llm-insights-share/hx-lite)
+[![Version](https://img.shields.io/badge/version-0.5.0-blue)](https://github.com/llm-insights-share/hx-lite)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](package.json)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](package.json)
 

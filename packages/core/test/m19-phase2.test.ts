@@ -14,15 +14,14 @@ import {
   gateCheck,
   readMeta
 } from "@harnessx/core";
-import { prdApproved, archApproved, archDrift, builtinSensors } from "@harnessx/sensors";
+import { prdApproved, archApproved, archDrift, builtinSensors, sensorEngines } from "@harnessx/sensors";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "hx-m19-"));
 
 function fillPrd(file: string) {
-  const body = fs.readFileSync(file, "utf8");
   fs.writeFileSync(
     file,
-    `${body}
+    `# PRD
 ## 用户故事
 | US-001 | user | goal | motivation | P0 |
 ## 验收标准
@@ -97,11 +96,11 @@ describe("M19 pre-phase phase 2", () => {
       path.join(ws.changeDir("member-badge"), "proposal.md"),
       "# Proposal\n\n## Problem\nx\n\n## Approach\ny\n\n## Scope\nz\n"
     );
-    const res = await gateCheck(ws, "member-badge", { task: "propose" }, { builtins: builtinSensors });
+    const res = await gateCheck(ws, "member-badge", { task: "propose" }, { builtins: builtinSensors, engines: sensorEngines });
     expect(res.passed).toBe(false);
     expect(res.blockers.join()).toMatch(/not approved/);
     recordPrephaseApproval(ws, "prd", "pm", "badge");
-    const ok = await gateCheck(ws, "member-badge", { task: "propose" }, { builtins: builtinSensors });
+    const ok = await gateCheck(ws, "member-badge", { task: "propose" }, { builtins: builtinSensors, engines: sensorEngines });
     expect(ok.blockers.join()).not.toMatch(/not approved/);
   });
 

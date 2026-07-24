@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { Command } from "commander";
 import { Workspace, runMcpStdioServer, gitChangedFiles } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 
 export function registerMcpCommand(program: Command): void {
   program
@@ -14,7 +14,7 @@ export function registerMcpCommand(program: Command): void {
         process.exit(1);
       }
       runMcpStdioServer(ws, {
-        builtins: builtinSensors,
+        builtins: builtinSensors, engines: sensorEngines,
         changedFiles: gitChangedFiles(ws.root)
       });
     });

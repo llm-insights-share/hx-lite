@@ -23,7 +23,8 @@ $ hx adapter sync
 ## 1. 需求审核（产品 → 技术经理）
 
 ```console
-$ hx req prd init member-badge --title "会员徽章"
+$ hx req prd init member-badge
+# 再通过 IDE 命令/技能按 prd-template 撰写 docs/prd/member-badge.md
 $ hx req prd submit member-badge --by pm.chen
 $ hx wo inbox --role tech-manager
 $ hx wo extract WO-00001 --out /tmp/review.md
@@ -58,7 +59,8 @@ $ hx gate check badge-cr1 --stage dev --task propose
 ## 4. 概要设计审核（架构 → 技术经理 → 详细设计工单）
 
 ```console
-$ hx arch init --title "会员系统"
+$ hx arch init
+# then author docs/architecture/overview.md via IDE command/skill
 $ hx arch submit --by lin.arch --change member-badge
 $ hx wo approve WO-00003 --by tm.zhang
 # 自动 spawn lld-design 工单 per module

@@ -4,4 +4,6 @@
 
 CLI 速查（命名空间、`doctor`/`next`/`tui`、退出码）：[cli-reference.zh-CN.md](cli-reference.zh-CN.md)。
 
+Sensor 配置（引擎、资产包、shell/plugin）：[sensor-config-manual.zh-CN.md](sensor-config-manual.zh-CN.md)。
+
 Hub 运维见 [hxhub 使用手册](hxhub-usage.zh-CN.md)。阶段定义见 [delivery-stages.zh-CN.md](delivery-stages.zh-CN.md)。

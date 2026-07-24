@@ -6,8 +6,8 @@ You are running the **req** stage task `prototype-design`.
 - PRD slug; analysis / PRD draft as available.
 
 ## Steps
-1. Scaffold: `hx req prototype init <slug>` if missing.
-2. Fill page inventory / wireframe notes in `docs/prd/<slug>/prototype/pages.md`.
+1. Scaffold dirs: `hx req prototype init <slug>` if missing.
+2. Author `docs/prd/<slug>/prototype/pages.md` via req command/skill (prototype-wireframe).
 3. Follow **prototype-wireframe** Skill when bound.
 4. `hx req check --task prototype-design --prd <slug>`.
 

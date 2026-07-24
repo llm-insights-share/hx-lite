@@ -6,8 +6,8 @@ You are running the **req** stage task `requirements-analysis`.
 - PRD slug; research notes if available.
 
 ## Steps
-1. Scaffold: `hx req analysis init <slug>` if missing.
-2. Fill problem/opportunity, users/scenarios, P0/P1, and solution outline in `analysis.md`.
+1. Scaffold dirs: `hx req analysis init <slug>` if missing.
+2. Author `docs/prd/<slug>/analysis.md` via req command/skill (requirements-analysis).
 3. `hx req check --task requirements-analysis --prd <slug>`.
 
 ## Output

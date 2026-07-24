@@ -22,14 +22,15 @@ import { collectCommands } from "@harnessx/adapters";
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "hx-m18-"));
 
 describe("M18 pre-phase PRD and arch", () => {
-  it("scaffolds PRD and passes prd-complete when filled", () => {
+  it("scaffolds PRD dirs and passes prd-complete when filled via skill content", () => {
     const { ws } = initWorkspace(tmp());
-    scaffoldPrd(ws, "member-badge", "Member badge");
+    const dir = scaffoldPrd(ws, "member-badge", "Member badge");
+    expect(fs.statSync(dir).isDirectory()).toBe(true);
+    expect(fs.existsSync(ws.prdFile("member-badge"))).toBe(false);
     const file = ws.prdFile("member-badge");
-    const body = fs.readFileSync(file, "utf8");
     fs.writeFileSync(
       file,
-      `${body}
+      `# PRD: Member badge
 ## 用户故事
 | US-001 | user | see badge | motivation | P0 |
 ## 验收标准
@@ -49,13 +50,14 @@ p99 < 200ms
     expect(report.status).toBe("pass");
   });
 
-  it("scaffolds global HLD and registry", () => {
+  it("scaffolds global arch dirs and registry", () => {
     const { ws } = initWorkspace(tmp());
     const res = scaffoldArchHld(ws, "Shop");
-    expect(fs.existsSync(res.overview)).toBe(true);
+    expect(fs.statSync(res.overview).isDirectory()).toBe(true);
     expect(fs.existsSync(res.registry)).toBe(true);
+    expect(fs.existsSync(ws.archOverviewFile())).toBe(false);
     fs.writeFileSync(
-      res.overview,
+      ws.archOverviewFile(),
       `# HLD
 ## 系统边界与上下游
 boundary
@@ -81,13 +83,15 @@ low
     expect(report.status).toBe("pass");
   });
 
-  it("scaffolds module LLD and resolves for change domains", () => {
+  it("scaffolds module LLD dirs and resolves for change domains", () => {
     const { ws } = initWorkspace(tmp());
     scaffoldArchHld(ws, "Shop");
     const reg = readArchRegistry(ws);
     reg.modules = [{ id: "order", lld: "modules/order/lld.md", capabilities: ["order-refund"], status: "active" }];
     writeArchRegistry(ws, reg);
-    scaffoldArchLld(ws, "order", "Order");
+    const moduleDir = scaffoldArchLld(ws, "order", "Order");
+    expect(fs.statSync(moduleDir).isDirectory()).toBe(true);
+    expect(fs.existsSync(path.join(moduleDir, "api"))).toBe(true);
     const lld = ws.archModuleLld("order");
     fs.writeFileSync(
       lld,

@@ -3,10 +3,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { initWorkspace, createChange, writeYaml, agentGateCheck, gateStopHookResponse } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "hx-gate-stop-"));
-const opts = (root: string) => ({ builtins: builtinSensors, changedFiles: [] as string[] });
+const opts = (root: string) => ({ builtins: builtinSensors, engines: sensorEngines, changedFiles: [] as string[] });
 
 describe("agent gate check + stop hook", () => {
   it("agentGateCheck returns machine-readable blockers/fixHints", async () => {
@@ -18,6 +18,7 @@ describe("agent gate check + stop hook", () => {
       kind: "sensor.script",
       execution: "computational",
       trigger: "task",
+      check: "shell",
       run: "echo fail >&2; exit 1",
       on_fail: "block",
       max_retries: 0,
@@ -50,6 +51,7 @@ describe("agent gate check + stop hook", () => {
       kind: "sensor.script",
       execution: "computational",
       trigger: "task",
+      check: "shell",
       run: "echo fail >&2; exit 1",
       on_fail: "block",
       max_retries: 0,

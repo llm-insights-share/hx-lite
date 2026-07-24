@@ -13,10 +13,10 @@ import {
   createWorkOrder,
   submitWorkOrder
 } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 
 const ws = () => Workspace.locate(process.cwd());
-const runnerOpts = () => ({ builtins: builtinSensors });
+const runnerOpts = () => ({ builtins: builtinSensors, engines: sensorEngines });
 
 function exitOnSuite(res: { passed: boolean; blockers: string[]; warnings: string[] }) {
   for (const b of res.blockers) console.error(`BLOCKER  ${b}`);
@@ -30,11 +30,12 @@ export function registerArchCommands(program: Command): void {
 
   arch
     .command("init")
-    .option("--title <title>", "system title", "System")
-    .action((opts: { title: string }) => {
-      const res = scaffoldArchHld(ws(), opts.title);
-      console.log(`Wrote ${res.overview}`);
-      console.log(`Wrote ${res.registry}`);
+    .option("--title <title>", "unused: templates are now created via guides/skills")
+    .description("Scaffold arch directories only; write docs via commands/skills")
+    .action((opts: { title?: string }) => {
+      const res = scaffoldArchHld(ws(), opts.title ?? "System");
+      console.log(`Created dirs: ${res.overview}`);
+      console.log(`Initialized: ${res.registry}`);
     });
 
   arch.command("check")
@@ -107,9 +108,10 @@ export function registerArchCommands(program: Command): void {
 
   lld
     .command("init <module>")
-    .requiredOption("--title <title>", "module title")
-    .action((moduleId: string, opts: { title: string }) => {
-      console.log(`Wrote ${scaffoldArchLld(ws(), moduleId, opts.title)}`);
+    .option("--title <title>", "unused: templates are now created via guides/skills")
+    .description("Scaffold module directories only; write LLD via commands/skills")
+    .action((moduleId: string, opts: { title?: string }) => {
+      console.log(`Created dirs: ${scaffoldArchLld(ws(), moduleId, opts.title ?? moduleId)}`);
     });
 
   lld

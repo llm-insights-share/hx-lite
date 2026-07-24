@@ -3,15 +3,11 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { Workspace } from "./paths.js";
-import { PLUGIN_API_VERSION, SensorReport, type SensorDef } from "./schemas.js";
+import { PLUGIN_API_VERSION, SensorReport } from "./schemas.js";
 
 /**
- * T-610 (FR-024/NFR-008): custom sensor plugin API.
- * - Node plugins: an ES module exporting { api, id, execute(ctx) }.
- * - Python/other: a `#!`-style executable declared as `plugin: cmd:<command>`;
- *   the context is passed as JSON on stdin, the report returned as JSON on stdout.
- * Compatibility: a plugin's `api` major version must equal the host's
- * (SemVer — the host stays backward compatible within one major).
+ * Optional Node/cmd adapter for advanced integrations (not part of the three-kind YAML surface).
+ * Prefer check:shell scripts for project sensors.
  */
 
 export interface PluginContext {
@@ -32,22 +28,42 @@ export function apiCompatible(pluginApi: string, hostApi = PLUGIN_API_VERSION): 
   return major(pluginApi) === major(hostApi);
 }
 
-export async function runPluginSensor(ws: Workspace, def: SensorDef, change?: string): Promise<SensorReport> {
-  const spec = def.plugin!;
+export async function runPluginSensor(
+  ws: Workspace,
+  opts: {
+    id: string;
+    kind?: string;
+    execution?: string;
+    plugin: string;
+    timeout_ms?: number;
+  },
+  change?: string
+): Promise<SensorReport> {
+  const spec = opts.plugin;
   const ctx: PluginContext = {
     root: ws.root,
     base: ws.base,
     change,
-    sensor: { id: def.id, kind: def.kind, execution: def.execution }
+    sensor: {
+      id: opts.id,
+      kind: opts.kind ?? "sensor.script",
+      execution: opts.execution ?? "computational"
+    }
   };
 
   if (spec.startsWith("cmd:")) {
     const cmd = spec.slice(4);
-    const res = spawnSync(cmd, { shell: true, cwd: ws.root, input: JSON.stringify(ctx), encoding: "utf8", timeout: def.timeout_ms });
+    const res = spawnSync(cmd, {
+      shell: true,
+      cwd: ws.root,
+      input: JSON.stringify(ctx),
+      encoding: "utf8",
+      timeout: opts.timeout_ms ?? 120000
+    });
     if (res.error || res.signal) throw new Error(`plugin command failed: ${res.error?.message ?? res.signal}`);
     const line = (res.stdout ?? "").trim().split("\n").findLast((l) => l.startsWith("{"));
     if (!line) throw new Error("plugin produced no JSON report (fail-closed)");
-    return SensorReport.parse({ sensor: def.id, ...JSON.parse(line) });
+    return SensorReport.parse({ sensor: opts.id, ...JSON.parse(line) });
   }
 
   const file = path.isAbsolute(spec) ? spec : path.join(ws.base, spec);
@@ -59,5 +75,5 @@ export async function runPluginSensor(ws: Workspace, def: SensorDef, change?: st
     throw new Error(`plugin api ${plugin.api} incompatible with host ${PLUGIN_API_VERSION} (major must match)`);
   }
   const raw = await plugin.execute(ctx);
-  return SensorReport.parse({ sensor: def.id, ...(raw as object) });
+  return SensorReport.parse({ sensor: opts.id, ...(raw as object) });
 }

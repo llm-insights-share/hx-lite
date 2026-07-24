@@ -18,7 +18,7 @@ import {
   setStageTask,
   readMeta
 } from "@harnessx/core";
-import { archApproved, builtinSensors } from "@harnessx/sensors";
+import { archApproved, builtinSensors, sensorEngines } from "@harnessx/sensors";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "hx-p012-"));
 
@@ -77,10 +77,10 @@ describe("P0-P2 integration", () => {
     );
     createChange(ws, "c1", ["order"], "enterprise");
     fs.writeFileSync(path.join(ws.changeDir("c1"), "proposal.md"), "## Why\nx\n## What Changes\ny\n## Impact\nz\n");
-    const blocked = await gateCheck(ws, "c1", { task: "design" }, { builtins: builtinSensors });
+    const blocked = await gateCheck(ws, "c1", { task: "design" }, { builtins: builtinSensors, engines: sensorEngines });
     expect(blocked.blockers.join()).toMatch(/not approved/);
     recordPrephaseApproval(ws, "arch", "architect");
-    const ok = await gateCheck(ws, "c1", { task: "design" }, { builtins: { "arch-approved": archApproved } as never });
+    const ok = await gateCheck(ws, "c1", { task: "design" }, { builtins: { "arch-approved": archApproved }, engines: sensorEngines } as never);
     expect(ok.blockers.join()).not.toMatch(/arch-approved.*not approved/);
   });
 

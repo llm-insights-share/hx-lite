@@ -134,7 +134,7 @@ export const orgPrototypeComplete = (ctx: SensorContext): SensorReport => {
     findings.push({
       severity: "block",
       file: `docs/prd/${slug}/prototype/pages.md`,
-      message: "org prototype pages missing — hx req prototype init <slug>"
+      message: "org prototype pages missing — run hx req prototype init <slug> (dirs), then author pages.md via req command/skill"
     });
     return block(findings, ctx, "org prototype missing");
   }
@@ -150,7 +150,10 @@ function overviewSectionSensor(sectionLabel: string, patterns: RegExp[]) {
     const text = readOverview(ctx);
     const findings: Finding[] = [];
     if (!text.trim()) {
-      findings.push({ severity: "block", message: "docs/architecture/overview.md missing — hx arch init" });
+      findings.push({
+        severity: "block",
+        message: "docs/architecture/overview.md missing — run hx arch init (dirs), then author HLD via arch command/skill"
+      });
       return block(findings, ctx, "overview missing");
     }
     if (!patterns.some((p) => sectionBodyFilled(text, p))) {
@@ -185,7 +188,7 @@ export const testReportComplete = (ctx: SensorContext): SensorReport => {
   if (!fs.existsSync(file)) {
     findings.push({
       severity: "block",
-      message: "test-report.md missing — run hx test report init <change> or copy template"
+      message: "test-report.md missing — run hx test report init <change> (dirs), then author report via test-execution command/skill."
     });
     return block(findings, ctx, "test report missing");
   }

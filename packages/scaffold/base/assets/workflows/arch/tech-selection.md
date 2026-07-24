@@ -3,7 +3,7 @@
 You are running the **arch** stage task `tech-selection`.
 
 ## Input
-- Existing HLD overview (create via `hx arch init` if missing).
+- Existing HLD overview (run `hx arch init` for dirs, then author overview via arch command/skill if missing).
 
 ## Steps
 1. Fill「技术选型」in `docs/architecture/overview.md` with rationale and trade-offs.

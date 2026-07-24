@@ -27,10 +27,10 @@ import {
   type RunnerOptions,
   type WaiverRecord
 } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "hx-m3-"));
-const opts = (): RunnerOptions => ({ builtins: builtinSensors });
+const opts = (): RunnerOptions => ({ builtins: builtinSensors, engines: sensorEngines });
 
 const GOOD_DELTA = `## ADDED Requirements
 

@@ -191,7 +191,7 @@ workflow: { workorders: required }
 | 任务 | CLI / IDE 指令 | 任务说明 | Guide | Sensor | Gate | 备注 |
 | --- | --- | --- | --- | --- | --- | --- |
 | （环境）拉仓与激活 | **CLI:** 见 [§2.0](#20-准备本地项目环境从项目-github-获取资产) | 从项目 GitHub 取得 hxhub 已入库资产并 sync IDE | — | — | `hx lock verify`（可选） | 推荐 `hx init --stages req` |
-| （准备）脚手架 | **CLI:** `hx req prd init <slug> --title "..."` | 创建 PRD + research/analysis/prototype 脚手架 | `prd-template` | — | — | 一次生成 sidecar；补建可用 `hx req research\|analysis\|prototype init` |
+| （准备）脚手架 | **CLI:** `hx req prd init <slug>` | 仅创建 PRD 目录树（含 research/analysis/prototype 目录） | `prd-template`（由 IDE 命令/技能引用） | — | — | 不写 md 模板；正文由 `/hx-req-*` 按 guide 撰写；补建目录可用 `hx req research\|analysis\|prototype init` |
 | `biz-understanding`（可选） | **IDE:** `/hx-req-biz-understanding`（若已 sync）；Skill 读写笔记<br>**CLI:** 见 Gate | 业务背景与问题意识 | `requirements-research-outline` | `req-biz-understanding`（warn） | `hx gate check --stage req --task biz-understanding --prd <slug>` 或 `hx req check --task biz-understanding --prd <slug>` | 可选；无独立制品时仅 warn |
 | `requirements-research`（可选） | **IDE:** `/hx-req-requirements-research`；填 `research.md`<br>**CLI:** 见 Gate | 干系人调研与 Findings | `requirements-research-outline`、`cmd-explore` | `req-research-complete` | `hx req check --task requirements-research --prd <slug>` | 须填 Findings/干系人正文，空脚手架不过门 |
 | `requirements-analysis`（必选） | **IDE:** `/hx-req-requirements-analysis`<br>**CLI:** 见 Gate | 问题/用户/优先级分析 | `requirements-analysis`、`cmd-requirements-analysis` | `req-analysis-complete` | `hx req check --task requirements-analysis --prd <slug>` | 制品：`docs/prd/<slug>/analysis.md` |
@@ -232,14 +232,14 @@ workflow: { workorders: required }
 | 任务 | CLI / IDE 指令 | 任务说明 | Guide | Sensor | Gate | 备注 |
 | --- | --- | --- | --- | --- | --- | --- |
 | （环境）拉仓与激活 | **CLI:** 见 [§3.0](#30-准备本地项目环境从项目-github-获取资产) | 从项目 GitHub 取得资产；`init --stages arch` | — | — | `hx lock verify`（可选） | 勿重复 project create |
-| （准备）HLD 脚手架 | **CLI:** `hx arch init --title "..."` | 创建 overview + registry | `arch-hld-template` | — | — | 模板已含选型/库表/接口/关键机制专节 |
+| （准备）HLD 脚手架 | **CLI:** `hx arch init` | 仅创建 `docs/architecture/` 与空 `registry.yaml` | `arch-hld-template`（由 IDE 命令/技能引用） | — | — | 不写 overview.md；正文由 `/hx-arch-*` 按 guide 撰写 |
 | `subsystem-division`（必选） | **IDE:** `/hx-arch-subsystem-division`<br>**CLI:** 见 Gate | 系统边界、模块划分、注册表 | `arch-authoring`、`arch-hld-template`、`cmd-arch` | `arch-hld-complete`、`arch-registry-complete` | `hx arch check --task subsystem-division` | 空占位不过门 |
 | `tech-selection`（必选） | **IDE:** `/hx-arch-tech-selection`<br>**CLI:** 见 Gate | 运行时/存储等选型与理由 | `tech-selection`、`cmd-tech-selection` | `arch-tech-selection-complete` | `hx arch check --task tech-selection` | 须填满章节正文，非空标题 |
 | `database-design`（必选） | **IDE:** `/hx-arch-database-design`<br>**CLI:** 见 Gate | 实体、引擎、迁移策略 | `database-design`、`db-migration-template`、`cmd-database-design` | `arch-database-design-complete` | `hx arch check --task database-design` | 同上 |
 | `interface-design`（必选） | **IDE:** `/hx-arch-interface-design`<br>**CLI:** 见 Gate | 外部与系统间接口 | `interface-design`、`api-contract-template`、`cmd-interface-design` | `arch-interface-design-complete` | `hx arch check --task interface-design` | 模块内部接口在 LLD |
 | `key-mechanisms`（可选） | **IDE:** `/hx-arch-key-mechanisms`<br>**CLI:** 见 Gate | 幂等/一致性等 | `key-mechanisms`、`cmd-key-mechanisms` | `arch-key-mechanisms-complete`（warn） | `hx arch check --task key-mechanisms` | 可选 |
 | 全局架构批准 | **CLI:** `hx arch submit --by …`（可选）→ 见 Gate | 人工背书 HLD | — | `arch-approved` | `hx approve arch --approver …` | **仅 CLI**；也可用 `hx arch check`（含 `arch-check` suite）做汇总 |
-| `internal-interface`（必选） | **IDE:** `/hx-arch-internal-interface`<br>**CLI:** `hx arch lld init <module> --title "..."` → `hx arch lld check <module>` → 见 Gate | 模块 LLD（IF-xxx 等） | `arch-lld-template`、`arch-module-boundary`、`cmd-arch-lld` | `arch-lld-complete`、`arch-module-boundary`、`arch-lld-approved` | `hx arch check --task internal-interface --module <id>` → `hx approve arch-lld <module> --approver …` | 批准绑定 LLD hash |
+| `internal-interface`（必选） | **IDE:** `/hx-arch-internal-interface`<br>**CLI:** `hx arch lld init <module>`（仅建目录）→ 按 `arch-lld-template` 写 `lld.md` → `hx arch lld check <module>` → 见 Gate | 模块 LLD（IF-xxx 等） | `arch-lld-template`、`arch-module-boundary`、`cmd-arch-lld` | `arch-lld-complete`、`arch-module-boundary`、`arch-lld-approved` | `hx arch check --task internal-interface --module <id>` → `hx approve arch-lld <module> --approver …` | 批准绑定 LLD hash |
 | 与 change 对齐 / 沉淀 | **CLI:** `hx arch align <change>`；`hx arch promote <change> --by …` | 诊断对齐；设计沉回 org LLD | — | `arch-change-align`、`arch-drift` | `hx arch align <change>`（诊断门）；drift 多在 `dev.verify` suite | promote 建议在 archive 前 |
 
 **进度**：`hx stage status --stage arch`  
@@ -321,10 +321,10 @@ harnessX/changes/<id>/
 | 任务 | CLI / IDE 指令 | 任务说明 | Guide | Sensor | Gate | 备注 |
 | --- | --- | --- | --- | --- | --- | --- |
 | （环境）拉仓与激活 | **CLI:** 见 [§5.0](#50-准备本地项目环境从项目-github-获取资产) | 从项目 GitHub 取得资产；`init --stages test` | — | — | `hx lock verify`（可选） | 建议 `dev,test` |
-| `test-case-design`（必选） | **IDE:** `/hx-test-test-case-design`（按模板填用例）<br>**CLI:** `hx test-cases init <change>` → 编辑后 `hx test-cases check` → `hx test-cases submit --by …` | 用例概览与覆盖 | `test-case-authoring`、`test-cases-template`、`cmd-test-design` | `test-cases-complete`、`test-cases-approved` | `hx test-cases check <change>` → 批准后 `hx gate check <change> --stage test --task test-case-design` | 提交后进入工单 |
+| `test-case-design`（必选） | **IDE:** `/hx-test-test-case-design`（按模板填用例）<br>**CLI:** `hx test-cases init <change>`（仅建目录）→ 按 `test-cases-template` 写 overview → `hx test-cases check` → `hx test-cases submit --by …` | 用例概览与覆盖 | `test-case-authoring`、`test-cases-template`、`cmd-test-design` | `test-cases-complete`、`test-cases-approved` | `hx test-cases check <change>` → 批准后 `hx gate check <change> --stage test --task test-case-design` | 提交后进入工单 |
 | 用例人工批准 | **CLI only:** 见 Gate | 人工批准用例 | — | `test-cases-approved` | `hx gate approve <change> --gate test-cases --approver …` | 技术经理常见执行人 |
 | 门禁确认 | **CLI:** 见 Gate | 确认设计任务通过 | — | suite `test-design-sdlc` | `hx gate check <change> --stage test --task test-case-design` | 与上一任务 Gate 合并执行亦可 |
-| `test-execution`（必选） | **IDE:** `/hx-test-test-execution`<br>**CLI:** `hx test report init <change>`；维护 `uat-checklist.md`；`hx bug create/list/fix/close` → 见 Gate | 执行、UAT、缺陷关闭、测试报告 | `test-execution`、`uat-checklist`、`cmd-test-execution` | `uat-complete`、`bugs-closed`、`test-report-complete` | `hx gate check <change> --stage test --task test-execution` | **硬拦在此任务**；勿只在聊天记缺陷 |
+| `test-execution`（必选） | **IDE:** `/hx-test-test-execution`<br>**CLI:** `hx test report init <change>`（仅建目录）；维护 `uat-checklist.md` / `test-report.md`；`hx bug create/list/fix/close` → 见 Gate | 执行、UAT、缺陷关闭、测试报告 | `test-execution`、`uat-checklist`、`cmd-test-execution` | `uat-complete`、`bugs-closed`、`test-report-complete` | `hx gate check <change> --stage test --task test-execution` | **硬拦在此任务**；勿只在聊天记缺陷 |
 | 进度 | **CLI:** `hx test status <change>` | 查看 test 任务完成情况 | — | — | — | — |
 
 ### 5.2 与开发边界

@@ -27,7 +27,7 @@ import {
   submitTestCaseReview,
   runSensor
 } from "@harnessx/core";
-import { builtinSensors } from "@harnessx/sensors";
+import { builtinSensors, sensorEngines } from "@harnessx/sensors";
 
 const ws = () => Workspace.locate(process.cwd());
 
@@ -290,14 +290,15 @@ export function registerTestCasesCommands(program: Command): void {
   const tc = program.command("test-cases").description("Test case design (enterprise SDLC)");
 
   tc.command("init <change>").action((change: string) => {
-    console.log(`wrote ${scaffoldTestCases(ws(), change)}`);
+    console.log(`Created dirs: ${scaffoldTestCases(ws(), change)}`);
+    console.log("Next: author test-cases/overview.md via test-case-design command/skill.");
   });
 
   tc.command("check <change>").action(async (change: string) => {
     const w = ws();
     const def = w.readHarness().sensors.find((s) => s.id === "test-cases-complete");
     if (!def) throw new Error("test-cases-complete sensor not registered");
-    const report = await runSensor(w, def, change, { builtins: builtinSensors });
+    const report = await runSensor(w, def, change, { builtins: builtinSensors, engines: sensorEngines });
     console.log(`${report.status.toUpperCase()}  ${report.summary}`);
     if (report.status !== "pass") process.exit(1);
   });

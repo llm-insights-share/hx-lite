@@ -6,7 +6,7 @@
 - PRD slug 与标题；可用的调研/分析/原型。
 
 ## Steps
-1. 缺失时：`hx req prd init <slug> --title "<title>"`。
+1. 缺失时先建目录：`hx req prd init <slug>`，再通过 req 命令/技能按 `prd-template` 撰写 `docs/prd/<slug>.md`。
 2. 按 **prd-authoring** / **prd-writing** 填写故事、GWT、范围与 NFR。
 3. `hx req check --task prd-writing --prd <slug>`。
 4. 人工：`hx gate approve --gate prd --prd <slug> --approver <name>`。

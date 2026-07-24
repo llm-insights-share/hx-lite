@@ -26,6 +26,7 @@ describe("CR → Change delta track", () => {
   it("approveChangeRequest suggests --from-cr when unlinked", () => {
     const { ws } = initWorkspace(tmp());
     scaffoldPrd(ws, "orders", "Orders");
+    fs.writeFileSync(ws.prdFile("orders"), "# PRD: Orders\n\n## Goals\nOrders\n", "utf8");
     const cr = createChangeRequest(ws, {
       kind: "requirement-change",
       action: "add",
@@ -43,6 +44,7 @@ describe("CR → Change delta track", () => {
   it("createChange --from-cr links CR and sets meta.sourceCr", () => {
     const { ws } = initWorkspace(tmp());
     scaffoldPrd(ws, "orders", "Orders");
+    fs.writeFileSync(ws.prdFile("orders"), "# PRD: Orders\n\n## Goals\nOrders\n", "utf8");
     const cr = createChangeRequest(ws, {
       kind: "requirement-change",
       action: "add",
@@ -65,6 +67,7 @@ describe("CR → Change delta track", () => {
   it("attachChangeToCr links existing change", () => {
     const { ws } = initWorkspace(tmp());
     scaffoldPrd(ws, "orders", "Orders");
+    fs.writeFileSync(ws.prdFile("orders"), "# PRD: Orders\n\n## Goals\nOrders\n", "utf8");
     createChange(ws, "existing", ["api"], "standard", { prdRef: "orders" });
     const cr = createChangeRequest(ws, {
       kind: "requirement-change",
@@ -90,6 +93,7 @@ describe("CR → Change delta track", () => {
       markOrgTaskComplete(ws, "arch", task);
     }
     scaffoldPrd(ws, "orders", "Orders");
+    fs.writeFileSync(ws.prdFile("orders"), "# PRD: Orders\n\n## Goals\nOrders\n", "utf8");
     const cr = createChangeRequest(ws, {
       kind: "requirement-change",
       action: "add",

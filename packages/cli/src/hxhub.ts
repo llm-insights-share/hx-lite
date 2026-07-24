@@ -1,15 +1,10 @@
 #!/usr/bin/env node
-import { Command } from "commander";
-import { VERSION } from "@harnessx/core";
-import { registerHubCommands } from "./hubCommands.js";
+import { buildHxhubProgram } from "./cliExecute.js";
 import { EXIT_FAIL, EXIT_USAGE, UsageError } from "./exitCodes.js";
 
-const program = new Command("hxhub")
-  .description("Harness Hub operations CLI (maintainer + scaffold + doctor)")
-  .helpCommand(false)
-  .version(VERSION);
+export { buildHxhubProgram, executeHxhub } from "./cliExecute.js";
 
-registerHubCommands(program, { mode: "hxhub" });
+const program = buildHxhubProgram();
 
 program.parseAsync(process.argv).catch((e) => {
   if (e instanceof UsageError) {
