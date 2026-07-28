@@ -1,6 +1,6 @@
 {
   "name": "@harnessx/nhx",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "description": "nhx — project HX delivery CLI (sync from WebUI, IDE install, artifact submit)"

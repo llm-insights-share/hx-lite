@@ -1,6 +1,6 @@
 {
   "name": "hx-lite",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "hx-lite — simplified HarnessX: Profile → Stage → Task with Guides, Sensors and fail-closed Gates",
   "type": "module",
   "license": "MIT",
@@ -8,13 +8,9 @@
     "node": ">=20"
   },
   "bin": {
-    "hx": "./bin/hx.js",
-    "hxhub": "./bin/hxhub.js",
     "nhx": "./bin/nhx.js"
   },
   "scripts": {
-    "hx": "tsx packages/cli/src/index.ts",
-    "hxhub": "tsx packages/cli/src/hxhub.ts",
     "nhx": "tsx packages/nhx/src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
