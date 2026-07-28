@@ -1,0 +1,145 @@
+"""Helpers for project custom tasks: shell assembly without Guide skill shells."""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from sqlmodel import Session, select
+
+from app.core.models import Project, ProjectGuide, ProjectTask
+from app.domain import defaults
+from app.domain.shell_assembler import assemble_shell
+
+
+def _split_guides(guide_ids: list[str], session: Session, project_id: int) -> tuple[list[str], list[str]]:
+    """Split into skills vs templates using project guide kinds when available."""
+    rows = session.exec(select(ProjectGuide).where(ProjectGuide.project_id == project_id)).all()
+    kind_map = {g.asset_id: g.kind for g in rows}
+    skills: list[str] = []
+    templates: list[str] = []
+    for gid in guide_ids:
+        if gid.startswith("wf-"):
+            continue
+        kind = kind_map.get(gid, "")
+        if kind in ("guide.workflow", "guide.command"):
+            continue
+        if kind == "guide.template" or "template" in gid or gid.endswith("-outline") or gid.endswith("-checklist"):
+            templates.append(gid)
+        else:
+            skills.append(gid)
+    return skills, templates
+
+
+def ensure_task_shells(
+    session: Session,
+    project_id: int,
+    stage: str,
+    task_id: str,
+    title: str,
+    guides: list[str],
+    sensors: list[str],
+) -> dict[str, Any]:
+    """Assemble task shell metadata without creating ProjectGuide skill shells.
+
+    Task shells belong in CommandShell / skill-shells. Guides list only keeps
+    real work skills/templates the caller already bound.
+    """
+    title = title or task_id
+
+    existing = {
+        g.asset_id: g
+        for g in session.exec(select(ProjectGuide).where(ProjectGuide.project_id == project_id)).all()
+    }
+
+    # Drop legacy wf-* and do not auto-inject task_id as a Guide skill shell
+    bound = [g for g in guides if g and not str(g).startswith("wf-") and g != f"wf-{task_id}"]
+
+    skills, templates = _split_guides(bound, session, project_id)
+
+    body = defaults.default_workflow_body(stage, task_id, title)
+    assembled = assemble_shell(
+        stage=stage,
+        task=task_id,
+        description=title,
+        body=body,
+        guides=skills,
+        templates=templates,
+        sensors=sensors,
+    )
+
+    # Remove leftover guide.workflow / auto skill-shell ProjectGuide for this task
+    wf_id = f"wf-{task_id}"
+    if wf_id in existing:
+        session.delete(existing[wf_id])
+
+    auto_shell = existing.get(task_id)
+    if (
+        auto_shell
+        and (auto_shell.kind or "") == "guide.skill"
+        and (auto_shell.task or "") == task_id
+    ):
+        session.delete(auto_shell)
+
+    return {
+        "skill_id": None,
+        "slash_name": assembled["slash_name"],
+        "shell_body": assembled["body"],
+        "shell_appendix": assembled["appendix"],
+        "guides": bound,
+        "created": [],
+        "updated": [],
+    }
+
+
+def delete_task_shells(session: Session, project_id: int, task_id: str, *, custom_only_skill: bool = True) -> None:
+    """Remove legacy workflow shell; skill removed only when custom-only."""
+    wf = session.exec(
+        select(ProjectGuide).where(
+            ProjectGuide.project_id == project_id,
+            ProjectGuide.asset_id == f"wf-{task_id}",
+        )
+    ).first()
+    if wf:
+        session.delete(wf)
+
+    # also delete any leftover guide.workflow for this task
+    for g in session.exec(
+        select(ProjectGuide).where(
+            ProjectGuide.project_id == project_id,
+            ProjectGuide.task == task_id,
+            ProjectGuide.kind == "guide.workflow",
+        )
+    ).all():
+        session.delete(g)
+
+    if custom_only_skill:
+        skill = session.exec(
+            select(ProjectGuide).where(
+                ProjectGuide.project_id == project_id,
+                ProjectGuide.asset_id == task_id,
+                ProjectGuide.kind == "guide.skill",
+                ProjectGuide.task == task_id,
+            )
+        ).first()
+        if skill:
+            session.delete(skill)
+
+
+def list_project_stage_options(session: Session, project: Project) -> list[str]:
+    """Stages available for custom tasks: profile stages ∪ project tasks ∪ defaults."""
+    stages: list[str] = []
+    try:
+        cfg = json.loads(project.config_json or "{}")
+        for s in cfg.get("stages") or []:
+            if s and s not in stages:
+                stages.append(s)
+    except json.JSONDecodeError:
+        pass
+    for t in session.exec(select(ProjectTask).where(ProjectTask.project_id == project.id)).all():
+        if t.stage and t.stage not in stages:
+            stages.append(t.stage)
+    for s in defaults.STAGES:
+        if s not in stages:
+            stages.append(s)
+    return stages

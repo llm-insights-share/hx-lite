@@ -4,7 +4,7 @@
 
 > 让 AI 编程 Agent 可靠交付生产级软件的外层控制平面 —— 不是又一个测试框架，而是 **规格驱动 + 前馈 Guide + 反馈 Sensor + fail-closed Gate** 的完整交付 Harness。
 
-[![Version](https://img.shields.io/badge/version-0.5.0-blue)](https://github.com/llm-insights-share/hx-lite)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue)](https://github.com/llm-insights-share/hx-lite)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](package.json)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](package.json)
 
@@ -41,7 +41,7 @@ HarnessX 把 AI 交付当作**控制工程问题**来解：在每个 stage/task 
 
 ```bash
 git clone https://github.com/llm-insights-share/hx-lite.git && cd hx-lite
-npm install && npm link    # 全局可用 hx / hxhub
+npm install && npm install -g .    # 全局可用 hx / hxhub / nhx（也可用 npm link）
 
 # Owner：按 profile 从 hub 拉取 stage.task 资产写入项目
 hxhub seed ./harness-hub --profile standard --scenario core
@@ -50,6 +50,10 @@ hx hooks install && hx adapter sync
 
 # 成员（已 pull 项目仓库）：选择要参与的 stage
 hx init --stages req,dev
+
+# 或使用独立的 nhx（从 WebUI 项目 HX 同步，不影响 hx）
+# nhx login && nhx init --project <id> --stages req,dev
+# 详见 docs/webui-nhx-usage.zh-CN.md
 
 hx change create my-feature --domains api
 hx propose my-feature --title "你的第一个功能"
@@ -77,6 +81,9 @@ hx gate check my-feature --stage dev --task propose
 | [阶段任务资产矩阵](docs/stage-task-assets.zh-CN.md) | 每个 task 的 Command / Skill / Template / Suite / Sensor |
 | [概念词表](docs/glossary.zh-CN.md) | 术语速查 |
 | [场景示例](docs/examples/README.md) | 端到端 walkthrough |
+| [WebUI + nhx 使用手册](docs/webui-nhx-usage.zh-CN.md) | 组织/项目维护系统 + nhx 交付 CLI（同步、hooks、人工审批） |
+| [nhx 交付 CLI 速查](packages/nhx/README.md) | nhx 命令与目录速查 |
+| [WebUI README](webui/README.md) | WebUI 启停与环境变量 |
 
 ---
 

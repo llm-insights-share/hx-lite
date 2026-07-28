@@ -1,0 +1,1313 @@
+from __future__ import annotations
+
+import json
+import re
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Optional
+
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel, Field
+from sqlmodel import select
+
+from app.core.config import get_settings
+from app.core.deps import CurrentUser, SessionDep
+from app.core.models import (
+    Artifact,
+    ArtifactVersion,
+    AssetSubmission,
+    Guide,
+    OrgSettings,
+    Project,
+    ProjectGuide,
+    ProjectMember,
+    ProjectOperationLog,
+    ProjectSensor,
+    ProjectTask,
+    SyncJob,
+    Ticket,
+    User,
+)
+from app.domain.asset_submission import create_submission, list_promotable, submission_payload
+from app.domain.custom_task import (
+    delete_task_shells,
+    ensure_task_shells,
+    list_project_stage_options,
+)
+from app.domain.project_materializer import (
+    build_project_hx_view,
+    export_project_for_cli,
+    materialize_project_config,
+    sync_project_from_org,
+)
+from app.domain.project_oplog import summarize_sync_changes, sync_change_count, write_project_log
+from app.services import github as github_svc
+
+router = APIRouter(prefix="/api", tags=["project"])
+
+
+def _slugify(name: str) -> str:
+    s = re.sub(r"[^a-zA-Z0-9\-]+", "-", name.strip().lower()).strip("-")
+    return s or "project"
+
+
+class ProjectIn(BaseModel):
+    name: str
+    slug: Optional[str] = None
+    profile_key: str = "standard"
+    github_repo: str = ""
+    github_branch: str = "main"
+    description: str = ""
+
+
+class MemberIn(BaseModel):
+    user_id: int
+    role: str = "member"
+
+
+class ProjectAssetIn(BaseModel):
+    asset_id: str
+    kind: str = "guide.skill"
+    stage: str = ""
+    task: str = ""
+    content: str = ""
+    status: str = "draft"
+    content_mode: str = "markdown"
+    version: str = "1.0.0"
+    check_type: str = "rules"
+    triggers: list[str] = Field(default_factory=lambda: ["hook:stop", "cli", "task-shell"])
+    scope: list[str] = Field(default_factory=list)
+
+
+class ProjectGuideUpdateIn(BaseModel):
+    asset_id: Optional[str] = None
+    kind: Optional[str] = None
+    content: Optional[str] = None
+    status: Optional[str] = None
+    content_mode: Optional[str] = None
+    version: Optional[str] = None
+
+
+class CustomTaskIn(BaseModel):
+    stage: str
+    task_id: str
+    title: str = ""
+    required: bool = False
+    guides: list[str] = Field(default_factory=list)
+    sensors: list[str] = Field(default_factory=list)
+
+class ProjectTaskUpdateIn(BaseModel):
+    title: Optional[str] = None
+    required: Optional[bool] = None
+    guides: Optional[list[str]] = None
+    sensors: Optional[list[str]] = None
+
+
+class TicketIn(BaseModel):
+    project_id: int
+    title: str
+    ticket_type: str = "req-review"
+    body: str = ""
+    assignee_role: str = "approver"
+    stage: str = ""
+    task: str = ""
+    artifact_name: str = ""
+
+
+class TicketDecisionIn(BaseModel):
+    note: str = ""
+
+
+# ---- Users (for member picker) ----
+
+
+@router.get("/users")
+def list_users(session: SessionDep, _user: CurrentUser):
+    rows = session.exec(select(User).where(User.is_active == True)).all()  # noqa: E712
+    return [{"id": u.id, "username": u.username, "display_name": u.display_name, "roles": u.roles} for u in rows]
+
+
+# ---- Dashboard ----
+
+
+@router.get("/project/dashboard")
+def project_dashboard(session: SessionDep, _user: CurrentUser) -> dict[str, Any]:
+    projects = session.exec(select(Project)).all()
+    pending = session.exec(select(Ticket).where(Ticket.status == "submitted")).all()
+    artifacts = session.exec(select(Artifact)).all()
+    versions = session.exec(select(ArtifactVersion)).all()
+    return {
+        "project_count": len(projects),
+        "pending_tickets": len(pending),
+        "artifact_count": len(artifacts),
+        "version_count": len(versions),
+        "recent_tickets": pending[:5],
+        "projects": projects,
+    }
+
+
+# ---- Projects ----
+
+
+@router.get("/projects")
+def list_projects(session: SessionDep, _user: CurrentUser):
+    projects = session.exec(select(Project)).all()
+    out = []
+    for p in projects:
+        members = session.exec(select(ProjectMember).where(ProjectMember.project_id == p.id)).all()
+        arts = session.exec(select(Artifact).where(Artifact.project_id == p.id)).all()
+        hx = build_project_hx_view(session, p)
+        out.append(
+            {
+                **p.model_dump(),
+                "member_count": len(members),
+                "artifact_count": len(arts),
+                "config": json.loads(p.config_json or "{}"),
+                "hx_counts": hx.get("counts") or {},
+                "initialized": (hx.get("counts") or {}).get("tasks", 0) > 0,
+            }
+        )
+    return out
+
+
+@router.post("/projects")
+def create_project(body: ProjectIn, session: SessionDep, user: CurrentUser):
+    slug = body.slug or _slugify(body.name)
+    if session.exec(select(Project).where(Project.slug == slug)).first():
+        raise HTTPException(400, f"slug {slug} exists")
+    row = Project(
+        name=body.name,
+        slug=slug,
+        profile_key=body.profile_key,
+        github_repo=body.github_repo,
+        github_branch=body.github_branch,
+        description=body.description,
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    session.add(ProjectMember(project_id=row.id, user_id=user.id, role="project_owner"))
+    session.commit()
+    session.refresh(row)
+    write_project_log(
+        session,
+        row.id,
+        user,
+        "project_create",
+        f"创建项目 {row.name}",
+        {"slug": row.slug, "profile_key": row.profile_key},
+    )
+    return row.model_dump()
+
+
+@router.get("/projects/{project_id}")
+def get_project(project_id: int, session: SessionDep, _user: CurrentUser):
+    row = session.get(Project, project_id)
+    if not row:
+        raise HTTPException(404)
+    members = session.exec(select(ProjectMember).where(ProjectMember.project_id == project_id)).all()
+    member_view = []
+    for m in members:
+        u = session.get(User, m.user_id)
+        member_view.append(
+            {
+                "id": m.id,
+                "user_id": m.user_id,
+                "role": m.role,
+                "username": u.username if u else "",
+                "display_name": u.display_name if u else "",
+            }
+        )
+    hx_config = build_project_hx_view(session, row)
+    return {
+        **row.model_dump(),
+        "config": json.loads(row.config_json or "{}"),
+        "hx_config": hx_config,
+        "members": member_view,
+    }
+
+
+@router.put("/projects/{project_id}")
+def update_project(project_id: int, body: ProjectIn, session: SessionDep, user: CurrentUser):
+    row = session.get(Project, project_id)
+    if not row:
+        raise HTTPException(404)
+    before = {
+        "name": row.name,
+        "profile_key": row.profile_key,
+        "github_repo": row.github_repo,
+        "github_branch": row.github_branch,
+        "description": row.description,
+    }
+    row.name = body.name
+    row.profile_key = body.profile_key
+    row.github_repo = body.github_repo
+    row.github_branch = body.github_branch
+    row.description = body.description
+    row.updated_at = datetime.now(timezone.utc)
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "project_update",
+        f"更新项目元数据 {row.name}",
+        {"before": before, "after": body.model_dump()},
+    )
+    return row
+
+
+@router.delete("/projects/{project_id}")
+def delete_project(project_id: int, session: SessionDep, _user: CurrentUser):
+    row = session.get(Project, project_id)
+    if not row:
+        raise HTTPException(404)
+    session.delete(row)
+    session.commit()
+    return {"ok": True}
+
+
+@router.post("/projects/{project_id}/init-config")
+def init_config(project_id: int, session: SessionDep, user: CurrentUser):
+    row = session.get(Project, project_id)
+    if not row:
+        raise HTTPException(404)
+    try:
+        config = materialize_project_config(session, row)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    counts = (config or {}).get("counts") or {}
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "init_config",
+        f"初始化配置：{counts.get('stages', 0)} stage / {counts.get('tasks', 0)} task / "
+        f"{counts.get('guides', 0)} guide / {counts.get('sensors', 0)} sensor",
+        {"counts": counts},
+    )
+    return {"ok": True, "config": config, "hx_config": config}
+
+
+@router.post("/projects/{project_id}/sync-config")
+def sync_config(project_id: int, session: SessionDep, user: CurrentUser):
+    row = session.get(Project, project_id)
+    if not row:
+        raise HTTPException(404)
+    try:
+        result = sync_project_from_org(session, row)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    changes = result.get("changes") or {}
+    summary = summarize_sync_changes(changes)
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "sync_config",
+        f"同步组织 HX：{summary}",
+        {"changes": changes},
+    )
+    return {
+        "ok": True,
+        "changes": changes,
+        "change_count": sync_change_count(changes),
+        "summary": summary,
+        "config": result.get("config"),
+        "hx_config": result.get("hx_config"),
+    }
+
+
+@router.get("/projects/{project_id}/operation-logs")
+def list_operation_logs(
+    project_id: int,
+    session: SessionDep,
+    _user: CurrentUser,
+    limit: int = 50,
+    offset: int = 0,
+):
+    if not session.get(Project, project_id):
+        raise HTTPException(404)
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+    rows = session.exec(
+        select(ProjectOperationLog).where(ProjectOperationLog.project_id == project_id)
+    ).all()
+    rows_sorted = sorted(rows, key=lambda r: (r.id or 0), reverse=True)
+    page = rows_sorted[offset : offset + limit]
+    out = []
+    for r in page:
+        try:
+            detail = json.loads(r.detail_json or "{}")
+        except json.JSONDecodeError:
+            detail = {}
+        out.append(
+            {
+                **r.model_dump(),
+                "detail": detail,
+            }
+        )
+    return {"total": len(rows_sorted), "items": out}
+
+
+@router.get("/projects/{project_id}/members")
+def list_members(project_id: int, session: SessionDep, _user: CurrentUser):
+    members = session.exec(select(ProjectMember).where(ProjectMember.project_id == project_id)).all()
+    out = []
+    for m in members:
+        u = session.get(User, m.user_id)
+        out.append(
+            {
+                "id": m.id,
+                "user_id": m.user_id,
+                "role": m.role,
+                "username": u.username if u else "",
+                "display_name": u.display_name if u else "",
+            }
+        )
+    return out
+
+
+@router.post("/projects/{project_id}/members")
+def add_member(project_id: int, body: MemberIn, session: SessionDep, user: CurrentUser):
+    if not session.get(Project, project_id):
+        raise HTTPException(404, "project not found")
+    target = session.get(User, body.user_id)
+    if not target:
+        raise HTTPException(404, "user not found")
+    exists = session.exec(
+        select(ProjectMember).where(ProjectMember.project_id == project_id, ProjectMember.user_id == body.user_id)
+    ).first()
+    if exists:
+        exists.role = body.role
+        session.add(exists)
+        session.commit()
+        write_project_log(
+            session,
+            project_id,
+            user,
+            "member_update",
+            f"更新成员 {target.username} 角色为 {body.role}",
+            {"user_id": body.user_id, "username": target.username, "role": body.role},
+        )
+        return exists
+    row = ProjectMember(project_id=project_id, user_id=body.user_id, role=body.role)
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "member_add",
+        f"添加成员 {target.username}（{body.role}）",
+        {"user_id": body.user_id, "username": target.username, "role": body.role},
+    )
+    return row
+
+
+@router.delete("/projects/{project_id}/members/{member_id}")
+def remove_member(project_id: int, member_id: int, session: SessionDep, user: CurrentUser):
+    row = session.get(ProjectMember, member_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404)
+    target = session.get(User, row.user_id)
+    uname = target.username if target else str(row.user_id)
+    session.delete(row)
+    session.commit()
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "member_remove",
+        f"移除成员 {uname}",
+        {"user_id": row.user_id, "username": uname, "role": row.role},
+    )
+    return {"ok": True}
+
+
+# ---- Project custom assets ----
+
+
+def _project_asset_bindings(session: SessionDep, project_id: int) -> tuple[dict[str, list[dict[str, str]]], dict[str, list[dict[str, str]]]]:
+    """Map asset_id → [{stage, task, title}] from ProjectTask bindings."""
+    guide_map: dict[str, list[dict[str, str]]] = {}
+    sensor_map: dict[str, list[dict[str, str]]] = {}
+    for t in session.exec(select(ProjectTask).where(ProjectTask.project_id == project_id)).all():
+        link = {
+            "stage": t.stage or "",
+            "task": t.task_id or "",
+            "title": t.title or t.task_id or "",
+        }
+        try:
+            gids = json.loads(t.guides_json or "[]")
+        except json.JSONDecodeError:
+            gids = []
+        try:
+            sids = json.loads(t.sensors_json or "[]")
+        except json.JSONDecodeError:
+            sids = []
+        for gid in gids:
+            if not gid:
+                continue
+            guide_map.setdefault(str(gid), []).append(link)
+        for sid in sids:
+            if not sid:
+                continue
+            sensor_map.setdefault(str(sid), []).append(link)
+    return guide_map, sensor_map
+
+
+def _merge_row_stage_task(
+    bindings: list[dict[str, str]],
+    stage: str,
+    task: str,
+) -> list[dict[str, str]]:
+    """Include row.stage/task if set and not already covered by task bindings."""
+    out = list(bindings or [])
+    st = (stage or "").strip()
+    tk = (task or "").strip()
+    if not st and not tk:
+        return out
+    key = (st, tk)
+    existing = {(b.get("stage") or "", b.get("task") or "") for b in out}
+    if key not in existing:
+        out.append({"stage": st, "task": tk, "title": tk})
+    return out
+
+
+def _enrich_project_guide(
+    session: SessionDep,
+    row: ProjectGuide,
+    org_by_aid: dict[str, Guide] | None = None,
+    guide_bindings: dict[str, list[dict[str, str]]] | None = None,
+) -> dict[str, Any]:
+    if org_by_aid is None:
+        org_by_aid = {
+            g.asset_id: g
+            for g in session.exec(select(Guide).where(Guide.org_id == "default")).all()
+        }
+    d = row.model_dump()
+    source = (getattr(row, "source", None) or "").strip()
+    og = org_by_aid.get(row.asset_id)
+    # Backfill legacy rows without source
+    if not source:
+        source = "org" if og else "project"
+        if source != (getattr(row, "source", None) or ""):
+            row.source = source
+            session.add(row)
+    d["source"] = source
+    d["editable"] = source == "project"
+    status = (getattr(row, "status", None) or "").strip()
+    if source == "org" and og:
+        d["status"] = og.status or status or "draft"
+        d["version"] = og.version or getattr(row, "version", None) or "1.0.0"
+        d["content_mode"] = og.content_mode or getattr(row, "content_mode", None) or "markdown"
+        d["package_path"] = og.package_path or ""
+        d["package_files_json"] = og.package_files_json or "[]"
+        d["org_guide_id"] = og.id
+        d["content"] = og.content if og.content else row.content
+    else:
+        d["status"] = status or "draft"
+        d["version"] = getattr(row, "version", None) or "1.0.0"
+        d["content_mode"] = getattr(row, "content_mode", None) or "markdown"
+        d["package_path"] = ""
+        d["package_files_json"] = "[]"
+        d["org_guide_id"] = None
+    binds = (guide_bindings or {}).get(row.asset_id, []) if guide_bindings is not None else []
+    if guide_bindings is None:
+        gmap, _ = _project_asset_bindings(session, row.project_id)
+        binds = gmap.get(row.asset_id, [])
+    d["bindings"] = _merge_row_stage_task(binds, row.stage or "", row.task or "")
+    d["linked_stages"] = sorted({b["stage"] for b in d["bindings"] if b.get("stage")})
+    d["linked_tasks"] = sorted(
+        {
+            f"{b['stage']}/{b['task']}" if b.get("stage") and b.get("task") else (b.get("task") or b.get("stage") or "")
+            for b in d["bindings"]
+            if b.get("stage") or b.get("task")
+        }
+    )
+    return d
+
+
+@router.get("/projects/{project_id}/guides")
+def list_project_guides(project_id: int, session: SessionDep, _user: CurrentUser):
+    rows = session.exec(select(ProjectGuide).where(ProjectGuide.project_id == project_id)).all()
+    org_by_aid = {
+        g.asset_id: g for g in session.exec(select(Guide).where(Guide.org_id == "default")).all()
+    }
+    guide_bindings, _ = _project_asset_bindings(session, project_id)
+    out = [_enrich_project_guide(session, r, org_by_aid, guide_bindings) for r in rows]
+    session.commit()  # persist source backfill if any
+    return out
+
+
+@router.get("/projects/{project_id}/guides/{guide_id}")
+def get_project_guide(project_id: int, guide_id: int, session: SessionDep, _user: CurrentUser):
+    row = session.get(ProjectGuide, guide_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404)
+    data = _enrich_project_guide(session, row)
+    session.commit()
+    return data
+
+
+@router.post("/projects/{project_id}/guides")
+def create_project_guide(project_id: int, body: ProjectAssetIn, session: SessionDep, user: CurrentUser):
+    row = ProjectGuide(
+        project_id=project_id,
+        asset_id=body.asset_id,
+        kind=body.kind,
+        stage=body.stage,
+        task=body.task,
+        content=body.content,
+        status=body.status or "draft",
+        source="project",
+        version=body.version or "1.0.0",
+        content_mode=body.content_mode or "markdown",
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "guide_create",
+        f"新建项目 Guide {row.asset_id}",
+        {"asset_id": row.asset_id, "kind": row.kind},
+    )
+    return _enrich_project_guide(session, row)
+
+
+@router.put("/projects/{project_id}/guides/{guide_id}")
+def update_project_guide(
+    project_id: int, guide_id: int, body: ProjectGuideUpdateIn, session: SessionDep, user: CurrentUser
+):
+    row = session.get(ProjectGuide, guide_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404)
+    data = _enrich_project_guide(session, row)
+    if not data.get("editable"):
+        raise HTTPException(400, "来自组织 HX 的 Guide 不可编辑，请在组织侧维护")
+    if body.asset_id is not None:
+        row.asset_id = body.asset_id
+    if body.kind is not None:
+        row.kind = body.kind
+    if body.content is not None:
+        row.content = body.content
+    if body.status is not None:
+        row.status = body.status
+    if body.content_mode is not None:
+        row.content_mode = body.content_mode
+    if body.version is not None:
+        row.version = body.version
+    row.source = "project"
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "guide_update",
+        f"更新项目 Guide {row.asset_id}",
+        {"asset_id": row.asset_id, "kind": row.kind, "status": row.status},
+    )
+    return _enrich_project_guide(session, row)
+
+
+@router.delete("/projects/{project_id}/guides/{guide_id}")
+def delete_project_guide(project_id: int, guide_id: int, session: SessionDep, user: CurrentUser):
+    row = session.get(ProjectGuide, guide_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404)
+    data = _enrich_project_guide(session, row)
+    if not data.get("editable"):
+        raise HTTPException(400, "来自组织 HX 的 Guide 不可删除（重新初始化会同步组织资产）")
+    aid = row.asset_id
+    session.delete(row)
+    session.commit()
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "guide_delete",
+        f"删除项目 Guide {aid}",
+        {"asset_id": aid},
+    )
+    return {"ok": True}
+
+
+@router.get("/projects/{project_id}/sensors")
+def list_project_sensors(project_id: int, session: SessionDep, _user: CurrentUser):
+    rows = session.exec(select(ProjectSensor).where(ProjectSensor.project_id == project_id)).all()
+    _, sensor_bindings = _project_asset_bindings(session, project_id)
+    out = []
+    for r in rows:
+        try:
+            triggers = json.loads(getattr(r, "triggers_json", None) or "[]")
+        except json.JSONDecodeError:
+            triggers = ["hook:stop", "cli", "task-shell"]
+        try:
+            scope = json.loads(getattr(r, "scope_json", None) or "[]")
+        except json.JSONDecodeError:
+            scope = []
+        d = r.model_dump()
+        d["triggers"] = triggers if triggers else ["hook:stop", "cli", "task-shell"]
+        d["scope"] = scope
+        binds = _merge_row_stage_task(
+            sensor_bindings.get(r.asset_id, []),
+            r.stage or "",
+            r.task or "",
+        )
+        d["bindings"] = binds
+        d["linked_stages"] = sorted({b["stage"] for b in binds if b.get("stage")})
+        d["linked_tasks"] = sorted(
+            {
+                f"{b['stage']}/{b['task']}" if b.get("stage") and b.get("task") else (b.get("task") or b.get("stage") or "")
+                for b in binds
+                if b.get("stage") or b.get("task")
+            }
+        )
+        out.append(d)
+    return out
+
+
+@router.post("/projects/{project_id}/sensors")
+def create_project_sensor(project_id: int, body: ProjectAssetIn, session: SessionDep, user: CurrentUser):
+    from app.domain.sensor_specs import lean_sensor_content, normalize_scope, normalize_triggers
+
+    check_type = "human" if body.check_type in ("human", "manual") else body.check_type
+    kind = "sensor.human" if check_type == "human" else body.kind
+    row = ProjectSensor(
+        project_id=project_id,
+        asset_id=body.asset_id,
+        kind=kind,
+        stage=body.stage,
+        task=body.task,
+        check_type=check_type,
+        content=lean_sensor_content(body.content),
+        triggers_json=json.dumps(normalize_triggers(body.triggers), ensure_ascii=False),
+        scope_json=json.dumps(normalize_scope(body.scope), ensure_ascii=False),
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "sensor_create",
+        f"新建项目 Sensor {row.asset_id}",
+        {"asset_id": row.asset_id, "check_type": row.check_type},
+    )
+    return row
+
+
+@router.put("/projects/{project_id}/sensors/{sensor_id}")
+def update_project_sensor(
+    project_id: int, sensor_id: int, body: ProjectAssetIn, session: SessionDep, user: CurrentUser
+):
+    from app.domain.sensor_specs import lean_sensor_content, normalize_scope, normalize_triggers
+
+    row = session.get(ProjectSensor, sensor_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404)
+    check_type = "human" if body.check_type in ("human", "manual") else body.check_type
+    kind = "sensor.human" if check_type == "human" else body.kind
+    row.asset_id = body.asset_id
+    row.kind = kind
+    row.stage = body.stage
+    row.task = body.task
+    row.check_type = check_type
+    row.content = lean_sensor_content(body.content)
+    row.triggers_json = json.dumps(normalize_triggers(body.triggers), ensure_ascii=False)
+    row.scope_json = json.dumps(normalize_scope(body.scope), ensure_ascii=False)
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "sensor_update",
+        f"更新项目 Sensor {row.asset_id}",
+        {"asset_id": row.asset_id, "check_type": row.check_type},
+    )
+    return row
+
+
+@router.delete("/projects/{project_id}/sensors/{sensor_id}")
+def delete_project_sensor(project_id: int, sensor_id: int, session: SessionDep, user: CurrentUser):
+    row = session.get(ProjectSensor, sensor_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404)
+    aid = row.asset_id
+    session.delete(row)
+    session.commit()
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "sensor_delete",
+        f"删除项目 Sensor {aid}",
+        {"asset_id": aid},
+    )
+    return {"ok": True}
+
+
+@router.get("/projects/{project_ref}/export")
+def export_project(
+    project_ref: str,
+    session: SessionDep,
+    _user: CurrentUser,
+    stages: Optional[str] = None,
+):
+    """Read-only HX export for nhx CLI. stages=req,dev filters stages (comma-separated)."""
+    project: Project | None = None
+    if project_ref.isdigit():
+        project = session.get(Project, int(project_ref))
+    if not project:
+        project = session.exec(select(Project).where(Project.slug == project_ref)).first()
+    if not project:
+        raise HTTPException(404, "project not found")
+    stage_list = [s.strip() for s in (stages or "").split(",") if s.strip()] or None
+    return export_project_for_cli(session, project, stage_list)
+
+
+@router.get("/projects/{project_id}/tasks")
+def list_project_tasks(project_id: int, session: SessionDep, _user: CurrentUser):
+    rows = session.exec(select(ProjectTask).where(ProjectTask.project_id == project_id)).all()
+    return [
+        {
+            **r.model_dump(),
+            "guides": json.loads(r.guides_json or "[]"),
+            "sensors": json.loads(r.sensors_json or "[]"),
+            "slash_name": f"hx-{r.stage}-{r.task_id.replace('_', '-')}",
+        }
+        for r in rows
+    ]
+
+
+@router.get("/projects/{project_id}/custom-task-options")
+def custom_task_options(project_id: int, session: SessionDep, _user: CurrentUser, org_id: str = "default"):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404)
+    guides = session.exec(select(ProjectGuide).where(ProjectGuide.project_id == project_id)).all()
+    sensors = session.exec(select(ProjectSensor).where(ProjectSensor.project_id == project_id)).all()
+    return {
+        "stages": list_project_stage_options(session, project),
+        "guides": [
+            {"asset_id": g.asset_id, "kind": g.kind, "stage": g.stage, "task": g.task}
+            for g in guides
+            if g.kind not in ("guide.workflow", "guide.command") and not (g.asset_id or "").startswith("wf-")
+        ],
+        "sensors": [{"asset_id": s.asset_id, "kind": s.kind, "check_type": s.check_type} for s in sensors],
+    }
+
+
+@router.post("/projects/{project_id}/tasks")
+def create_project_task(project_id: int, body: CustomTaskIn, session: SessionDep, user: CurrentUser):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404)
+
+    task_id = (body.task_id or "").strip()
+    stage = (body.stage or "").strip()
+    if not task_id or not stage:
+        raise HTTPException(400, "stage and task_id are required")
+    if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_\-]*$", task_id):
+        raise HTTPException(400, "task_id must be alphanumeric / underscore / hyphen")
+
+    dup = session.exec(
+        select(ProjectTask).where(
+            ProjectTask.project_id == project_id,
+            ProjectTask.stage == stage,
+            ProjectTask.task_id == task_id,
+        )
+    ).first()
+    if dup:
+        raise HTTPException(400, f"task `{stage}/{task_id}` already exists")
+
+    sensors = list(body.sensors or [])
+    guides = list(body.guides or [])
+    shell = ensure_task_shells(
+        session,
+        project_id=project_id,
+        stage=stage,
+        task_id=task_id,
+        title=body.title or task_id,
+        guides=guides,
+        sensors=sensors,
+    )
+    guides = shell["guides"]
+
+    row = ProjectTask(
+        project_id=project_id,
+        stage=stage,
+        task_id=task_id,
+        title=body.title or task_id,
+        required=body.required,
+        suite="",
+        guides_json=json.dumps(guides, ensure_ascii=False),
+        sensors_json=json.dumps(sensors, ensure_ascii=False),
+        custom=True,
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "task_create",
+        f"新建自定义 Task {stage}/{task_id}",
+        {"stage": stage, "task_id": task_id, "guides": guides, "sensors": sensors},
+    )
+    return {
+        **row.model_dump(),
+        "guides": guides,
+        "sensors": sensors,
+        "shell": shell,
+        "slash_name": shell["slash_name"],
+        "skill_id": shell.get("skill_id"),
+    }
+
+
+@router.put("/projects/{project_id}/tasks/{task_row_id}")
+def update_project_task(
+    project_id: int, task_row_id: int, body: ProjectTaskUpdateIn, session: SessionDep, user: CurrentUser
+):
+    """Update guides/sensors (and optional title/required) for a project task — custom or profile."""
+    row = session.get(ProjectTask, task_row_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404)
+    if body.title is not None:
+        row.title = body.title
+    if body.required is not None:
+        row.required = body.required
+    if body.guides is not None:
+        row.guides_json = json.dumps(body.guides, ensure_ascii=False)
+    if body.sensors is not None:
+        row.sensors_json = json.dumps(body.sensors, ensure_ascii=False)
+        row.suite = ""  # flatten: direct sensor binding
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "task_update",
+        f"更新 Task {row.stage}/{row.task_id}",
+        {
+            "stage": row.stage,
+            "task_id": row.task_id,
+            "custom": row.custom,
+            "guides": json.loads(row.guides_json or "[]"),
+            "sensors": json.loads(row.sensors_json or "[]"),
+        },
+    )
+    return {
+        **row.model_dump(),
+        "guides": json.loads(row.guides_json or "[]"),
+        "sensors": json.loads(row.sensors_json or "[]"),
+        "slash_name": f"hx-{row.stage}-{row.task_id.replace('_', '-')}",
+    }
+
+
+@router.delete("/projects/{project_id}/tasks/{task_row_id}")
+def delete_project_task(project_id: int, task_row_id: int, session: SessionDep, user: CurrentUser):
+    row = session.get(ProjectTask, task_row_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404)
+    if not row.custom:
+        raise HTTPException(400, "cannot delete profile-materialized task; re-init config instead")
+    label = f"{row.stage}/{row.task_id}"
+    delete_task_shells(session, project_id, row.task_id)
+    session.delete(row)
+    session.commit()
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "task_delete",
+        f"删除自定义 Task {label}",
+        {"stage": row.stage, "task_id": row.task_id},
+    )
+    return {"ok": True}
+
+
+# ---- Artifacts ----
+
+
+@router.get("/artifacts")
+def list_artifacts(session: SessionDep, _user: CurrentUser, project_id: Optional[int] = None):
+    q = select(Artifact)
+    if project_id is not None:
+        q = q.where(Artifact.project_id == project_id)
+    rows = session.exec(q).all()
+    out = []
+    for a in rows:
+        p = session.get(Project, a.project_id)
+        out.append({**a.model_dump(), "project_name": p.name if p else ""})
+    return out
+
+
+@router.post("/artifacts")
+async def create_artifact(
+    session: SessionDep,
+    user: CurrentUser,
+    project_id: int = Form(...),
+    name: str = Form(...),
+    stage: str = Form(""),
+    task: str = Form(""),
+    note: str = Form(""),
+    file: UploadFile = File(...),
+):
+    if not session.get(Project, project_id):
+        raise HTTPException(404, "project not found")
+    art = session.exec(
+        select(Artifact).where(Artifact.project_id == project_id, Artifact.name == name)
+    ).first()
+    if not art:
+        art = Artifact(project_id=project_id, name=name, stage=stage, task=task)
+        session.add(art)
+        session.commit()
+        session.refresh(art)
+
+    art.latest_version += 1
+    art.stage = stage or art.stage
+    art.task = task or art.task
+    art.updated_at = datetime.now(timezone.utc)
+    settings = get_settings()
+    dest_dir = settings.artifacts_dir / str(project_id) / str(art.id)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"v{art.latest_version}_{file.filename or 'artifact.bin'}"
+    dest = dest_dir / filename
+    content = await file.read()
+    dest.write_bytes(content)
+    ver = ArtifactVersion(
+        artifact_id=art.id,
+        version=art.latest_version,
+        storage_path=str(dest),
+        note=note,
+        created_by=user.username,
+    )
+    session.add(art)
+    session.add(ver)
+    session.commit()
+    session.refresh(art)
+    session.refresh(ver)
+    return {"artifact": art.model_dump(), "version": ver.model_dump()}
+
+
+@router.get("/artifacts/{artifact_id}/versions")
+def list_versions(artifact_id: int, session: SessionDep, _user: CurrentUser):
+    rows = session.exec(select(ArtifactVersion).where(ArtifactVersion.artifact_id == artifact_id)).all()
+    return sorted(rows, key=lambda r: r.version, reverse=True)
+
+
+# ---- Tickets ----
+
+
+def _next_ticket_no(session: SessionDep) -> str:
+    count = len(session.exec(select(Ticket)).all()) + 1
+    return f"TK-{datetime.now().year}-{count:04d}"
+
+
+@router.get("/tickets")
+def list_tickets(
+    session: SessionDep,
+    _user: CurrentUser,
+    status: Optional[str] = None,
+    project_id: Optional[int] = None,
+    stage: Optional[str] = None,
+    task: Optional[str] = None,
+):
+    q = select(Ticket)
+    if status:
+        q = q.where(Ticket.status == status)
+    if project_id is not None:
+        q = q.where(Ticket.project_id == project_id)
+    if stage:
+        q = q.where(Ticket.stage == stage)
+    if task:
+        q = q.where(Ticket.task == task)
+    rows = session.exec(q).all()
+    out = []
+    for t in rows:
+        p = session.get(Project, t.project_id)
+        out.append({**t.model_dump(), "project_name": p.name if p else ""})
+    return out
+
+
+@router.post("/tickets")
+def create_ticket(body: TicketIn, session: SessionDep, user: CurrentUser):
+    if not session.get(Project, body.project_id):
+        raise HTTPException(404, "project not found")
+    row = Ticket(
+        ticket_no=_next_ticket_no(session),
+        project_id=body.project_id,
+        title=body.title,
+        ticket_type=body.ticket_type,
+        body=body.body,
+        assignee_role=body.assignee_role,
+        stage=body.stage or "",
+        task=body.task or "",
+        artifact_name=body.artifact_name or "",
+        status="draft",
+        submitter=user.username,
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+@router.get("/tickets/approval-status")
+def ticket_approval_status(
+    session: SessionDep,
+    _user: CurrentUser,
+    project_id: int,
+    stage: str,
+    task: str,
+):
+    """Used by nhx human sensors: is there an approved human-check ticket for this stage/task?"""
+    rows = session.exec(
+        select(Ticket).where(
+            Ticket.project_id == project_id,
+            Ticket.stage == stage,
+            Ticket.task == task,
+            Ticket.ticket_type == "human-check",
+        )
+    ).all()
+    approved = [t for t in rows if t.status == "approved"]
+    pending = [t for t in rows if t.status in ("draft", "submitted")]
+    return {
+        "approved": len(approved) > 0,
+        "pending": len(pending) > 0,
+        "approved_tickets": [t.model_dump() for t in approved],
+        "pending_tickets": [t.model_dump() for t in pending],
+    }
+
+
+@router.post("/tickets/{ticket_id}/submit")
+def submit_ticket(ticket_id: int, session: SessionDep, _user: CurrentUser):
+    row = session.get(Ticket, ticket_id)
+    if not row:
+        raise HTTPException(404)
+    if row.status != "draft":
+        raise HTTPException(400, f"cannot submit from {row.status}")
+    row.status = "submitted"
+    row.updated_at = datetime.now(timezone.utc)
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+@router.post("/tickets/{ticket_id}/approve")
+def approve_ticket(ticket_id: int, body: TicketDecisionIn, session: SessionDep, user: CurrentUser):
+    row = session.get(Ticket, ticket_id)
+    if not row:
+        raise HTTPException(404)
+    if row.status != "submitted":
+        raise HTTPException(400, f"cannot approve from {row.status}")
+    row.status = "approved"
+    row.decision_note = body.note
+    row.decided_by = user.username
+    row.updated_at = datetime.now(timezone.utc)
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+@router.post("/tickets/{ticket_id}/reject")
+def reject_ticket(ticket_id: int, body: TicketDecisionIn, session: SessionDep, user: CurrentUser):
+    row = session.get(Ticket, ticket_id)
+    if not row:
+        raise HTTPException(404)
+    if row.status != "submitted":
+        raise HTTPException(400, f"cannot reject from {row.status}")
+    row.status = "rejected"
+    row.decision_note = body.note
+    row.decided_by = user.username
+    row.updated_at = datetime.now(timezone.utc)
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+# ---- Project GitHub sync ----
+
+
+def _write_project_bundle(session: SessionDep, project: Project, dest: Path) -> Path:
+    dest.mkdir(parents=True, exist_ok=True)
+    meta = {
+        "name": project.name,
+        "slug": project.slug,
+        "profile": project.profile_key,
+        "config": json.loads(project.config_json or "{}"),
+    }
+    (dest / "project.yaml").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    guides = session.exec(select(ProjectGuide).where(ProjectGuide.project_id == project.id)).all()
+    gdir = dest / "guides"
+    gdir.mkdir(exist_ok=True)
+    for g in guides:
+        (gdir / f"{g.asset_id}.md").write_text(g.content or "", encoding="utf-8")
+
+    sensors = session.exec(select(ProjectSensor).where(ProjectSensor.project_id == project.id)).all()
+    sdir = dest / "sensors"
+    sdir.mkdir(exist_ok=True)
+    for s in sensors:
+        (sdir / f"{s.asset_id}.md").write_text(s.content or "", encoding="utf-8")
+
+    arts = session.exec(select(Artifact).where(Artifact.project_id == project.id)).all()
+    adir = dest / "artifacts"
+    adir.mkdir(exist_ok=True)
+    for a in arts:
+        versions = session.exec(select(ArtifactVersion).where(ArtifactVersion.artifact_id == a.id)).all()
+        if not versions:
+            continue
+        latest = sorted(versions, key=lambda v: v.version, reverse=True)[0]
+        src = Path(latest.storage_path)
+        if src.exists():
+            target = adir / f"{a.name}_v{latest.version}{src.suffix}"
+            target.write_bytes(src.read_bytes())
+    return dest
+
+
+@router.post("/projects/{project_id}/github/sync")
+def sync_project_github(project_id: int, session: SessionDep, user: CurrentUser, message: str = "chore: sync project HX"):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404)
+    if not project.github_repo:
+        raise HTTPException(400, "project github_repo not configured")
+    settings = get_settings()
+    bundle = settings.repos_dir / f"project-bundle-{project.slug}"
+    _write_project_bundle(session, project, bundle)
+    work = settings.repos_dir / f"project-{project.slug}"
+    org = session.exec(select(OrgSettings).where(OrgSettings.org_id == "default")).first()
+    org_token = ((org.github_token if org else "") or "").strip()
+    env_token = (settings.github_token or "").strip()
+    # Prefer org HX settings token (same as org GitHub push), then env HX_WEBUI_GITHUB_TOKEN
+    token = org_token or env_token
+    result = github_svc.commit_and_push(
+        work, project.github_repo, project.github_branch or "main", token, message, source=bundle
+    )
+    job = SyncJob(
+        project_id=project_id,
+        status="success" if result.ok else "failed",
+        remote=project.github_repo,
+        branch=project.github_branch,
+        commit_sha=result.commit_sha,
+        message=result.message,
+    )
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "github_sync",
+        f"GitHub 同步{'成功' if result.ok else '失败'}: {result.message[:120]}",
+        {
+            "ok": result.ok,
+            "commit_sha": result.commit_sha,
+            "job_id": job.id,
+            "remote": project.github_repo,
+            "branch": project.github_branch,
+        },
+    )
+    return {"ok": result.ok, "message": result.message, "commit_sha": result.commit_sha, "job_id": job.id}
+
+
+@router.get("/projects/{project_id}/github/jobs")
+def list_sync_jobs(project_id: int, session: SessionDep, _user: CurrentUser):
+    rows = session.exec(select(SyncJob).where(SyncJob.project_id == project_id)).all()
+    return sorted(rows, key=lambda r: r.id or 0, reverse=True)
+
+
+@router.get("/github/sync-overview")
+def sync_overview(session: SessionDep, _user: CurrentUser):
+    projects = session.exec(select(Project)).all()
+    out = []
+    for p in projects:
+        jobs = session.exec(select(SyncJob).where(SyncJob.project_id == p.id)).all()
+        jobs_sorted = sorted(jobs, key=lambda r: r.id or 0, reverse=True)
+        last = jobs_sorted[0] if jobs_sorted else None
+        arts = session.exec(select(Artifact).where(Artifact.project_id == p.id)).all()
+        out.append(
+            {
+                "project_id": p.id,
+                "project_name": p.name,
+                "github_repo": p.github_repo,
+                "last_sync": last.created_at if last else None,
+                "last_status": last.status if last else "never",
+                "artifact_count": len(arts),
+            }
+        )
+    return out
+
+
+# ---- Asset promotion (project → org) ----
+
+
+class AssetSubmitItemIn(BaseModel):
+    asset_kind: str  # guide|sensor
+    asset_id: str
+
+
+class AssetSubmissionCreateIn(BaseModel):
+    reason: str
+    items: list[AssetSubmitItemIn] = Field(default_factory=list)
+
+
+@router.get("/projects/{project_id}/promotable-assets")
+def get_promotable_assets(project_id: int, session: SessionDep, _user: CurrentUser):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404)
+    return list_promotable(session, project)
+
+
+@router.get("/projects/{project_id}/asset-submissions")
+def list_project_asset_submissions(project_id: int, session: SessionDep, _user: CurrentUser):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404)
+    rows = session.exec(
+        select(AssetSubmission).where(AssetSubmission.project_id == project_id)
+    ).all()
+    rows = sorted(rows, key=lambda r: r.id or 0, reverse=True)
+    return [submission_payload(session, r) for r in rows]
+
+
+@router.post("/projects/{project_id}/asset-submissions")
+def post_project_asset_submission(
+    project_id: int,
+    body: AssetSubmissionCreateIn,
+    session: SessionDep,
+    user: CurrentUser,
+):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404)
+    sub = create_submission(
+        session,
+        project,
+        reason=body.reason,
+        items=[i.model_dump() for i in body.items],
+        submitter=user.username or user.display_name or "",
+    )
+    return submission_payload(session, sub)

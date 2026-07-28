@@ -1,0 +1,17 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      HX_WEBUI_GITHUB_TOKEN: ${HX_WEBUI_GITHUB_TOKEN:-}
+      HX_WEBUI_SECRET_KEY: ${HX_WEBUI_SECRET_KEY:-hx-webui-compose-secret}
+      HX_WEBUI_CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:80
+    volumes:
+      - ./backend/data:/app/data
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
