@@ -315,6 +315,7 @@ nhx sync --stages arch
 |------|------|
 | [webui/README.md](../webui/README.md) | WebUI 启停、环境变量、API 概览 |
 | [packages/nhx/README.md](../packages/nhx/README.md) | nhx 包内速查 |
+| [docs/nhx-command-manual.zh-CN.md](nhx-command-manual.zh-CN.md) | nhx 命令手册（项目 HX） |
 | [docs/cli-reference.zh-CN.md](cli-reference.zh-CN.md) | 传统 `hx` CLI 速查（非 nhx） |
 | [docs/hxhub-usage.zh-CN.md](hxhub-usage.zh-CN.md) | `hxhub` / Hub 运维 |
 

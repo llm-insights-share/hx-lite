@@ -11,6 +11,7 @@ const router = createRouter({
       component: () => import('../layouts/AppLayout.vue'),
       redirect: '/org',
       children: [
+        { path: 'me/settings', redirect: { path: '/org', query: { settings: '1' } } },
         {
           path: 'org',
           component: () => import('../layouts/OrgLayout.vue'),
@@ -40,9 +41,11 @@ const router = createRouter({
             { path: 'github-sync', component: () => import('../views/project/GithubSync.vue') },
             { path: 'guides', component: () => import('../views/project/Guides.vue') },
             { path: 'sensors', component: () => import('../views/project/Sensors.vue') },
+            { path: 'shells', component: () => import('../views/project/Shells.vue') },
             { path: 'asset-submit', component: () => import('../views/project/AssetSubmit.vue') },
             { path: 'tasks', component: () => import('../views/project/CustomTasks.vue') },
             { path: 'tickets', component: () => import('../views/project/Tickets.vue') },
+            { path: 'nhx-usage', component: () => import('../views/project/NhxUsage.vue') },
             { path: ':id', component: () => import('../views/project/ProjectDetail.vue') },
           ],
         },

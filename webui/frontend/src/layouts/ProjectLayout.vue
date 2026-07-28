@@ -39,6 +39,7 @@ const items = [
     children: [
       { key: 'guides', label: 'Guide 管理' },
       { key: 'sensors', label: 'Sensor 管理' },
+      { key: 'shells', label: 'Shell 管理' },
       { key: 'asset-submit', label: '资产提交' },
       { key: 'artifacts', label: '产物列表' },
       { key: 'tasks', label: '自定义 Task' },
@@ -50,6 +51,7 @@ const items = [
     children: [
       { key: 'github-sync', label: 'GitHub 同步' },
       { key: 'tickets', label: '审批工单' },
+      { key: 'nhx-usage', label: 'nhx使用' },
     ],
   },
 ]
