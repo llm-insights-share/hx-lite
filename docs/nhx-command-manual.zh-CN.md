@@ -36,7 +36,7 @@ nhx --help
 | `nhx session mark --stage <stage> --task <task>` | 记录当前会话任务上下文 |
 | `nhx approve request --stage --task [--title --body --project --submit]` | 创建并提交人工审批工单 |
 | `nhx approve status --stage --task [--project]` | 查询人工审批状态 |
-| `nhx submit <file> --name <name> [--stage --task --note]` | 上传产物到 WebUI |
+| `nhx submit <path> --name <name> [--stage --task --note]` | 上传产物到 WebUI（文件或目录） |
 
 ## 4. 命令详解与示例
 
@@ -135,9 +135,12 @@ nhx approve status --stage req --task prd-writing
 ```bash
 nhx submit ./docs/prd/PRD.md --name prd --stage req --task prd-writing
 nhx submit ./docs/arch/lld.md --name lld --stage arch --task arch-design --note "v2"
+# 整个目录（递归上传，保留相对路径；自动创建子目录）
+nhx submit ./docs/prd-pack --name prd-pack --stage req --task prd-writing
 ```
 
-- `file` 与 `--name` 必填
+- `<path>` 可为单文件或目录；`--name` 必填
+- 目录上传会跳过 `.git` / `node_modules` / `.DS_Store` 等
 - `--stage --task` 建议与当前任务一致，便于资产关联
 
 ## 5. 推荐工作流

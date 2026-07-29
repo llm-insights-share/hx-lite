@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import re
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlmodel import select
 
@@ -16,6 +19,7 @@ from app.core.models import (
     Artifact,
     ArtifactVersion,
     AssetSubmission,
+    AssetSubmissionItem,
     CommandShell,
     Guide,
     OrgSettings,
@@ -24,6 +28,7 @@ from app.core.models import (
     ProjectMember,
     ProjectOperationLog,
     ProjectSensor,
+    ProjectSuite,
     ProjectTask,
     SyncJob,
     Ticket,
@@ -91,12 +96,68 @@ def _require_project_manager(session: SessionDep, user: User, project_id: int) -
         raise HTTPException(403, "仅项目管理者可执行该操作")
 
 
+def _can_manage_project(session: SessionDep, user: User, project_id: int) -> bool:
+    """org_admin or project member with project_owner role."""
+    if _is_org_admin(user):
+        return True
+    member = session.exec(
+        select(ProjectMember).where(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == user.id,
+        )
+    ).first()
+    return bool(member and member.role == "project_owner")
+
+
+def _can_delete_project(user: User, project: Project) -> bool:
+    if _is_org_admin(user):
+        return True
+    return project.created_by_user_id is not None and project.created_by_user_id == user.id
+
+
+def _project_public_dict(project: Project) -> dict[str, Any]:
+    data = project.model_dump()
+    data.pop("github_token", None)
+    data["github_token_configured"] = bool((project.github_token or "").strip())
+    return data
+
+
+def _purge_project(session: SessionDep, project_id: int) -> None:
+    for art in session.exec(select(Artifact).where(Artifact.project_id == project_id)).all():
+        for ver in session.exec(select(ArtifactVersion).where(ArtifactVersion.artifact_id == art.id)).all():
+            session.delete(ver)
+        session.delete(art)
+    for sub in session.exec(select(AssetSubmission).where(AssetSubmission.project_id == project_id)).all():
+        for item in session.exec(
+            select(AssetSubmissionItem).where(AssetSubmissionItem.submission_id == sub.id)
+        ).all():
+            session.delete(item)
+        session.delete(sub)
+    for model in (
+        ProjectMember,
+        ProjectGuide,
+        ProjectSensor,
+        ProjectTask,
+        ProjectSuite,
+        Ticket,
+        SyncJob,
+        ProjectOperationLog,
+    ):
+        for row in session.exec(select(model).where(model.project_id == project_id)).all():
+            session.delete(row)
+    row = session.get(Project, project_id)
+    if row:
+        session.delete(row)
+
+
 class ProjectIn(BaseModel):
     name: str
     slug: Optional[str] = None
     profile_key: str = "standard"
     github_repo: str = ""
     github_branch: str = "main"
+    github_token: Optional[str] = None
+    clear_github_token: bool = False
     description: str = ""
 
 
@@ -107,6 +168,7 @@ class MemberIn(BaseModel):
 
 class ProjectAssetIn(BaseModel):
     asset_id: str
+    name: str = ""
     kind: str = "guide.skill"
     stage: str = ""
     task: str = ""
@@ -121,11 +183,24 @@ class ProjectAssetIn(BaseModel):
 
 class ProjectGuideUpdateIn(BaseModel):
     asset_id: Optional[str] = None
+    name: Optional[str] = None
     kind: Optional[str] = None
     content: Optional[str] = None
     status: Optional[str] = None
     content_mode: Optional[str] = None
     version: Optional[str] = None
+
+
+ASSET_NAME_MAX = 20
+
+
+def _normalize_asset_name(name: str | None, asset_id: str) -> str:
+    cleaned = (name or "").strip()
+    if len(cleaned) > ASSET_NAME_MAX:
+        raise HTTPException(400, f"名称不能超过 {ASSET_NAME_MAX} 个字")
+    if cleaned:
+        return cleaned
+    return (asset_id or "").strip()[:ASSET_NAME_MAX]
 
 
 class CustomTaskIn(BaseModel):
@@ -204,12 +279,13 @@ def list_projects(session: SessionDep, user: CurrentUser):
         hx = build_project_hx_view(session, p)
         out.append(
             {
-                **p.model_dump(),
+                **_project_public_dict(p),
                 "member_count": len(members),
                 "artifact_count": len(arts),
                 "config": json.loads(p.config_json or "{}"),
                 "hx_counts": hx.get("counts") or {},
                 "initialized": (hx.get("counts") or {}).get("tasks", 0) > 0,
+                "can_delete": _can_delete_project(user, p),
             }
         )
     return out
@@ -227,8 +303,10 @@ def create_project(body: ProjectIn, session: SessionDep, user: CurrentUser):
         slug=slug,
         profile_key=body.profile_key,
         github_repo=body.github_repo,
-        github_branch=body.github_branch,
+        github_branch=body.github_branch or "main",
+        github_token=(body.github_token or "").strip(),
         description=body.description,
+        created_by_user_id=user.id,
     )
     session.add(row)
     session.commit()
@@ -244,7 +322,7 @@ def create_project(body: ProjectIn, session: SessionDep, user: CurrentUser):
         f"创建项目 {row.name}",
         {"slug": row.slug, "profile_key": row.profile_key},
     )
-    return row.model_dump()
+    return _project_public_dict(row)
 
 
 @router.get("/projects/{project_id}")
@@ -268,7 +346,7 @@ def get_project(project_id: int, session: SessionDep, user: CurrentUser):
         )
     hx_config = build_project_hx_view(session, row)
     return {
-        **row.model_dump(),
+        **_project_public_dict(row),
         "config": json.loads(row.config_json or "{}"),
         "hx_config": hx_config,
         "members": member_view,
@@ -287,25 +365,38 @@ def update_project(project_id: int, body: ProjectIn, session: SessionDep, user: 
         "github_repo": row.github_repo,
         "github_branch": row.github_branch,
         "description": row.description,
+        "github_token_configured": bool((row.github_token or "").strip()),
     }
     row.name = body.name
     row.profile_key = body.profile_key
     row.github_repo = body.github_repo
-    row.github_branch = body.github_branch
+    row.github_branch = body.github_branch or "main"
     row.description = body.description
+    if body.clear_github_token:
+        row.github_token = ""
+    elif body.github_token is not None and body.github_token.strip():
+        row.github_token = body.github_token.strip()
     row.updated_at = datetime.now(timezone.utc)
     session.add(row)
     session.commit()
     session.refresh(row)
+    after = {
+        "name": row.name,
+        "profile_key": row.profile_key,
+        "github_repo": row.github_repo,
+        "github_branch": row.github_branch,
+        "description": row.description,
+        "github_token_configured": bool((row.github_token or "").strip()),
+    }
     write_project_log(
         session,
         project_id,
         user,
         "project_update",
         f"更新项目元数据 {row.name}",
-        {"before": before, "after": body.model_dump()},
+        {"before": before, "after": after},
     )
-    return row
+    return _project_public_dict(row)
 
 
 @router.delete("/projects/{project_id}")
@@ -313,8 +404,9 @@ def delete_project(project_id: int, session: SessionDep, user: CurrentUser):
     row = session.get(Project, project_id)
     if not row:
         raise HTTPException(404)
-    _require_project_manager(session, user, project_id)
-    session.delete(row)
+    if not _can_delete_project(user, row):
+        raise HTTPException(403, "仅组织管理者或项目创建者可删除")
+    _purge_project(session, project_id)
     session.commit()
     return {"ok": True}
 
@@ -618,6 +710,7 @@ def create_project_guide(project_id: int, body: ProjectAssetIn, session: Session
     row = ProjectGuide(
         project_id=project_id,
         asset_id=body.asset_id,
+        name=_normalize_asset_name(body.name, body.asset_id),
         kind=body.kind,
         stage=body.stage,
         task=body.task,
@@ -654,6 +747,11 @@ def update_project_guide(
         raise HTTPException(400, "来自组织 HX 的 Guide 不可编辑，请在组织侧维护")
     if body.asset_id is not None:
         row.asset_id = body.asset_id
+    if body.name is not None or body.asset_id is not None:
+        row.name = _normalize_asset_name(
+            body.name if body.name is not None else row.name,
+            body.asset_id if body.asset_id is not None else row.asset_id,
+        )
     if body.kind is not None:
         row.kind = body.kind
     if body.content is not None:
@@ -748,6 +846,7 @@ def create_project_sensor(project_id: int, body: ProjectAssetIn, session: Sessio
     row = ProjectSensor(
         project_id=project_id,
         asset_id=body.asset_id,
+        name=_normalize_asset_name(body.name, body.asset_id),
         kind=kind,
         stage=body.stage,
         task=body.task,
@@ -783,6 +882,7 @@ def update_project_sensor(
     check_type = "human" if body.check_type in ("human", "manual") else body.check_type
     kind = "sensor.human" if check_type == "human" else body.kind
     row.asset_id = body.asset_id
+    row.name = _normalize_asset_name(body.name, body.asset_id)
     row.kind = kind
     row.stage = body.stage
     row.task = body.task
@@ -899,11 +999,25 @@ def custom_task_options(project_id: int, session: SessionDep, user: CurrentUser,
     return {
         "stages": list_project_stage_options(session, project),
         "guides": [
-            {"asset_id": g.asset_id, "kind": g.kind, "stage": g.stage, "task": g.task}
+            {
+                "asset_id": g.asset_id,
+                "name": (getattr(g, "name", None) or g.asset_id or "")[:20],
+                "kind": g.kind,
+                "stage": g.stage,
+                "task": g.task,
+            }
             for g in guides
             if g.kind not in ("guide.workflow", "guide.command") and not (g.asset_id or "").startswith("wf-")
         ],
-        "sensors": [{"asset_id": s.asset_id, "kind": s.kind, "check_type": s.check_type} for s in sensors],
+        "sensors": [
+            {
+                "asset_id": s.asset_id,
+                "name": (getattr(s, "name", None) or s.asset_id or "")[:20],
+                "kind": s.kind,
+                "check_type": s.check_type,
+            }
+            for s in sensors
+        ],
     }
 
 
@@ -1045,18 +1159,154 @@ def delete_project_task(project_id: int, task_row_id: int, session: SessionDep, 
 # ---- Artifacts ----
 
 
+def _normalize_artifact_rel(rel: str) -> str:
+    text = (rel or "").replace("\\", "/").strip().lstrip("/")
+    parts = [p for p in text.split("/") if p and p != "."]
+    if any(p == ".." for p in parts):
+        raise HTTPException(400, f"invalid relative path: {rel}")
+    return "/".join(parts)
+
+
+def _version_root(ver: ArtifactVersion) -> Path:
+    return Path(ver.storage_path)
+
+
+def _version_files(ver: ArtifactVersion) -> list[str]:
+    try:
+        parsed = json.loads(ver.files_json or "[]")
+        if isinstance(parsed, list) and parsed:
+            return [str(x) for x in parsed]
+    except Exception:  # noqa: BLE001
+        pass
+    root = _version_root(ver)
+    if root.is_file():
+        return [root.name]
+    if root.is_dir():
+        files: list[str] = []
+        for p in sorted(root.rglob("*")):
+            if p.is_file():
+                files.append(p.relative_to(root).as_posix())
+        return files
+    return []
+
+
+def _version_public(ver: ArtifactVersion) -> dict[str, Any]:
+    root = _version_root(ver)
+    kind = (ver.content_kind or "file").strip() or "file"
+    if root.is_file():
+        kind = "file"
+    elif root.is_dir() and kind == "file" and len(_version_files(ver)) > 1:
+        kind = "package"
+    return {
+        "id": ver.id,
+        "artifact_id": ver.artifact_id,
+        "version": ver.version,
+        "note": ver.note,
+        "created_by": ver.created_by,
+        "created_at": ver.created_at,
+        "content_kind": kind,
+        "files": _version_files(ver),
+        "storage_path": ver.storage_path,
+    }
+
+
+def _resolve_version_file(ver: ArtifactVersion, rel_path: str = "") -> Path:
+    root = _version_root(ver)
+    files = _version_files(ver)
+    if root.is_file():
+        if rel_path and _normalize_artifact_rel(rel_path) not in ("", root.name):
+            raise HTTPException(404, "file not found in version")
+        return root
+    if not root.is_dir():
+        raise HTTPException(404, "version storage missing")
+    if not rel_path:
+        if len(files) == 1:
+            rel_path = files[0]
+        else:
+            raise HTTPException(400, "path required for package version")
+    rel = _normalize_artifact_rel(rel_path)
+    if rel not in files and files:
+        # still allow if file exists on disk under root
+        pass
+    target = (root / rel).resolve()
+    try:
+        target.relative_to(root.resolve())
+    except ValueError as exc:
+        raise HTTPException(400, "path escapes version root") from exc
+    if not target.is_file():
+        raise HTTPException(404, "file not found in version")
+    return target
+
+
+async def _collect_upload_map(
+    file: UploadFile | None,
+    files: list[UploadFile],
+    relative_paths: list[str],
+) -> tuple[str, dict[str, bytes]]:
+    file_map: dict[str, bytes] = {}
+    if files:
+        for i, uf in enumerate(files):
+            data = await uf.read()
+            raw_rel = relative_paths[i] if i < len(relative_paths) and relative_paths[i] else (uf.filename or f"file-{i}")
+            rel = _normalize_artifact_rel(raw_rel)
+            if not rel:
+                raise HTTPException(400, "empty relative path")
+            file_map[rel] = data
+    elif file is not None:
+        data = await file.read()
+        rel = _normalize_artifact_rel(file.filename or "artifact.bin")
+        file_map[rel] = data
+    else:
+        raise HTTPException(400, "at least one file required")
+    if not file_map:
+        raise HTTPException(400, "at least one file required")
+    kind = "package" if len(file_map) > 1 or any("/" in k for k in file_map) else "file"
+    return kind, file_map
+
+
+def _write_artifact_version_files(ver_dir: Path, file_map: dict[str, bytes]) -> list[str]:
+    ver_dir.mkdir(parents=True, exist_ok=True)
+    saved: list[str] = []
+    for rel, data in sorted(file_map.items()):
+        dest = ver_dir / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(data)
+        saved.append(rel)
+    return saved
+
+
 @router.get("/artifacts")
-def list_artifacts(session: SessionDep, user: CurrentUser, project_id: Optional[int] = None):
+def list_artifacts(
+    session: SessionDep,
+    user: CurrentUser,
+    project_id: Optional[int] = None,
+    stage: Optional[str] = None,
+    task: Optional[str] = None,
+):
     if project_id is not None:
         _require_project_member(session, user, project_id)
     q = select(Artifact)
     if project_id is not None:
         q = q.where(Artifact.project_id == project_id)
+    if stage:
+        q = q.where(Artifact.stage == stage)
+    if task:
+        q = q.where(Artifact.task == task)
     rows = session.exec(q).all()
+    if not _is_org_admin(user) and project_id is None:
+        memberships = session.exec(select(ProjectMember).where(ProjectMember.user_id == user.id)).all()
+        pids = {m.project_id for m in memberships}
+        rows = [a for a in rows if a.project_id in pids]
     out = []
     for a in rows:
         p = session.get(Project, a.project_id)
-        out.append({**a.model_dump(), "project_name": p.name if p else ""})
+        out.append(
+            {
+                **a.model_dump(),
+                "project_name": p.name if p else "",
+                "can_delete": _can_manage_project(session, user, a.project_id),
+            }
+        )
     return out
 
 
@@ -1069,11 +1319,15 @@ async def create_artifact(
     stage: str = Form(""),
     task: str = Form(""),
     note: str = Form(""),
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
+    files: list[UploadFile] = File(default_factory=list),
+    relative_paths: list[str] = Form(default_factory=list),
 ):
     if not session.get(Project, project_id):
         raise HTTPException(404, "project not found")
     _require_project_member(session, user, project_id)
+    kind, file_map = await _collect_upload_map(file, files, relative_paths)
+
     art = session.exec(
         select(Artifact).where(Artifact.project_id == project_id, Artifact.name == name)
     ).first()
@@ -1088,31 +1342,117 @@ async def create_artifact(
     art.task = task or art.task
     art.updated_at = datetime.now(timezone.utc)
     settings = get_settings()
-    dest_dir = settings.artifacts_dir / str(project_id) / str(art.id)
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"v{art.latest_version}_{file.filename or 'artifact.bin'}"
-    dest = dest_dir / filename
-    content = await file.read()
-    dest.write_bytes(content)
+    ver_dir = settings.artifacts_dir / str(project_id) / str(art.id) / f"v{art.latest_version}"
+    if ver_dir.exists():
+        shutil.rmtree(ver_dir)
+    saved = _write_artifact_version_files(ver_dir, file_map)
     ver = ArtifactVersion(
         artifact_id=art.id,
         version=art.latest_version,
-        storage_path=str(dest),
+        storage_path=str(ver_dir),
         note=note,
         created_by=user.username,
+        content_kind=kind,
+        files_json=json.dumps(saved, ensure_ascii=False),
     )
     session.add(art)
     session.add(ver)
     session.commit()
     session.refresh(art)
     session.refresh(ver)
-    return {"artifact": art.model_dump(), "version": ver.model_dump()}
+    return {"artifact": art.model_dump(), "version": _version_public(ver)}
+
+
+@router.delete("/artifacts/{artifact_id}")
+def delete_artifact(artifact_id: int, session: SessionDep, user: CurrentUser):
+    art = session.get(Artifact, artifact_id)
+    if not art:
+        raise HTTPException(404)
+    if not _can_manage_project(session, user, art.project_id):
+        raise HTTPException(403, "仅组织管理者或项目所有者可删除产物")
+    settings = get_settings()
+    art_dir = settings.artifacts_dir / str(art.project_id) / str(art.id)
+    for ver in session.exec(select(ArtifactVersion).where(ArtifactVersion.artifact_id == artifact_id)).all():
+        session.delete(ver)
+    session.delete(art)
+    session.commit()
+    if art_dir.exists():
+        shutil.rmtree(art_dir, ignore_errors=True)
+    return {"ok": True}
+
+
+@router.get("/artifacts/{artifact_id}")
+def get_artifact(artifact_id: int, session: SessionDep, user: CurrentUser):
+    art = session.get(Artifact, artifact_id)
+    if not art:
+        raise HTTPException(404)
+    _require_project_member(session, user, art.project_id)
+    p = session.get(Project, art.project_id)
+    versions = session.exec(select(ArtifactVersion).where(ArtifactVersion.artifact_id == artifact_id)).all()
+    latest = None
+    if versions:
+        latest = sorted(versions, key=lambda v: v.version, reverse=True)[0]
+    return {
+        **art.model_dump(),
+        "project_name": p.name if p else "",
+        "latest": _version_public(latest) if latest else None,
+    }
 
 
 @router.get("/artifacts/{artifact_id}/versions")
-def list_versions(artifact_id: int, session: SessionDep, _user: CurrentUser):
+def list_versions(artifact_id: int, session: SessionDep, user: CurrentUser):
+    art = session.get(Artifact, artifact_id)
+    if not art:
+        raise HTTPException(404)
+    _require_project_member(session, user, art.project_id)
     rows = session.exec(select(ArtifactVersion).where(ArtifactVersion.artifact_id == artifact_id)).all()
-    return sorted(rows, key=lambda r: r.version, reverse=True)
+    return [_version_public(v) for v in sorted(rows, key=lambda r: r.version, reverse=True)]
+
+
+@router.get("/artifacts/{artifact_id}/versions/{version}")
+def get_artifact_version(artifact_id: int, version: int, session: SessionDep, user: CurrentUser):
+    art = session.get(Artifact, artifact_id)
+    if not art:
+        raise HTTPException(404)
+    _require_project_member(session, user, art.project_id)
+    ver = session.exec(
+        select(ArtifactVersion).where(
+            ArtifactVersion.artifact_id == artifact_id,
+            ArtifactVersion.version == version,
+        )
+    ).first()
+    if not ver:
+        raise HTTPException(404, "version not found")
+    return _version_public(ver)
+
+
+@router.get("/artifacts/{artifact_id}/versions/{version}/content")
+def get_artifact_version_content(
+    artifact_id: int,
+    version: int,
+    session: SessionDep,
+    user: CurrentUser,
+    path: str = "",
+):
+    art = session.get(Artifact, artifact_id)
+    if not art:
+        raise HTTPException(404)
+    _require_project_member(session, user, art.project_id)
+    ver = session.exec(
+        select(ArtifactVersion).where(
+            ArtifactVersion.artifact_id == artifact_id,
+            ArtifactVersion.version == version,
+        )
+    ).first()
+    if not ver:
+        raise HTTPException(404, "version not found")
+    target = _resolve_version_file(ver, path)
+    media, _ = mimetypes.guess_type(str(target))
+    return FileResponse(
+        path=str(target),
+        media_type=media or "application/octet-stream",
+        filename=target.name,
+    )
 
 
 # ---- Tickets ----
@@ -1286,7 +1626,14 @@ def _write_project_bundle(session: SessionDep, project: Project, dest: Path) -> 
             continue
         latest = sorted(versions, key=lambda v: v.version, reverse=True)[0]
         src = Path(latest.storage_path)
-        if src.exists():
+        if not src.exists():
+            continue
+        if src.is_dir():
+            target = adir / f"{a.name}_v{latest.version}"
+            if target.exists():
+                shutil.rmtree(target)
+            shutil.copytree(src, target)
+        elif src.is_file():
             target = adir / f"{a.name}_v{latest.version}{src.suffix}"
             target.write_bytes(src.read_bytes())
     return dest
@@ -1305,10 +1652,13 @@ def sync_project_github(project_id: int, session: SessionDep, user: CurrentUser,
     _write_project_bundle(session, project, bundle)
     work = settings.repos_dir / f"project-{project.slug}"
     org = session.exec(select(OrgSettings).where(OrgSettings.org_id == "default")).first()
+    project_token = (project.github_token or "").strip()
     org_token = ((org.github_token if org else "") or "").strip()
     env_token = (settings.github_token or "").strip()
-    # Prefer org HX settings token (same as org GitHub push), then env HX_WEBUI_GITHUB_TOKEN
-    token = org_token or env_token
+    # Prefer project PAT, then org HX settings, then env
+    token = project_token or org_token or env_token
+    if not token:
+        raise HTTPException(400, "请配置项目 GitHub Token（读写 PAT），或在组织设置中配置可用 Token")
     result = github_svc.commit_and_push(
         work, project.github_repo, project.github_branch or "main", token, message, source=bundle
     )
@@ -1366,6 +1716,7 @@ def sync_overview(session: SessionDep, user: CurrentUser):
                 "project_id": p.id,
                 "project_name": p.name,
                 "github_repo": p.github_repo,
+                "github_token_configured": bool((p.github_token or "").strip()),
                 "last_sync": last.created_at if last else None,
                 "last_status": last.status if last else "never",
                 "artifact_count": len(arts),

@@ -140,6 +140,7 @@ def bootstrap_org(session: Session, org_id: str = "default", org_name: str = "De
             Guide(
                 org_id=org_id,
                 asset_id=gid,
+                name=(gid or "")[:20],
                 kind=kind,
                 version="1.0.0",
                 status="enforced",
@@ -155,6 +156,7 @@ def bootstrap_org(session: Session, org_id: str = "default", org_name: str = "De
             Sensor(
                 org_id=org_id,
                 asset_id=sid,
+                name=(sid or "")[:20],
                 kind=payload["kind"],
                 version="1.0.0",
                 status="enforced",

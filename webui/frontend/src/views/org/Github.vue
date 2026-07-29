@@ -26,7 +26,7 @@
         </div>
       </a-card>
       <a-card v-if="diff" title="Diff" size="small" style="margin-top: 16px">
-        <pre class="diff">{{ diff }}</pre>
+        <DiffViewer :diff-text="diff" />
       </a-card>
       <a-table
         style="margin-top: 16px"
@@ -50,6 +50,7 @@
 import { onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { api } from '../../api'
+import DiffViewer from '../../components/DiffViewer.vue'
 
 const settings = ref<any>(null)
 const jobs = ref<any[]>([])
@@ -127,15 +128,3 @@ async function exportHub() {
 
 onMounted(load)
 </script>
-
-<style scoped>
-.diff {
-  max-height: 360px;
-  overflow: auto;
-  font-size: 12px;
-  background: #0b1220;
-  color: #d1e7dd;
-  padding: 12px;
-  border-radius: 6px;
-}
-</style>

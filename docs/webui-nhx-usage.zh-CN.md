@@ -199,7 +199,7 @@ nhx --help
 | `nhx session mark --stage … --task …` | 记录会话上下文（供 hooks） |
 | `nhx approve request --stage … --task …` | 创建并提交 human-check 工单 |
 | `nhx approve status --stage … --task …` | 查询审批状态 |
-| `nhx submit <file> --name <产物名> [--stage --task]` | 上传产物到 WebUI |
+| `nhx submit <path> --name <产物名> [--stage --task]` | 上传产物到 WebUI（文件或整个目录） |
 
 ### 5.3 推荐工作流
 
@@ -214,8 +214,9 @@ nhx init --project 1 --stages req,dev
 
 # 3. IDE 中使用 /nhx-req-prd-writing 等命令壳完成任务
 
-# 4. 提交产物
+# 4. 提交产物（单文件或整个目录）
 nhx submit ./docs/prd/xxx.md --name prd --stage req --task prd-writing
+nhx submit ./docs/prd-pack --name prd-pack --stage req --task prd-writing
 
 # 5. 若任务绑了 human Sensor：发起审批
 nhx approve request --stage req --task prd-writing

@@ -43,6 +43,18 @@
           >
             同步
           </a-button>
+          <a-popconfirm
+            v-if="record.can_delete"
+            title="确认删除该项目？相关配置与产物将一并清除，且不可恢复。"
+            ok-text="删除"
+            cancel-text="取消"
+            ok-type="danger"
+            @confirm="removeProject(record.id)"
+          >
+            <a-button size="small" danger style="margin-left: 6px" :loading="deletingId === record.id">
+              删除
+            </a-button>
+          </a-popconfirm>
         </template>
       </template>
     </a-table>
@@ -54,7 +66,19 @@
         <a-form-item label="Profile">
           <a-select v-model:value="form.profile_key" :options="profileOpts" style="width: 100%" />
         </a-form-item>
-        <a-form-item label="GitHub 仓库"><a-input v-model:value="form.github_repo" /></a-form-item>
+        <a-form-item label="GitHub 仓库">
+          <a-input v-model:value="form.github_repo" placeholder="https://github.com/org/project.git" />
+        </a-form-item>
+        <a-form-item label="GitHub 分支">
+          <a-input v-model:value="form.github_branch" placeholder="main" />
+        </a-form-item>
+        <a-form-item label="GitHub Token（读写 PAT）">
+          <a-input-password
+            v-model:value="form.github_token"
+            placeholder="与组织 Hub 推送独立，用于本项目仓库同步"
+          />
+          <div class="field-hint">项目仓库账号可与组织不同；留空则同步时回退组织/环境 Token</div>
+        </a-form-item>
         <a-form-item label="描述"><a-textarea v-model:value="form.description" /></a-form-item>
       </a-form>
     </a-modal>
@@ -69,6 +93,7 @@ import { api } from '../../api'
 const rows = ref<any[]>([])
 const open = ref(false)
 const syncingId = ref<number | null>(null)
+const deletingId = ref<number | null>(null)
 const profileOpts = ref<{ value: string; label: string }[]>(
   ['lite', 'standard', 'strict', 'enterprise'].map((v) => ({ value: v, label: v })),
 )
@@ -78,6 +103,7 @@ const form = reactive({
   profile_key: 'standard',
   github_repo: '',
   github_branch: 'main',
+  github_token: '',
   description: '',
 })
 const columns = [
@@ -89,7 +115,7 @@ const columns = [
   { title: '成员', dataIndex: 'member_count', width: 70 },
   { title: '产物', dataIndex: 'artifact_count', width: 70 },
   { title: 'GitHub', dataIndex: 'github_repo' },
-  { title: '操作', key: 'action', width: 280 },
+  { title: '操作', key: 'action', width: 340 },
 ]
 
 async function load() {
@@ -112,9 +138,13 @@ async function loadProfiles() {
 }
 
 async function create() {
-  await api.post('/projects', form)
+  await api.post('/projects', {
+    ...form,
+    github_token: form.github_token.trim() || undefined,
+  })
   message.success('已创建')
   open.value = false
+  form.github_token = ''
   await load()
 }
 
@@ -148,6 +178,19 @@ async function syncConfig(id: number) {
   }
 }
 
+async function removeProject(id: number) {
+  deletingId.value = id
+  try {
+    await api.delete(`/projects/${id}`)
+    message.success('项目已删除')
+    await load()
+  } catch (e: any) {
+    message.error(e?.response?.data?.detail || '删除失败')
+  } finally {
+    deletingId.value = null
+  }
+}
+
 onMounted(async () => {
   await Promise.all([load(), loadProfiles()])
 })
@@ -169,5 +212,11 @@ onMounted(async () => {
 .mono-id {
   font-family: ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
+}
+.field-hint {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
 }
 </style>

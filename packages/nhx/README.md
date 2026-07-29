@@ -16,6 +16,7 @@ nhx approve request --stage req --task prd-writing
 # 审批人在 WebUI「审批工单」批准后：
 nhx approve status --stage req --task prd-writing
 nhx submit ./docs/prd.md --name prd --stage req --task prd-writing
+nhx submit ./docs/prd-pack --name prd-pack --stage req --task prd-writing
 ```
 
 ## 命令
@@ -29,7 +30,7 @@ nhx submit ./docs/prd.md --name prd --stage req --task prd-writing
 | `nhx sensor check` | 运行任务绑定的 sensor（按 `--channel` 过滤触发通道） |
 | `nhx session mark` | 记录当前 stage/task |
 | `nhx approve request/status` | 发起 / 查询人工审批 |
-| `nhx submit` | 上传产物 |
+| `nhx submit` | 上传产物（单文件或目录递归） |
 | `nhx doctor` / `status` / `adapter sync` | 诊断与重投影 |
 
 ## 任务 ↔ Sensor（无 Suite）

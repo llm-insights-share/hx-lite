@@ -25,12 +25,6 @@
           <CheckCircleFilled v-if="record.required" class="req-yes" title="必须" />
           <MinusCircleOutlined v-else class="req-no" title="非必须" />
         </template>
-        <template v-else-if="column.key === 'profiles'">
-          <a-space wrap :size="[4, 4]">
-            <a-tag v-for="p in record.profiles || []" :key="p">{{ p }}</a-tag>
-            <span v-if="!(record.profiles || []).length" class="muted">—</span>
-          </a-space>
-        </template>
         <template v-else-if="column.key === 'guides'">
           <a-tag v-for="g in record.guides" :key="g">{{ g }}</a-tag>
         </template>
@@ -136,12 +130,17 @@ const form = reactive({
 })
 
 const guideOpts = computed(() =>
-  guides.value.map((g) => ({ value: g.asset_id, label: `${g.asset_id} (${g.kind})` })),
+  guides.value.map((g) => ({
+    value: g.asset_id,
+    label: g.name ? `${g.asset_id} — ${g.name}` : `${g.asset_id} (${g.kind})`,
+  })),
 )
 const sensorOpts = computed(() =>
   sensors.value.map((s) => ({
     value: s.asset_id,
-    label: `${s.asset_id} · ${s.check_type || 'rules'}`,
+    label: s.name
+      ? `${s.asset_id} — ${s.name}`
+      : `${s.asset_id} · ${s.check_type || 'rules'}`,
   })),
 )
 
@@ -161,7 +160,6 @@ const columns = [
   { title: 'Stage', dataIndex: 'stage', width: 80 },
   { title: 'Task', dataIndex: 'task_id' },
   { title: '标题', dataIndex: 'title_zh' },
-  { title: 'Profiles', key: 'profiles', width: 220 },
   { title: '必须', key: 'required', dataIndex: 'required', width: 72, align: 'center' },
   { title: 'Guides', key: 'guides' },
   { title: 'Sensors', key: 'sensors' },

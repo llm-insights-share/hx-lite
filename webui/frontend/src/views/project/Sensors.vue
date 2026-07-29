@@ -38,7 +38,11 @@
     </a-form>
     <a-table :dataSource="filteredRows" :columns="columns" row-key="id">
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'check_type'">
+        <template v-if="column.key === 'asset'">
+          <div class="asset-id">{{ record.asset_id }}</div>
+          <div class="asset-name">{{ record.name || '—' }}</div>
+        </template>
+        <template v-else-if="column.key === 'check_type'">
           <a-tag :color="normalizeCheckType(record.check_type) === 'human' ? 'purple' : 'default'">
             {{ normalizeCheckType(record.check_type) }}
           </a-tag>
@@ -80,6 +84,9 @@
       <a-form layout="vertical">
         <a-form-item label="Asset ID">
           <a-input v-model:value="form.asset_id" :disabled="!!form.id" />
+        </a-form-item>
+        <a-form-item label="名称" required>
+          <a-input v-model:value="form.name" :maxlength="20" show-count placeholder="不超过 20 字" />
         </a-form-item>
         <a-form-item label="Check Type">
           <a-select
@@ -191,6 +198,7 @@ const open = ref(false)
 const form = reactive({
   id: null as number | null,
   asset_id: '',
+  name: '',
   kind: 'sensor.rule',
   check_type: 'rules',
   content: '',
@@ -245,7 +253,7 @@ const filteredRows = computed(() => {
 })
 
 const columns = [
-  { title: 'Asset', dataIndex: 'asset_id' },
+  { title: 'Asset', key: 'asset' },
   { title: 'Kind', dataIndex: 'kind', width: 120 },
   { title: 'Stage', key: 'stage', width: 120 },
   { title: 'Task', key: 'task', width: 180 },
@@ -278,6 +286,7 @@ function openCreate() {
   Object.assign(form, {
     id: null,
     asset_id: '',
+    name: '',
     kind: 'sensor.rule',
     check_type: 'rules',
     content: templateFor('rules'),
@@ -292,6 +301,7 @@ function openEdit(record: any) {
   Object.assign(form, {
     id: record.id,
     asset_id: record.asset_id,
+    name: record.name || (record.asset_id || '').slice(0, 20),
     kind: record.kind || 'sensor.rule',
     check_type: ct,
     content: leanSensorContent(record.content || templateFor(ct)),
@@ -319,9 +329,19 @@ function insertInlineFn(expr: string) {
 
 async function save() {
   if (!projectId.value) return
+  if (!form.asset_id?.trim()) {
+    message.warning('请填写 Asset ID')
+    return Promise.reject()
+  }
+  const name = (form.name || '').trim() || form.asset_id.trim().slice(0, 20)
+  if (name.length > 20) {
+    message.warning('名称不能超过 20 个字')
+    return Promise.reject()
+  }
   const ct = normalizeCheckType(form.check_type)
   const payload = {
     asset_id: form.asset_id,
+    name,
     kind: ct === 'human' ? 'sensor.human' : form.kind,
     stage: '',
     task: '',
@@ -358,6 +378,17 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+}
+.asset-id {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.88);
+  line-height: 1.35;
+}
+.asset-name {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.3;
+  margin-top: 2px;
 }
 .inline-fns {
   display: flex;

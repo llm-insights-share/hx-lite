@@ -280,19 +280,19 @@ function buildProgram(): Command {
 
   program
     .command("submit")
-    .description("提交本地产物到项目 HX 维护系统")
-    .argument("<file>", "本地文件路径")
+    .description("提交本地产物到项目 HX 维护系统（支持单文件或整个目录）")
+    .argument("<path>", "本地文件或目录路径（目录将递归上传，保留相对路径）")
     .requiredOption("--name <name>", "产物名称")
     .option("--stage <stage>", "阶段")
     .option("--task <task>", "任务")
     .option("--note <note>", "备注")
     .action(
       async (
-        file: string,
+        pathArg: string,
         opts: { name: string; stage?: string; task?: string; note?: string },
       ) => {
         const result = await runSubmit({
-          file,
+          path: pathArg,
           name: opts.name,
           stage: opts.stage,
           task: opts.task,

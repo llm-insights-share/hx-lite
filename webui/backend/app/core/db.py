@@ -131,6 +131,23 @@ def _migrate_sqlite() -> None:
             if salters:
                 conn.commit()
 
+        # guide / sensor display name
+        for table in ("guide", "sensor", "projectguide", "projectsensor"):
+            nrows = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
+            if not nrows:
+                continue
+            nnames = {r[1] for r in nrows}
+            if "name" not in nnames:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN name VARCHAR DEFAULT ''"))
+                conn.commit()
+            conn.execute(
+                text(
+                    f"UPDATE {table} SET name = substr(asset_id, 1, 20) "
+                    "WHERE name IS NULL OR name = ''"
+                )
+            )
+            conn.commit()
+
         # command shell impl (command | skill | both)
         crows = conn.execute(text("PRAGMA table_info(commandshell)")).fetchall()
         if crows:
@@ -167,6 +184,50 @@ def _migrate_sqlite() -> None:
                             {"ord": idx, "id": rid},
                         )
                 conn.commit()
+
+        # project creator + github token
+        prows = conn.execute(text("PRAGMA table_info(project)")).fetchall()
+        if prows:
+            pnames = {r[1] for r in prows}
+            if "created_by_user_id" not in pnames:
+                conn.execute(text("ALTER TABLE project ADD COLUMN created_by_user_id INTEGER"))
+                conn.commit()
+            if "github_token" not in pnames:
+                conn.execute(text("ALTER TABLE project ADD COLUMN github_token VARCHAR DEFAULT ''"))
+                conn.commit()
+
+        # artifact version package metadata
+        avrows = conn.execute(text("PRAGMA table_info(artifactversion)")).fetchall()
+        if avrows:
+            avnames = {r[1] for r in avrows}
+            if "content_kind" not in avnames:
+                conn.execute(text("ALTER TABLE artifactversion ADD COLUMN content_kind VARCHAR DEFAULT 'file'"))
+                conn.commit()
+            if "files_json" not in avnames:
+                conn.execute(text("ALTER TABLE artifactversion ADD COLUMN files_json VARCHAR DEFAULT '[]'"))
+                conn.commit()
+
+
+def _migrate_project_created_by() -> None:
+    """Backfill Project.created_by_user_id from earliest project_owner member."""
+    from app.core.models import Project, ProjectMember
+
+    with Session(engine) as session:
+        for project in session.exec(select(Project)).all():
+            if project.created_by_user_id is not None:
+                continue
+            owner = session.exec(
+                select(ProjectMember)
+                .where(
+                    ProjectMember.project_id == project.id,
+                    ProjectMember.role == "project_owner",
+                )
+                .order_by(ProjectMember.created_at, ProjectMember.id)
+            ).first()
+            if owner:
+                project.created_by_user_id = owner.user_id
+                session.add(project)
+        session.commit()
 
 
 def _migrate_drop_workflow_guides() -> None:
@@ -443,6 +504,7 @@ def _migrate_zh_command_shells() -> None:
 def init_db() -> None:
     SQLModel.metadata.create_all(engine)
     _migrate_sqlite()
+    _migrate_project_created_by()
     _migrate_drop_workflow_guides()
     _migrate_human_approval_sensors()
     _migrate_zh_guide_sensor_content()

@@ -11,7 +11,11 @@
       <a-tab-pane key="g" tab="Guides">
         <a-table :dataSource="guides" :columns="gCols" row-key="id" :pagination="{ pageSize: 10 }">
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'mode'">
+            <template v-if="column.key === 'asset'">
+              <div class="asset-id">{{ record.asset_id }}</div>
+              <div class="asset-name">{{ record.name || '—' }}</div>
+            </template>
+            <template v-else-if="column.key === 'mode'">
               <a-tag>{{ record.content_mode || 'markdown' }}</a-tag>
             </template>
             <template v-else-if="column.key === 'status'">
@@ -60,7 +64,11 @@
       <a-tab-pane key="s" tab="Sensors">
         <a-table :dataSource="sensors" :columns="sCols" row-key="id" :pagination="{ pageSize: 10 }">
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'check_type'">
+            <template v-if="column.key === 'asset'">
+              <div class="asset-id">{{ record.asset_id }}</div>
+              <div class="asset-name">{{ record.name || '—' }}</div>
+            </template>
+            <template v-else-if="column.key === 'check_type'">
               <a-tag :color="normalizeCheckType(record.check_type) === 'human' ? 'purple' : 'default'">
                 {{ normalizeCheckType(record.check_type) }}
               </a-tag>
@@ -127,6 +135,15 @@
           <a-input
             v-model:value="guideForm.asset_id"
             :disabled="guideReadonly || (!!guideForm.id && !!guideForm.package_path)"
+          />
+        </a-form-item>
+        <a-form-item label="名称" required>
+          <a-input
+            v-model:value="guideForm.name"
+            :maxlength="20"
+            show-count
+            placeholder="不超过 20 字"
+            :disabled="guideReadonly"
           />
         </a-form-item>
         <a-form-item label="Version">
@@ -300,6 +317,15 @@
       <a-form layout="vertical">
         <a-form-item label="Asset ID">
           <a-input v-model:value="sensorForm.asset_id" :disabled="sensorReadonly || !!sensorForm.id" />
+        </a-form-item>
+        <a-form-item label="名称" required>
+          <a-input
+            v-model:value="sensorForm.name"
+            :maxlength="20"
+            show-count
+            placeholder="不超过 20 字"
+            :disabled="sensorReadonly"
+          />
         </a-form-item>
         <a-form-item label="Check Type">
           <a-select
@@ -556,6 +582,7 @@ const kindCards = [
 const guideForm = reactive<any>({
   id: null,
   asset_id: '',
+  name: '',
   kind: 'guide.skill',
   version: '1.0.0',
   status: 'draft',
@@ -568,6 +595,7 @@ const guideForm = reactive<any>({
 const sensorForm = reactive({
   id: null as number | null,
   asset_id: '',
+  name: '',
   kind: 'sensor.rule',
   version: '1.0.0',
   status: 'draft',
@@ -673,14 +701,14 @@ function renderMarkdownDocument(src: string): string {
 }
 
 const gCols = [
-  { title: 'ID', dataIndex: 'asset_id' },
+  { title: 'ID', key: 'asset' },
   { title: 'Kind', dataIndex: 'kind' },
   { title: 'Mode', key: 'mode', width: 100 },
   { title: 'Status', key: 'status', width: 90 },
   { title: '操作', key: 'action', width: 200 },
 ]
 const sCols = [
-  { title: 'ID', dataIndex: 'asset_id' },
+  { title: 'ID', key: 'asset' },
   { title: 'Kind', dataIndex: 'kind' },
   { title: 'Check', key: 'check_type', dataIndex: 'check_type' },
   { title: 'Triggers', key: 'triggers', width: 140 },
@@ -858,6 +886,7 @@ function resetGuideForm() {
   Object.assign(guideForm, {
     id: null,
     asset_id: '',
+    name: '',
     kind: 'guide.skill',
     version: '1.0.0',
     status: 'draft',
@@ -883,6 +912,7 @@ function fillGuideForm(record: any) {
   Object.assign(guideForm, {
     id: record.id,
     asset_id: record.asset_id,
+    name: record.name || (record.asset_id || '').slice(0, 20),
     kind: record.kind || 'guide.skill',
     version: record.version || '1.0.0',
     status: record.status || 'draft',
@@ -1072,10 +1102,7 @@ async function saveGuide() {
     openGuide.value = false
     return
   }
-  if (contentSource.value === 'view') {
-    openGuide.value = false
-    return
-  }
+  // contentSource === 'view' means preview tab; still allow saving name/meta in edit mode
   if (contentSource.value === 'github') {
     if (!githubRepo.value.trim()) {
       message.warning('请填写 GitHub 仓库')
@@ -1087,6 +1114,11 @@ async function saveGuide() {
     }
   } else if (!guideForm.asset_id?.trim()) {
     message.warning('请填写 Asset ID')
+    return Promise.reject()
+  }
+  const guideName = (guideForm.name || '').trim() || guideForm.asset_id.trim().slice(0, 20)
+  if (guideName.length > 20) {
+    message.warning('名称不能超过 20 个字')
     return Promise.reject()
   }
   savingGuide.value = true
@@ -1124,6 +1156,7 @@ async function saveGuide() {
       if (uploadFileList.value.length) {
         const fd = new FormData()
         fd.append('asset_id', guideForm.asset_id.trim())
+        fd.append('name', guideName)
         fd.append('kind', guideForm.kind)
         fd.append('stage', '')
         fd.append('task', '')
@@ -1137,21 +1170,42 @@ async function saveGuide() {
         await api.post('/org/guides/upload', fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         })
+      } else if (guideForm.id) {
+        // keep package, still update name/meta
+        const payload = {
+          asset_id: guideForm.asset_id.trim(),
+          name: guideName,
+          kind: guideForm.kind,
+          stage: '',
+          task: '',
+          version: guideForm.version,
+          status: guideForm.status,
+          content: guideForm.content,
+          content_mode: guideForm.content_mode || 'package',
+        }
+        await api.put(`/org/guides/${guideForm.id}`, payload)
       } else {
         message.info('未选择新文件，保留原有包')
         openGuide.value = false
         return
       }
     } else {
+      const contentMode =
+        contentSource.value === 'text'
+          ? 'text'
+          : contentSource.value === 'markdown'
+            ? 'markdown'
+            : guideForm.content_mode || (guideForm.package_path ? 'package' : 'markdown')
       const payload = {
         asset_id: guideForm.asset_id.trim(),
+        name: guideName,
         kind: guideForm.kind,
         stage: '',
         task: '',
         version: guideForm.version,
         status: guideForm.status,
         content: guideForm.content,
-        content_mode: contentSource.value === 'text' ? 'text' : 'markdown',
+        content_mode: contentMode,
       }
       if (guideForm.id) await api.put(`/org/guides/${guideForm.id}`, payload)
       else await api.post('/org/guides', payload)
@@ -1198,6 +1252,7 @@ function fillSensorForm(record: any) {
   Object.assign(sensorForm, {
     id: record.id,
     asset_id: record.asset_id,
+    name: record.name || (record.asset_id || '').slice(0, 20),
     kind: record.kind || 'sensor.rule',
     version: record.version || '1.0.0',
     status: record.status || 'draft',
@@ -1225,6 +1280,7 @@ function resetSensorForm() {
   Object.assign(sensorForm, {
     id: null,
     asset_id: '',
+    name: '',
     kind: 'sensor.rule',
     version: '1.0.0',
     status: 'draft',
@@ -1261,9 +1317,15 @@ async function saveSensor() {
     message.warning('请填写 Asset ID')
     return Promise.reject()
   }
+  const sensorName = (sensorForm.name || '').trim() || sensorForm.asset_id.trim().slice(0, 20)
+  if (sensorName.length > 20) {
+    message.warning('名称不能超过 20 个字')
+    return Promise.reject()
+  }
   const ct = normalizeCheckType(sensorForm.check_type)
   const payload = {
     asset_id: sensorForm.asset_id,
+    name: sensorName,
     kind: ct === 'human' ? 'sensor.human' : sensorForm.kind,
     stage: '',
     task: '',
@@ -1297,6 +1359,17 @@ onMounted(load)
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+}
+.asset-id {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.88);
+  line-height: 1.35;
+}
+.asset-name {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.3;
+  margin-top: 2px;
 }
 .kind-grid {
   display: grid;

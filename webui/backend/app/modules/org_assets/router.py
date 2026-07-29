@@ -67,6 +67,7 @@ class StageTaskIn(BaseModel):
 
 class GuideIn(BaseModel):
     asset_id: str
+    name: str = ""
     kind: str = "guide.skill"
     stage: str = ""
     task: str = ""
@@ -74,6 +75,18 @@ class GuideIn(BaseModel):
     status: str = "draft"
     content: str = ""
     content_mode: str = "markdown"  # text|markdown|package
+
+
+ASSET_NAME_MAX = 20
+
+
+def _normalize_asset_name(name: str | None, asset_id: str) -> str:
+    cleaned = (name or "").strip()
+    if len(cleaned) > ASSET_NAME_MAX:
+        raise HTTPException(400, f"名称不能超过 {ASSET_NAME_MAX} 个字")
+    if cleaned:
+        return cleaned
+    return (asset_id or "").strip()[:ASSET_NAME_MAX]
 
 
 class GuideFromGithubIn(BaseModel):
@@ -183,6 +196,7 @@ def _parse_repo_or_400(repo: str) -> tuple[str, str]:
 
 class SensorIn(BaseModel):
     asset_id: str
+    name: str = ""
     kind: str = "sensor.rule"
     stage: str = ""
     task: str = ""
@@ -203,6 +217,7 @@ def _sensor_row_fields(body: SensorIn) -> dict[str, Any]:
         data["check_type"] = "human"
     if data.get("check_type") == "human":
         data["kind"] = "sensor.human"
+    data["name"] = _normalize_asset_name(data.get("name"), data.get("asset_id") or "")
     data["content"] = lean_sensor_content(data.get("content") or "")
     data["triggers_json"] = json.dumps(normalize_triggers(body.triggers), ensure_ascii=False)
     data["scope_json"] = json.dumps(normalize_scope(body.scope), ensure_ascii=False)
@@ -552,6 +567,7 @@ def create_guide(body: GuideIn, session: SessionDep, _user: CurrentUser, org_id:
     row = Guide(
         org_id=org_id,
         asset_id=body.asset_id,
+        name=_normalize_asset_name(body.name, body.asset_id),
         kind=body.kind,
         stage=body.stage,
         task=body.task,
@@ -577,6 +593,7 @@ def update_guide(guide_id: int, body: GuideIn, session: SessionDep, _user: Curre
         raise HTTPException(400, f"unsupported guide kind: {body.kind}")
     mode = body.content_mode if body.content_mode in ("text", "markdown", "package") else "markdown"
     row.asset_id = body.asset_id
+    row.name = _normalize_asset_name(body.name, body.asset_id)
     row.kind = body.kind
     row.stage = body.stage
     row.task = body.task
@@ -600,6 +617,7 @@ async def upload_guide(
     session: SessionDep,
     _user: CurrentUser,
     asset_id: str = Form(...),
+    name: str = Form(""),
     kind: str = Form("guide.skill"),
     stage: str = Form(""),
     task: str = Form(""),
@@ -636,6 +654,7 @@ async def upload_guide(
         row = Guide(org_id=org_id)
 
     row.asset_id = asset_id.strip()
+    row.name = _normalize_asset_name(name, row.asset_id)
     row.kind = kind
     row.stage = stage
     row.task = task
@@ -746,6 +765,7 @@ def _install_guide_from_github(
     content = _pick_primary_content(file_map, kind)
 
     row.asset_id = aid
+    row.name = _normalize_asset_name(getattr(row, "name", None) or "", aid)
     row.kind = kind
     row.stage = ""
     row.task = ""

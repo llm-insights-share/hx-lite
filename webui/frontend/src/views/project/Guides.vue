@@ -32,7 +32,11 @@
     </a-form>
     <a-table :dataSource="filteredRows" :columns="columns" row-key="id">
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'status'">
+        <template v-if="column.key === 'asset'">
+          <div class="asset-id">{{ record.asset_id }}</div>
+          <div class="asset-name">{{ record.name || '—' }}</div>
+        </template>
+        <template v-else-if="column.key === 'status'">
           <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
         </template>
         <template v-else-if="column.key === 'source'">
@@ -89,6 +93,15 @@
       <a-form layout="vertical">
         <a-form-item label="Asset ID" required>
           <a-input v-model:value="form.asset_id" :disabled="readonly || !!form.id" />
+        </a-form-item>
+        <a-form-item label="名称" required>
+          <a-input
+            v-model:value="form.name"
+            :maxlength="20"
+            show-count
+            placeholder="不超过 20 字"
+            :disabled="readonly"
+          />
         </a-form-item>
         <a-form-item label="Version">
           <a-input v-model:value="form.version" style="width: 160px" :disabled="readonly" />
@@ -160,6 +173,7 @@ const saving = ref(false)
 const form = reactive<any>({
   id: null,
   asset_id: '',
+  name: '',
   kind: 'guide.skill',
   version: '1.0.0',
   status: 'draft',
@@ -239,7 +253,7 @@ const filteredRows = computed(() => {
 })
 
 const columns = [
-  { title: 'Asset', dataIndex: 'asset_id' },
+  { title: 'Asset', key: 'asset' },
   { title: 'Kind', dataIndex: 'kind', width: 130 },
   { title: 'Stage', key: 'stage', width: 120 },
   { title: 'Task', key: 'task', width: 180 },
@@ -360,6 +374,7 @@ function resetForm() {
   Object.assign(form, {
     id: null,
     asset_id: '',
+    name: '',
     kind: 'guide.skill',
     version: '1.0.0',
     status: 'draft',
@@ -409,6 +424,7 @@ async function fillFromRecord(record: any) {
   Object.assign(form, {
     id: data.id,
     asset_id: data.asset_id,
+    name: data.name || (data.asset_id || '').slice(0, 20),
     kind: data.kind || 'guide.skill',
     version: data.version || '1.0.0',
     status: data.status || 'draft',
@@ -502,10 +518,16 @@ async function save() {
     message.warning('请填写 Asset ID')
     return Promise.reject()
   }
+  const name = (form.name || '').trim() || form.asset_id.trim().slice(0, 20)
+  if (name.length > 20) {
+    message.warning('名称不能超过 20 个字')
+    return Promise.reject()
+  }
   saving.value = true
   try {
     const payload = {
       asset_id: form.asset_id.trim(),
+      name,
       kind: form.kind,
       content: form.content,
       status: form.status,
@@ -555,6 +577,17 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+}
+.asset-id {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.88);
+  line-height: 1.35;
+}
+.asset-name {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.3;
+  margin-top: 2px;
 }
 .row-actions {
   display: inline-flex;

@@ -35,7 +35,7 @@
                   <a-radio-button value="edit">编辑</a-radio-button>
                   <a-radio-button value="preview">预览</a-radio-button>
                 </a-radio-group>
-                <span class="path-hint">→ `.cursor/commands/{{ current.slash_name }}.md` · Hub `commands/`</span>
+                <span class="path-hint">Hub `commands/{{ current.slash_name }}.md` · 同步后投影到各 IDE（如 `.cursor/commands/`、`.qoder/commands/`）</span>
               </div>
               <template v-if="commandMode === 'edit'">
                 <a-form layout="vertical">
@@ -59,7 +59,7 @@
                   <a-radio-button value="edit">编辑</a-radio-button>
                   <a-radio-button value="preview">预览</a-radio-button>
                 </a-radio-group>
-                <span class="path-hint">→ `.cursor/skills/{{ current.slash_name }}/SKILL.md` · Hub `skill-shells/`</span>
+                <span class="path-hint">Hub `skill-shells/{{ current.slash_name }}/SKILL.md` · 同步后投影到各 IDE（如 `.cursor/skills/`、`.trae/skills/`、`.qoder/skills/`）</span>
               </div>
               <template v-if="skillMode === 'edit'">
                 <a-form layout="vertical">

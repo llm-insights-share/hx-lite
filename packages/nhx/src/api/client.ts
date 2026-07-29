@@ -114,15 +114,50 @@ export async function submitArtifact(
   },
 ): Promise<unknown> {
   const abs = path.resolve(opts.filePath);
-  if (!fs.existsSync(abs)) throw new Error(`file not found: ${abs}`);
-  const blob = new Blob([fs.readFileSync(abs)]);
+  if (!fs.existsSync(abs)) throw new Error(`path not found: ${abs}`);
+
   const form = new FormData();
   form.set("project_id", String(opts.projectId));
   form.set("name", opts.name);
   form.set("stage", opts.stage || "");
   form.set("task", opts.task || "");
   form.set("note", opts.note || "");
-  form.set("file", blob, path.basename(abs));
+
+  const skipDir = new Set([".git", "node_modules", ".nhx", "__pycache__", ".DS_Store"]);
+  const skipFile = new Set([".DS_Store", "Thumbs.db"]);
+
+  function walk(dir: string, base: string): { abs: string; rel: string }[] {
+    const out: { abs: string; rel: string }[] = [];
+    for (const name of fs.readdirSync(dir)) {
+      if (skipDir.has(name) || skipFile.has(name)) continue;
+      const full = path.join(dir, name);
+      const st = fs.statSync(full);
+      if (st.isDirectory()) {
+        if (skipDir.has(name)) continue;
+        out.push(...walk(full, base));
+      } else if (st.isFile()) {
+        const rel = path.relative(base, full).split(path.sep).join("/");
+        out.push({ abs: full, rel });
+      }
+    }
+    return out;
+  }
+
+  const st = fs.statSync(abs);
+  if (st.isDirectory()) {
+    const entries = walk(abs, abs);
+    if (!entries.length) throw new Error(`directory has no uploadable files: ${abs}`);
+    for (const e of entries) {
+      const blob = new Blob([fs.readFileSync(e.abs)]);
+      form.append("files", blob, path.basename(e.abs));
+      form.append("relative_paths", e.rel);
+    }
+  } else if (st.isFile()) {
+    const blob = new Blob([fs.readFileSync(abs)]);
+    form.set("file", blob, path.basename(abs));
+  } else {
+    throw new Error(`unsupported path type: ${abs}`);
+  }
 
   const res = await fetch(`${apiRoot(apiBase)}/api/artifacts`, {
     method: "POST",

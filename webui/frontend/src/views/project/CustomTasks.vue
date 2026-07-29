@@ -158,12 +158,17 @@ const filteredRows = computed(() => {
   return rows.value.filter((r) => r.stage === stageFilter.value)
 })
 const guideOpts = computed(() =>
-  options.value.guides.map((g) => ({ value: g.asset_id, label: `${g.asset_id} (${g.kind})` })),
+  options.value.guides.map((g) => ({
+    value: g.asset_id,
+    label: g.name ? `${g.asset_id} — ${g.name}` : `${g.asset_id} (${g.kind})`,
+  })),
 )
 const sensorOpts = computed(() =>
   options.value.sensors.map((s) => ({
     value: s.asset_id,
-    label: `${s.asset_id}${s.check_type ? ` · ${s.check_type}` : ''}`,
+    label: s.name
+      ? `${s.asset_id} — ${s.name}`
+      : `${s.asset_id}${s.check_type ? ` · ${s.check_type}` : ''}`,
   })),
 )
 

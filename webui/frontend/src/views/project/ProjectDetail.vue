@@ -18,6 +18,40 @@
       <a-descriptions-item label="GitHub">{{ project.github_repo || '—' }}</a-descriptions-item>
     </a-descriptions>
 
+    <a-card title="GitHub 配置" style="margin-top: 16px" size="small">
+      <p class="gh-hint">与组织 Hub 推送独立；用于本项目仓库同步。账号/Token 可与组织不同。</p>
+      <a-form layout="vertical" style="max-width: 640px">
+        <a-form-item label="仓库">
+          <a-input v-model:value="ghForm.github_repo" placeholder="https://github.com/org/project.git" />
+        </a-form-item>
+        <a-form-item label="分支">
+          <a-input v-model:value="ghForm.github_branch" placeholder="main" />
+        </a-form-item>
+        <a-form-item label="读写 Token（PAT）">
+          <a-input-password
+            v-model:value="ghForm.github_token"
+            :placeholder="
+              project.github_token_configured ? '已配置，留空则不修改' : '未配置，可填写项目专用 PAT'
+            "
+          />
+          <div class="gh-hint" style="margin-top: 4px">
+            状态：{{ project.github_token_configured ? '已配置项目 Token' : '未配置（同步将回退组织/环境 Token）' }}
+            <a-button
+              v-if="project.github_token_configured"
+              type="link"
+              size="small"
+              danger
+              :loading="ghClearing"
+              @click="clearGithubToken"
+            >
+              清除 Token
+            </a-button>
+          </div>
+        </a-form-item>
+        <a-button type="primary" :loading="ghSaving" @click="saveGithub">保存 GitHub 配置</a-button>
+      </a-form>
+    </a-card>
+
     <a-card title="成员管理" style="margin-top: 16px" size="small">
       <a-space style="margin-bottom: 12px">
         <a-select
@@ -72,7 +106,11 @@
                   :pagination="false"
                 >
                   <template #bodyCell="{ column, record }">
-                    <template v-if="column.key === 'content'">
+                    <template v-if="column.key === 'asset'">
+                      <div class="asset-id">{{ record.asset_id }}</div>
+                      <div class="asset-name">{{ record.name || '—' }}</div>
+                    </template>
+                    <template v-else-if="column.key === 'content'">
                       <a-button type="link" size="small" @click="preview(record)">查看</a-button>
                     </template>
                   </template>
@@ -88,7 +126,11 @@
                   :pagination="false"
                 >
                   <template #bodyCell="{ column, record }">
-                    <template v-if="column.key === 'content'">
+                    <template v-if="column.key === 'asset'">
+                      <div class="asset-id">{{ record.asset_id }}</div>
+                      <div class="asset-name">{{ record.name || '—' }}</div>
+                    </template>
+                    <template v-else-if="column.key === 'content'">
                       <a-button type="link" size="small" @click="preview(record)">查看</a-button>
                     </template>
                   </template>
@@ -116,7 +158,11 @@
             :pagination="{ pageSize: 10 }"
           >
             <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'bound'">
+              <template v-if="column.key === 'asset'">
+                <div class="asset-id">{{ record.asset_id }}</div>
+                <div class="asset-name">{{ record.name || '—' }}</div>
+              </template>
+              <template v-else-if="column.key === 'bound'">
                 <a-tag :color="record.bound ? 'blue' : 'default'">{{ record.bound ? '任务绑定' : '库资产' }}</a-tag>
               </template>
               <template v-else-if="column.key === 'content'">
@@ -134,7 +180,11 @@
             :pagination="{ pageSize: 10 }"
           >
             <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'bound'">
+              <template v-if="column.key === 'asset'">
+                <div class="asset-id">{{ record.asset_id }}</div>
+                <div class="asset-name">{{ record.name || '—' }}</div>
+              </template>
+              <template v-else-if="column.key === 'bound'">
                 <a-tag :color="record.bound ? 'blue' : 'default'">{{ record.bound ? '任务绑定' : '库资产' }}</a-tag>
               </template>
               <template v-else-if="column.key === 'content'">
@@ -199,6 +249,13 @@ const drawerBody = ref('')
 const logDetailOpen = ref(false)
 const logDetailBody = ref('')
 const memberForm = reactive({ user_id: undefined as number | undefined, role: 'member' })
+const ghForm = reactive({
+  github_repo: '',
+  github_branch: 'main',
+  github_token: '',
+})
+const ghSaving = ref(false)
+const ghClearing = ref(false)
 const roleOpts = ['project_owner', 'approver', 'member'].map((v) => ({ value: v, label: v }))
 const userOpts = computed(() =>
   users.value.map((u) => ({ value: u.id, label: `${u.display_name || u.username} (${u.username})` })),
@@ -233,17 +290,17 @@ const mCols = [
   { title: '操作', key: 'action', width: 90 },
 ]
 const guideCols = [
-  { title: 'ID', dataIndex: 'asset_id' },
+  { title: 'ID', key: 'asset' },
   { title: 'Kind', dataIndex: 'kind', width: 120 },
   { title: '内容', key: 'content', width: 70 },
 ]
 const sensorCols = [
-  { title: 'ID', dataIndex: 'asset_id' },
+  { title: 'ID', key: 'asset' },
   { title: 'Check', dataIndex: 'check_type', width: 80 },
   { title: '内容', key: 'content', width: 70 },
 ]
 const assetGuideCols = [
-  { title: 'ID', dataIndex: 'asset_id' },
+  { title: 'ID', key: 'asset' },
   { title: 'Kind', dataIndex: 'kind', width: 140 },
   { title: 'Stage', dataIndex: 'stage', width: 90 },
   { title: 'Task', dataIndex: 'task', width: 160 },
@@ -251,7 +308,7 @@ const assetGuideCols = [
   { title: '内容', key: 'content', width: 70 },
 ]
 const assetSensorCols = [
-  { title: 'ID', dataIndex: 'asset_id' },
+  { title: 'ID', key: 'asset' },
   { title: 'Check', dataIndex: 'check_type', width: 90 },
   { title: 'Kind', dataIndex: 'kind', width: 140 },
   { title: 'Stage', dataIndex: 'stage', width: 90 },
@@ -302,7 +359,57 @@ async function load() {
   project.value = p.data
   users.value = u.data
   activeStages.value = (p.data.hx_config?.stages || []).map((s: any) => s.id)
+  ghForm.github_repo = p.data.github_repo || ''
+  ghForm.github_branch = p.data.github_branch || 'main'
+  ghForm.github_token = ''
   await loadLogs()
+}
+
+async function saveGithub() {
+  if (!project.value) return
+  ghSaving.value = true
+  try {
+    const payload: Record<string, unknown> = {
+      name: project.value.name,
+      profile_key: project.value.profile_key,
+      description: project.value.description || '',
+      github_repo: ghForm.github_repo,
+      github_branch: ghForm.github_branch || 'main',
+    }
+    if (ghForm.github_token.trim()) {
+      payload.github_token = ghForm.github_token.trim()
+    }
+    const { data } = await api.put(`/projects/${route.params.id}`, payload)
+    project.value = { ...project.value, ...data }
+    ghForm.github_token = ''
+    message.success('GitHub 配置已保存')
+  } catch (e: any) {
+    message.error(e?.response?.data?.detail || '保存失败')
+  } finally {
+    ghSaving.value = false
+  }
+}
+
+async function clearGithubToken() {
+  if (!project.value) return
+  ghClearing.value = true
+  try {
+    const { data } = await api.put(`/projects/${route.params.id}`, {
+      name: project.value.name,
+      profile_key: project.value.profile_key,
+      description: project.value.description || '',
+      github_repo: ghForm.github_repo,
+      github_branch: ghForm.github_branch || 'main',
+      clear_github_token: true,
+    })
+    project.value = { ...project.value, ...data }
+    ghForm.github_token = ''
+    message.success('已清除项目 GitHub Token')
+  } catch (e: any) {
+    message.error(e?.response?.data?.detail || '清除失败')
+  } finally {
+    ghClearing.value = false
+  }
 }
 
 async function initConfig() {
@@ -386,6 +493,17 @@ onMounted(load)
   color: #64748b;
   font-size: 12px;
 }
+.asset-id {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.88);
+  line-height: 1.35;
+}
+.asset-name {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.3;
+  margin-top: 2px;
+}
 .sub-label {
   font-size: 12px;
   font-weight: 600;
@@ -402,5 +520,11 @@ onMounted(load)
   border-radius: 6px;
   max-height: calc(100vh - 120px);
   overflow: auto;
+}
+.gh-hint {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-bottom: 12px;
 }
 </style>

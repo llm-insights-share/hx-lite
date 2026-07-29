@@ -64,11 +64,11 @@
 
       <a-tabs v-model:activeKey="detailTab">
         <a-tab-pane key="command" tab="Command Shell">
-          <div class="path-hint">→ `.cursor/commands/{{ current.slash_name }}.md`</div>
+          <div class="path-hint">安装后按目标 IDE 投影为斜杠命令（Cursor / Qoder / Claude 等）</div>
           <div class="md-preview" v-html="commandPreviewHtml" />
         </a-tab-pane>
         <a-tab-pane key="skill" tab="Skill Shell">
-          <div class="path-hint">→ `.cursor/skills/{{ current.slash_name }}/SKILL.md`</div>
+          <div class="path-hint">安装后按目标 IDE 投影为 Skill（Cursor / Trae / Qoder 等）</div>
           <div class="md-preview" v-html="skillPreviewHtml" />
         </a-tab-pane>
       </a-tabs>

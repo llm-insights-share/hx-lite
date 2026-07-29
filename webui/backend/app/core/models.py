@@ -68,6 +68,7 @@ class Guide(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     org_id: str = Field(default="default", index=True)
     asset_id: str = Field(index=True)
+    name: str = ""
     # guide.skill|template|constraint|exemplar|scaffold|codemod|glossary|capability (+ legacy workflow/command)
     kind: str = "guide.skill"
     stage: str = ""
@@ -86,6 +87,7 @@ class Sensor(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     org_id: str = Field(default="default", index=True)
     asset_id: str = Field(index=True)
+    name: str = ""
     kind: str = "sensor.rule"  # sensor.rule|sensor.shell|sensor.inline|sensor.rubric
     stage: str = ""
     task: str = ""
@@ -155,9 +157,11 @@ class Project(SQLModel, table=True):
     profile_key: str = "standard"
     github_repo: str = ""
     github_branch: str = "main"
+    github_token: str = ""  # project-scoped PAT; prefer over org token for project sync
     current_stage: str = "req"
     description: str = ""
     config_json: str = "{}"
+    created_by_user_id: Optional[int] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
 
@@ -174,6 +178,7 @@ class ProjectGuide(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     project_id: int = Field(index=True)
     asset_id: str = Field(index=True)
+    name: str = ""
     kind: str = "guide.skill"
     stage: str = ""
     task: str = ""
@@ -189,6 +194,7 @@ class ProjectSensor(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     project_id: int = Field(index=True)
     asset_id: str = Field(index=True)
+    name: str = ""
     kind: str = "sensor.rule"
     stage: str = ""
     task: str = ""
@@ -230,6 +236,8 @@ class ArtifactVersion(SQLModel, table=True):
     storage_path: str
     note: str = ""
     created_by: str = ""
+    content_kind: str = "file"  # file|package
+    files_json: str = "[]"
     created_at: datetime = Field(default_factory=utcnow)
 
 

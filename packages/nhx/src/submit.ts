@@ -2,7 +2,7 @@ import { submitArtifact } from "./api/client.js";
 import { loadConfig, loadCredentials, resolveApiBase } from "./config.js";
 
 export async function runSubmit(opts: {
-  file: string;
+  path: string;
   name: string;
   stage?: string;
   task?: string;
@@ -18,7 +18,7 @@ export async function runSubmit(opts: {
   return submitArtifact(api, creds.access_token, {
     projectId: cfg.project_id,
     name: opts.name,
-    filePath: opts.file,
+    filePath: opts.path,
     stage: opts.stage,
     task: opts.task,
     note: opts.note,

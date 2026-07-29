@@ -59,6 +59,7 @@ def build_project_hx_view(session: Session, project: Project) -> dict[str, Any]:
     for g in guides:
         item = {
             "asset_id": g.asset_id,
+            "name": (getattr(g, "name", None) or g.asset_id or "")[:20],
             "kind": g.kind,
             "stage": g.stage,
             "task": g.task,
@@ -82,6 +83,7 @@ def build_project_hx_view(session: Session, project: Project) -> dict[str, Any]:
             scope = []
         item = {
             "asset_id": s.asset_id,
+            "name": (getattr(s, "name", None) or s.asset_id or "")[:20],
             "kind": s.kind,
             "stage": s.stage,
             "task": s.task,
@@ -368,6 +370,7 @@ def materialize_project_config(session: Session, project: Project, org_id: str =
             ProjectGuide(
                 project_id=project.id,
                 asset_id=g.asset_id,
+                name=(getattr(g, "name", None) or g.asset_id or "")[:20],
                 kind=g.kind,
                 stage=g.stage or "",
                 task=g.task or "",
@@ -383,6 +386,7 @@ def materialize_project_config(session: Session, project: Project, org_id: str =
             ProjectSensor(
                 project_id=project.id,
                 asset_id=s.asset_id,
+                name=(getattr(s, "name", None) or s.asset_id or "")[:20],
                 kind=s.kind,
                 stage=s.stage or "",
                 task=s.task or "",
@@ -464,6 +468,7 @@ def _guide_fields_equal(pg: ProjectGuide, g: Guide) -> bool:
     return (
         (pg.content or "") == (g.content or "")
         and (pg.kind or "") == (g.kind or "")
+        and (pg.name or "") == ((getattr(g, "name", None) or g.asset_id or "")[:20])
         and (pg.status or "draft") == (getattr(g, "status", None) or "draft")
         and (pg.version or "1.0.0") == (getattr(g, "version", None) or "1.0.0")
         and (pg.content_mode or "markdown") == (getattr(g, "content_mode", None) or "markdown")
@@ -478,6 +483,7 @@ def _sensor_fields_equal(ps: ProjectSensor, s: Sensor) -> bool:
     return (
         (ps.content or "") == (s.content or "")
         and (ps.kind or "") == (s.kind or "")
+        and (ps.name or "") == ((getattr(s, "name", None) or s.asset_id or "")[:20])
         and (ps.check_type or "") == (s.check_type or "")
         and _norm_json_list(getattr(ps, "triggers_json", None)) == _norm_json_list(org_triggers)
         and _norm_json_list(getattr(ps, "scope_json", None)) == _norm_json_list(org_scope)
@@ -488,6 +494,7 @@ def _sensor_fields_equal(ps: ProjectSensor, s: Sensor) -> bool:
 
 def _apply_guide_from_org(pg: ProjectGuide, g: Guide) -> None:
     pg.kind = g.kind
+    pg.name = (getattr(g, "name", None) or g.asset_id or "")[:20]
     pg.stage = g.stage or ""
     pg.task = g.task or ""
     pg.content = g.content or ""
@@ -499,6 +506,7 @@ def _apply_guide_from_org(pg: ProjectGuide, g: Guide) -> None:
 
 def _apply_sensor_from_org(ps: ProjectSensor, s: Sensor) -> None:
     ps.kind = s.kind
+    ps.name = (getattr(s, "name", None) or s.asset_id or "")[:20]
     ps.stage = s.stage or ""
     ps.task = s.task or ""
     ps.check_type = s.check_type
@@ -562,6 +570,7 @@ def sync_project_from_org(session: Session, project: Project, org_id: str = "def
                 ProjectGuide(
                     project_id=project.id,
                     asset_id=og.asset_id,
+                    name=(getattr(og, "name", None) or og.asset_id or "")[:20],
                     kind=og.kind,
                     stage=og.stage or "",
                     task=og.task or "",
@@ -599,6 +608,7 @@ def sync_project_from_org(session: Session, project: Project, org_id: str = "def
                 ProjectSensor(
                     project_id=project.id,
                     asset_id=osen.asset_id,
+                    name=(getattr(osen, "name", None) or osen.asset_id or "")[:20],
                     kind=osen.kind,
                     stage=osen.stage or "",
                     task=osen.task or "",

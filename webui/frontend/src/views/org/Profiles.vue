@@ -12,6 +12,7 @@
         <template v-else-if="column.key === 'action'">
           <a-space>
             <a-button size="small" @click="openDetail(record)">详情</a-button>
+            <a-button size="small" @click="openClone(record)">复制</a-button>
             <template v-if="!isBuiltin(record.key)">
               <a-button size="small" type="primary" ghost @click="openEdit(record)">修改</a-button>
               <a-popconfirm title="确认删除？" @confirm="remove(record.id)">
@@ -25,7 +26,7 @@
 
     <a-modal
       v-model:open="openForm"
-      :title="form.id ? '修改 Profile' : '新建 Profile'"
+      :title="formModalTitle"
       :confirmLoading="saving"
       width="720px"
       @ok="save"
@@ -128,6 +129,7 @@ const openForm = ref(false)
 const openDetailModal = ref(false)
 const saving = ref(false)
 const detail = ref<any>(null)
+const cloneSourceKey = ref('')
 const form = reactive({
   id: null as number | null,
   key: '',
@@ -142,8 +144,14 @@ const columns = [
   { title: '标题', dataIndex: 'title' },
   { title: '描述', dataIndex: 'description' },
   { title: 'Stages', key: 'stages' },
-  { title: '操作', key: 'action', width: 220 },
+  { title: '操作', key: 'action', width: 280 },
 ]
+
+const formModalTitle = computed(() => {
+  if (form.id) return '修改 Profile'
+  if (cloneSourceKey.value) return '复制 Profile'
+  return '新建 Profile'
+})
 
 const catalogByStage = computed(() => {
   const map: Record<string, { value: string; label: string }[]> = {}
@@ -172,6 +180,7 @@ function taskLabel(stage: string, tid: string) {
 }
 
 function resetForm() {
+  cloneSourceKey.value = ''
   Object.assign(form, {
     id: null,
     key: '',
@@ -198,6 +207,7 @@ function openCreate() {
 }
 
 function openEdit(record: any) {
+  cloneSourceKey.value = ''
   const tasks: Record<string, string[]> = {}
   for (const [stage, tids] of Object.entries(record.tasks || {})) {
     tasks[stage] = [...(tids as string[])]
@@ -206,6 +216,24 @@ function openEdit(record: any) {
     id: record.id,
     key: record.key,
     title: record.title || '',
+    description: record.description || '',
+    stages: [...(record.stages || [])],
+    tasks,
+  })
+  openForm.value = true
+}
+
+function openClone(record: any) {
+  const sourceKey = record.key || ''
+  const tasks: Record<string, string[]> = {}
+  for (const [stage, tids] of Object.entries(record.tasks || {})) {
+    tasks[stage] = [...(tids as string[])]
+  }
+  cloneSourceKey.value = sourceKey
+  Object.assign(form, {
+    id: null,
+    key: `${sourceKey}-clone`,
+    title: `${record.title || sourceKey}-clone`,
     description: record.description || '',
     stages: [...(record.stages || [])],
     tasks,
@@ -249,8 +277,13 @@ function removeTask(stage: string, idx: number) {
 }
 
 async function save() {
-  if (!form.key?.trim()) {
+  const key = form.key?.trim() || ''
+  if (!key) {
     message.warning('请填写 Key')
+    return Promise.reject()
+  }
+  if (cloneSourceKey.value && key === cloneSourceKey.value) {
+    message.warning('请修改 Key（不能与源 Profile 相同）')
     return Promise.reject()
   }
   saving.value = true
@@ -260,15 +293,16 @@ async function save() {
       tasks[s] = [...(form.tasks[s] || [])]
     }
     const payload = {
-      key: form.key.trim(),
+      key,
       title: form.title,
       description: form.description,
       stages: form.stages,
       tasks,
     }
-    if (form.id) await api.put(`/org/profiles/${form.id}`, payload)
+    const isEdit = !!form.id
+    if (isEdit) await api.put(`/org/profiles/${form.id}`, payload)
     else await api.post('/org/profiles', payload)
-    message.success(form.id ? '已更新' : '已创建')
+    message.success(isEdit ? '已更新' : cloneSourceKey.value ? '已复制' : '已创建')
     openForm.value = false
     resetForm()
     await load()
