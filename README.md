@@ -1,37 +1,25 @@
-# hx-lite (WebUI + nhx)
+# hx-lite <img src="webui/frontend/public/logo.svg" alt="hx-lite logo" width="32" />
 
-当前仓库已收敛为 **WebUI 管理端 + nhx 交付 CLI** 主线；历史能力与文档已迁移到 `archive/` 目录。
+团队可控交付工作台：**WebUI 做组织治理，nhx 做本地执行**。
 
-## hx-lite 要解决的问题
+你可以把 `hx-lite` 理解为一条完整交付链路：组织在 WebUI 里维护规则和资产，项目通过 `nhx` 同步并落地执行，整个过程可追踪、可复盘、可复用。
 
-AI 编程工具提升了生成速度，但在团队落地时常见几个断点：
+## 为什么有 hx-lite
 
-- 需求与实现脱节：任务目标、边界条件、验收标准难以稳定传递
-- 组织资产难复用：规范、模板、检查规则散落，项目间难同步
-- 交付过程不可追溯：谁在什么时候做了什么改动，缺少统一日志视角
-- 多角色协作成本高：产品、架构、开发、测试在同一变更链路上缺少公共控制面
-- 本地执行与组织治理割裂：开发侧操作和组织侧资产管理没有一体化闭环
+AI 编程工具让“写代码”更快了，但团队交付仍常在这些地方断掉：
 
-hx-lite 的目标是把这些问题收敛到一套可执行链路：组织在 WebUI 治理资产，项目通过同步保持一致，成员用 nhx 在本地按同一规则交付。
+- 需求传递不稳定：目标、边界、验收口径在链路中逐步失真
+- 组织资产分散：规范、模板、检查规则难以跨项目复用
+- 过程不可审计：关键决策与变更缺少统一记录与回看能力
+- 多角色协作割裂：产品、架构、开发、测试缺少共享控制面
 
-## 设计理念
+`hx-lite` 的做法不是继续堆命令，而是建立统一闭环：
 
-围绕“可控交付”而不是“更多命令”，核心理念如下：
+- WebUI 负责组织级资产治理（Stage/Task、Guide、Sensor）
+- `nhx` 负责项目级同步、投影与本地执行
+- 组织治理与开发执行共用同一套规则和状态
 
-- **组织中心化**：组织侧维护 Profile、Stage/Task、Guide/Sensor，项目侧只做初始化与增量同步
-- **前后端双闭环**：WebUI 负责治理与可视化；nhx 负责执行与投影，二者通过 API 和项目配置打通
-- **资产优先于流程**：优先定义可复用资产（Guide/Sensor），流程只是资产的编排与承载
-- **默认可审计**：关键写操作记录项目操作日志，保证变更可追踪、可复盘
-- **渐进式收敛**：保留历史能力到 `archive/`，当前主线只保留 WebUI + nhx，降低维护复杂度
-- **适配真实团队协作**：支持组织治理与项目交付分层，兼顾管理视角与开发者本地体验
-
-## 文档入口
-
-- [WebUI + nhx 使用手册](docs/webui-nhx-usage.zh-CN.md)
-- [nhx 使用手册](packages/nhx/README.md)
-- [架构说明（key-design）](docs/architecture/key-design.zh-CN.md)
-
-## 快速开始
+## 快速开始（30 秒）
 
 ```bash
 git clone https://github.com/llm-insights-share/hx-lite.git
@@ -41,9 +29,29 @@ npm install -g .
 nhx --help
 ```
 
-## WebUI 启动
+启动 WebUI：
 
 ```bash
 cd webui
 ./start.sh
 ```
+
+## 设计理念
+
+- **组织中心化**：组织统一维护交付资产，项目侧只做初始化和增量同步。
+- **资产优先**：先定义可复用的 Guide/Sensor，再由流程编排承载。
+- **执行可追踪**：关键操作留痕，支持审计、复盘与责任定位。
+- **前后端闭环**：WebUI 治理与 `nhx` 执行通过 API 与项目配置联动。
+- **渐进式演进**：主线保持精简，历史能力归档到 `archive/`。
+
+## 推荐阅读顺序
+
+1. [WebUI + nhx 使用手册](docs/webui-nhx-usage.zh-CN.md)
+2. [nhx CLI 手册](packages/nhx/README.md)
+3. [nhx 命令详解](docs/nhx-command-manual.zh-CN.md)
+4. [交付系统设计说明（HTML）](docs/harness-delivery-system-design.html)
+
+## 仓库边界说明
+
+- 当前主线：`WebUI + nhx`
+- 历史能力与旧文档：`archive/`
