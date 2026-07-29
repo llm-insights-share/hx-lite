@@ -16,6 +16,7 @@ class User(SQLModel, table=True):
     username: str = Field(index=True, unique=True)
     email: str = Field(default="", index=True, unique=True)
     display_name: str = ""
+    avatar_url: str = ""
     hashed_password: str
     is_active: bool = True
     roles: str = "member"  # comma-separated: org_admin,project_owner,approver,member

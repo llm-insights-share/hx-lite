@@ -1,11 +1,14 @@
 import re
+import time
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 from sqlmodel import select
 
+from app.core.config import get_settings
 from app.core.deps import CurrentUser, SessionDep, require_roles
 from app.core.models import ProjectMember, User
 from app.core.security import create_access_token, hash_password, verify_password
@@ -28,6 +31,7 @@ class UserOut(BaseModel):
     username: str
     email: str
     display_name: str
+    avatar_url: str = ""
     roles: str
     is_active: bool = True
 
@@ -49,6 +53,20 @@ class AdminCreateUserIn(BaseModel):
 
 class ActiveIn(BaseModel):
     is_active: bool
+
+
+class RolesIn(BaseModel):
+    roles: str
+
+
+class ProfileUpdateIn(BaseModel):
+    display_name: str = ""
+    email: str
+
+
+class PasswordUpdateIn(BaseModel):
+    old_password: str
+    new_password: str = Field(min_length=6)
 
 
 def _normalize_email(email: str) -> str:
@@ -105,6 +123,7 @@ def _user_out(u: User) -> UserOut:
         username=u.username,
         email=u.email or "",
         display_name=u.display_name,
+        avatar_url=u.avatar_url or "",
         roles=u.roles,
         is_active=u.is_active,
     )
@@ -142,6 +161,67 @@ def register(body: RegisterIn, session: SessionDep):
 
 @router.get("/me", response_model=UserOut)
 def me(user: CurrentUser):
+    return _user_out(user)
+
+
+@router.patch("/me/profile", response_model=UserOut)
+def update_me_profile(body: ProfileUpdateIn, session: SessionDep, user: CurrentUser):
+    email_n = _normalize_email(body.email)
+    if not EMAIL_RE.match(email_n):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    _ensure_unique(session, email=email_n, username=user.username, exclude_id=user.id)
+    user.email = email_n
+    user.display_name = (body.display_name or "").strip() or user.username
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return _user_out(user)
+
+
+@router.patch("/me/password")
+def update_me_password(body: PasswordUpdateIn, session: SessionDep, user: CurrentUser):
+    if not verify_password(body.old_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="旧密码错误")
+    if len(body.new_password or "") < 6:
+        raise HTTPException(status_code=400, detail="新密码至少 6 位")
+    user.hashed_password = hash_password(body.new_password)
+    session.add(user)
+    session.commit()
+    return {"ok": True}
+
+
+@router.post("/me/avatar", response_model=UserOut)
+async def upload_me_avatar(session: SessionDep, user: CurrentUser, file: UploadFile = File(...)):
+    ctype = (file.content_type or "").lower()
+    if ctype not in {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"}:
+        raise HTTPException(status_code=400, detail="仅支持 png/jpg/webp/gif 图片")
+    data = await file.read()
+    if len(data) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="头像大小不能超过 2MB")
+    ext_map = {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+    }
+    ext = ext_map.get(ctype, ".png")
+    settings = get_settings()
+    adir = settings.data_dir / "avatars"
+    adir.mkdir(parents=True, exist_ok=True)
+    # Remove stale avatar files for same user
+    for p in adir.glob(f"{user.id}.*"):
+        try:
+            p.unlink()
+        except Exception:
+            pass
+    target = adir / f"{user.id}{ext}"
+    Path(target).write_bytes(data)
+    # Cache-bust so browsers/Avatar reload when file content changes at same path
+    user.avatar_url = f"/avatars/{target.name}?v={int(time.time() * 1000)}"
+    session.add(user)
+    session.commit()
+    session.refresh(user)
     return _user_out(user)
 
 
@@ -186,6 +266,23 @@ def set_user_active(user_id: int, body: ActiveIn, session: SessionDep, admin: Or
         if _count_active_org_admins(session, exclude_id=user.id) < 1:
             raise HTTPException(status_code=400, detail="Cannot block the last org_admin")
     user.is_active = body.is_active
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return _user_out(user)
+
+
+@org_users_router.patch("/users/{user_id}/roles", response_model=UserOut)
+def set_user_roles(user_id: int, body: RolesIn, session: SessionDep, admin: OrgAdmin):
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    roles = ",".join(sorted(_role_set(body.roles))) or "member"
+    next_roles = _role_set(roles)
+    if "org_admin" not in next_roles and "org_admin" in _role_set(user.roles):
+        if _count_active_org_admins(session, exclude_id=user.id) < 1:
+            raise HTTPException(status_code=400, detail="Cannot remove the last org_admin")
+    user.roles = roles
     session.add(user)
     session.commit()
     session.refresh(user)

@@ -16,6 +16,7 @@
         </template>
         <template v-else-if="column.key === 'action'">
           <a-space>
+            <a-button size="small" @click="openRoleEdit(record)">角色</a-button>
             <a-button
               size="small"
               :disabled="record.id === auth.user?.id"
@@ -64,6 +65,27 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <a-modal
+      v-model:open="openRoleForm"
+      title="修改角色"
+      :confirmLoading="savingRole"
+      @ok="saveRoles"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="用户">
+          <a-input :value="roleForm.username" disabled />
+        </a-form-item>
+        <a-form-item label="角色">
+          <a-select
+            v-model:value="roleForm.roles"
+            mode="multiple"
+            style="width: 100%"
+            :options="roleOpts"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -87,13 +109,20 @@ const auth = useAuthStore()
 const router = useRouter()
 const loading = ref(false)
 const saving = ref(false)
+const savingRole = ref(false)
 const rows = ref<Row[]>([])
 const openForm = ref(false)
+const openRoleForm = ref(false)
 const form = reactive({
   email: '',
   username: '',
   display_name: '',
   password: '',
+  roles: ['member'] as string[],
+})
+const roleForm = reactive({
+  id: 0,
+  username: '',
   roles: ['member'] as string[],
 })
 
@@ -171,6 +200,29 @@ async function save() {
     message.error(e?.response?.data?.detail || '创建失败')
   } finally {
     saving.value = false
+  }
+}
+
+function openRoleEdit(record: Row) {
+  roleForm.id = record.id
+  roleForm.username = record.username
+  roleForm.roles = roleList(record.roles)
+  openRoleForm.value = true
+}
+
+async function saveRoles() {
+  savingRole.value = true
+  try {
+    await api.patch(`/org/users/${roleForm.id}/roles`, {
+      roles: (roleForm.roles.length ? roleForm.roles : ['member']).join(','),
+    })
+    message.success('角色已更新')
+    openRoleForm.value = false
+    await load()
+  } catch (e: any) {
+    message.error(e?.response?.data?.detail || '更新角色失败')
+  } finally {
+    savingRole.value = false
   }
 }
 

@@ -16,6 +16,7 @@ from app.core.models import (
     Artifact,
     ArtifactVersion,
     AssetSubmission,
+    CommandShell,
     Guide,
     OrgSettings,
     Project,
@@ -49,6 +50,45 @@ router = APIRouter(prefix="/api", tags=["project"])
 def _slugify(name: str) -> str:
     s = re.sub(r"[^a-zA-Z0-9\-]+", "-", name.strip().lower()).strip("-")
     return s or "project"
+
+
+def _role_set(roles: str) -> set[str]:
+    return {r.strip() for r in (roles or "").split(",") if r.strip()}
+
+
+def _is_org_admin(user: User) -> bool:
+    return "org_admin" in _role_set(user.roles)
+
+
+def _can_create_project(user: User) -> bool:
+    roles = _role_set(user.roles)
+    return "org_admin" in roles or "project_owner" in roles
+
+
+def _require_project_member(session: SessionDep, user: User, project_id: int) -> None:
+    if _is_org_admin(user):
+        return
+    member = session.exec(
+        select(ProjectMember).where(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == user.id,
+        )
+    ).first()
+    if not member:
+        raise HTTPException(403, "未加入该项目，请联系项目管理者添加成员")
+
+
+def _require_project_manager(session: SessionDep, user: User, project_id: int) -> None:
+    if _is_org_admin(user):
+        return
+    member = session.exec(
+        select(ProjectMember).where(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == user.id,
+        )
+    ).first()
+    if not member or member.role != "project_owner":
+        raise HTTPException(403, "仅项目管理者可执行该操作")
 
 
 class ProjectIn(BaseModel):
@@ -150,8 +190,13 @@ def project_dashboard(session: SessionDep, _user: CurrentUser) -> dict[str, Any]
 
 
 @router.get("/projects")
-def list_projects(session: SessionDep, _user: CurrentUser):
-    projects = session.exec(select(Project)).all()
+def list_projects(session: SessionDep, user: CurrentUser):
+    if _is_org_admin(user):
+        projects = session.exec(select(Project)).all()
+    else:
+        memberships = session.exec(select(ProjectMember).where(ProjectMember.user_id == user.id)).all()
+        pids = {m.project_id for m in memberships}
+        projects = [p for p in session.exec(select(Project)).all() if p.id in pids]
     out = []
     for p in projects:
         members = session.exec(select(ProjectMember).where(ProjectMember.project_id == p.id)).all()
@@ -172,6 +217,8 @@ def list_projects(session: SessionDep, _user: CurrentUser):
 
 @router.post("/projects")
 def create_project(body: ProjectIn, session: SessionDep, user: CurrentUser):
+    if not _can_create_project(user):
+        raise HTTPException(403, "仅组织管理者或项目管理者可新建项目")
     slug = body.slug or _slugify(body.name)
     if session.exec(select(Project).where(Project.slug == slug)).first():
         raise HTTPException(400, f"slug {slug} exists")
@@ -201,10 +248,11 @@ def create_project(body: ProjectIn, session: SessionDep, user: CurrentUser):
 
 
 @router.get("/projects/{project_id}")
-def get_project(project_id: int, session: SessionDep, _user: CurrentUser):
+def get_project(project_id: int, session: SessionDep, user: CurrentUser):
     row = session.get(Project, project_id)
     if not row:
         raise HTTPException(404)
+    _require_project_member(session, user, project_id)
     members = session.exec(select(ProjectMember).where(ProjectMember.project_id == project_id)).all()
     member_view = []
     for m in members:
@@ -232,6 +280,7 @@ def update_project(project_id: int, body: ProjectIn, session: SessionDep, user: 
     row = session.get(Project, project_id)
     if not row:
         raise HTTPException(404)
+    _require_project_member(session, user, project_id)
     before = {
         "name": row.name,
         "profile_key": row.profile_key,
@@ -260,10 +309,11 @@ def update_project(project_id: int, body: ProjectIn, session: SessionDep, user: 
 
 
 @router.delete("/projects/{project_id}")
-def delete_project(project_id: int, session: SessionDep, _user: CurrentUser):
+def delete_project(project_id: int, session: SessionDep, user: CurrentUser):
     row = session.get(Project, project_id)
     if not row:
         raise HTTPException(404)
+    _require_project_manager(session, user, project_id)
     session.delete(row)
     session.commit()
     return {"ok": True}
@@ -274,6 +324,7 @@ def init_config(project_id: int, session: SessionDep, user: CurrentUser):
     row = session.get(Project, project_id)
     if not row:
         raise HTTPException(404)
+    _require_project_member(session, user, project_id)
     try:
         config = materialize_project_config(session, row)
     except ValueError as exc:
@@ -296,6 +347,7 @@ def sync_config(project_id: int, session: SessionDep, user: CurrentUser):
     row = session.get(Project, project_id)
     if not row:
         raise HTTPException(404)
+    _require_project_member(session, user, project_id)
     try:
         result = sync_project_from_org(session, row)
     except ValueError as exc:
@@ -324,12 +376,13 @@ def sync_config(project_id: int, session: SessionDep, user: CurrentUser):
 def list_operation_logs(
     project_id: int,
     session: SessionDep,
-    _user: CurrentUser,
+    user: CurrentUser,
     limit: int = 50,
     offset: int = 0,
 ):
     if not session.get(Project, project_id):
         raise HTTPException(404)
+    _require_project_member(session, user, project_id)
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
     rows = session.exec(
@@ -353,7 +406,8 @@ def list_operation_logs(
 
 
 @router.get("/projects/{project_id}/members")
-def list_members(project_id: int, session: SessionDep, _user: CurrentUser):
+def list_members(project_id: int, session: SessionDep, user: CurrentUser):
+    _require_project_member(session, user, project_id)
     members = session.exec(select(ProjectMember).where(ProjectMember.project_id == project_id)).all()
     out = []
     for m in members:
@@ -374,6 +428,7 @@ def list_members(project_id: int, session: SessionDep, _user: CurrentUser):
 def add_member(project_id: int, body: MemberIn, session: SessionDep, user: CurrentUser):
     if not session.get(Project, project_id):
         raise HTTPException(404, "project not found")
+    _require_project_manager(session, user, project_id)
     target = session.get(User, body.user_id)
     if not target:
         raise HTTPException(404, "user not found")
@@ -410,6 +465,7 @@ def add_member(project_id: int, body: MemberIn, session: SessionDep, user: Curre
 
 @router.delete("/projects/{project_id}/members/{member_id}")
 def remove_member(project_id: int, member_id: int, session: SessionDep, user: CurrentUser):
+    _require_project_manager(session, user, project_id)
     row = session.get(ProjectMember, member_id)
     if not row or row.project_id != project_id:
         raise HTTPException(404)
@@ -533,7 +589,8 @@ def _enrich_project_guide(
 
 
 @router.get("/projects/{project_id}/guides")
-def list_project_guides(project_id: int, session: SessionDep, _user: CurrentUser):
+def list_project_guides(project_id: int, session: SessionDep, user: CurrentUser):
+    _require_project_member(session, user, project_id)
     rows = session.exec(select(ProjectGuide).where(ProjectGuide.project_id == project_id)).all()
     org_by_aid = {
         g.asset_id: g for g in session.exec(select(Guide).where(Guide.org_id == "default")).all()
@@ -545,7 +602,8 @@ def list_project_guides(project_id: int, session: SessionDep, _user: CurrentUser
 
 
 @router.get("/projects/{project_id}/guides/{guide_id}")
-def get_project_guide(project_id: int, guide_id: int, session: SessionDep, _user: CurrentUser):
+def get_project_guide(project_id: int, guide_id: int, session: SessionDep, user: CurrentUser):
+    _require_project_member(session, user, project_id)
     row = session.get(ProjectGuide, guide_id)
     if not row or row.project_id != project_id:
         raise HTTPException(404)
@@ -556,6 +614,7 @@ def get_project_guide(project_id: int, guide_id: int, session: SessionDep, _user
 
 @router.post("/projects/{project_id}/guides")
 def create_project_guide(project_id: int, body: ProjectAssetIn, session: SessionDep, user: CurrentUser):
+    _require_project_member(session, user, project_id)
     row = ProjectGuide(
         project_id=project_id,
         asset_id=body.asset_id,
@@ -586,6 +645,7 @@ def create_project_guide(project_id: int, body: ProjectAssetIn, session: Session
 def update_project_guide(
     project_id: int, guide_id: int, body: ProjectGuideUpdateIn, session: SessionDep, user: CurrentUser
 ):
+    _require_project_member(session, user, project_id)
     row = session.get(ProjectGuide, guide_id)
     if not row or row.project_id != project_id:
         raise HTTPException(404)
@@ -621,6 +681,7 @@ def update_project_guide(
 
 @router.delete("/projects/{project_id}/guides/{guide_id}")
 def delete_project_guide(project_id: int, guide_id: int, session: SessionDep, user: CurrentUser):
+    _require_project_member(session, user, project_id)
     row = session.get(ProjectGuide, guide_id)
     if not row or row.project_id != project_id:
         raise HTTPException(404)
@@ -642,7 +703,8 @@ def delete_project_guide(project_id: int, guide_id: int, session: SessionDep, us
 
 
 @router.get("/projects/{project_id}/sensors")
-def list_project_sensors(project_id: int, session: SessionDep, _user: CurrentUser):
+def list_project_sensors(project_id: int, session: SessionDep, user: CurrentUser):
+    _require_project_member(session, user, project_id)
     rows = session.exec(select(ProjectSensor).where(ProjectSensor.project_id == project_id)).all()
     _, sensor_bindings = _project_asset_bindings(session, project_id)
     out = []
@@ -678,6 +740,7 @@ def list_project_sensors(project_id: int, session: SessionDep, _user: CurrentUse
 
 @router.post("/projects/{project_id}/sensors")
 def create_project_sensor(project_id: int, body: ProjectAssetIn, session: SessionDep, user: CurrentUser):
+    _require_project_member(session, user, project_id)
     from app.domain.sensor_specs import lean_sensor_content, normalize_scope, normalize_triggers
 
     check_type = "human" if body.check_type in ("human", "manual") else body.check_type
@@ -711,6 +774,7 @@ def create_project_sensor(project_id: int, body: ProjectAssetIn, session: Sessio
 def update_project_sensor(
     project_id: int, sensor_id: int, body: ProjectAssetIn, session: SessionDep, user: CurrentUser
 ):
+    _require_project_member(session, user, project_id)
     from app.domain.sensor_specs import lean_sensor_content, normalize_scope, normalize_triggers
 
     row = session.get(ProjectSensor, sensor_id)
@@ -742,6 +806,7 @@ def update_project_sensor(
 
 @router.delete("/projects/{project_id}/sensors/{sensor_id}")
 def delete_project_sensor(project_id: int, sensor_id: int, session: SessionDep, user: CurrentUser):
+    _require_project_member(session, user, project_id)
     row = session.get(ProjectSensor, sensor_id)
     if not row or row.project_id != project_id:
         raise HTTPException(404)
@@ -763,7 +828,7 @@ def delete_project_sensor(project_id: int, sensor_id: int, session: SessionDep, 
 def export_project(
     project_ref: str,
     session: SessionDep,
-    _user: CurrentUser,
+    user: CurrentUser,
     stages: Optional[str] = None,
 ):
     """Read-only HX export for nhx CLI. stages=req,dev filters stages (comma-separated)."""
@@ -774,12 +839,14 @@ def export_project(
         project = session.exec(select(Project).where(Project.slug == project_ref)).first()
     if not project:
         raise HTTPException(404, "project not found")
+    _require_project_member(session, user, project.id)
     stage_list = [s.strip() for s in (stages or "").split(",") if s.strip()] or None
     return export_project_for_cli(session, project, stage_list)
 
 
 @router.get("/projects/{project_id}/tasks")
-def list_project_tasks(project_id: int, session: SessionDep, _user: CurrentUser):
+def list_project_tasks(project_id: int, session: SessionDep, user: CurrentUser):
+    _require_project_member(session, user, project_id)
     rows = session.exec(select(ProjectTask).where(ProjectTask.project_id == project_id)).all()
     return [
         {
@@ -792,11 +859,41 @@ def list_project_tasks(project_id: int, session: SessionDep, _user: CurrentUser)
     ]
 
 
-@router.get("/projects/{project_id}/custom-task-options")
-def custom_task_options(project_id: int, session: SessionDep, _user: CurrentUser, org_id: str = "default"):
+@router.get("/projects/{project_id}/shells")
+def list_project_shells(project_id: int, session: SessionDep, user: CurrentUser):
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404)
+    _require_project_member(session, user, project_id)
+    tasks = session.exec(select(ProjectTask).where(ProjectTask.project_id == project_id)).all()
+    org_shells = session.exec(select(CommandShell).where(CommandShell.org_id == "default")).all()
+    shell_map = {(s.stage or "", s.task or ""): s for s in org_shells}
+    rows: list[dict[str, Any]] = []
+    for t in tasks:
+        shell = shell_map.get((t.stage or "", t.task_id or ""))
+        rows.append(
+            {
+                "task_row_id": t.id,
+                "stage": t.stage or "",
+                "task_id": t.task_id or "",
+                "title": t.title or t.task_id or "",
+                "slash_name": (shell.slash_name if shell else "") or f"hx-{t.stage}-{(t.task_id or '').replace('_', '-')}",
+                "command_body": (shell.body if shell else "") or "",
+                "skill_body": (shell.appendix if shell else "") or "",
+                "description": (shell.description if shell else "") or "",
+                "source": "org",
+            }
+        )
+    rows_sorted = sorted(rows, key=lambda x: (x.get("stage", ""), x.get("task_id", "")))
+    return rows_sorted
+
+
+@router.get("/projects/{project_id}/custom-task-options")
+def custom_task_options(project_id: int, session: SessionDep, user: CurrentUser, org_id: str = "default"):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404)
+    _require_project_member(session, user, project_id)
     guides = session.exec(select(ProjectGuide).where(ProjectGuide.project_id == project_id)).all()
     sensors = session.exec(select(ProjectSensor).where(ProjectSensor.project_id == project_id)).all()
     return {
@@ -812,6 +909,7 @@ def custom_task_options(project_id: int, session: SessionDep, _user: CurrentUser
 
 @router.post("/projects/{project_id}/tasks")
 def create_project_task(project_id: int, body: CustomTaskIn, session: SessionDep, user: CurrentUser):
+    _require_project_member(session, user, project_id)
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404)
@@ -882,6 +980,7 @@ def create_project_task(project_id: int, body: CustomTaskIn, session: SessionDep
 def update_project_task(
     project_id: int, task_row_id: int, body: ProjectTaskUpdateIn, session: SessionDep, user: CurrentUser
 ):
+    _require_project_member(session, user, project_id)
     """Update guides/sensors (and optional title/required) for a project task — custom or profile."""
     row = session.get(ProjectTask, task_row_id)
     if not row or row.project_id != project_id:
@@ -922,6 +1021,7 @@ def update_project_task(
 
 @router.delete("/projects/{project_id}/tasks/{task_row_id}")
 def delete_project_task(project_id: int, task_row_id: int, session: SessionDep, user: CurrentUser):
+    _require_project_member(session, user, project_id)
     row = session.get(ProjectTask, task_row_id)
     if not row or row.project_id != project_id:
         raise HTTPException(404)
@@ -946,7 +1046,9 @@ def delete_project_task(project_id: int, task_row_id: int, session: SessionDep, 
 
 
 @router.get("/artifacts")
-def list_artifacts(session: SessionDep, _user: CurrentUser, project_id: Optional[int] = None):
+def list_artifacts(session: SessionDep, user: CurrentUser, project_id: Optional[int] = None):
+    if project_id is not None:
+        _require_project_member(session, user, project_id)
     q = select(Artifact)
     if project_id is not None:
         q = q.where(Artifact.project_id == project_id)
@@ -971,6 +1073,7 @@ async def create_artifact(
 ):
     if not session.get(Project, project_id):
         raise HTTPException(404, "project not found")
+    _require_project_member(session, user, project_id)
     art = session.exec(
         select(Artifact).where(Artifact.project_id == project_id, Artifact.name == name)
     ).first()
@@ -1023,12 +1126,14 @@ def _next_ticket_no(session: SessionDep) -> str:
 @router.get("/tickets")
 def list_tickets(
     session: SessionDep,
-    _user: CurrentUser,
+    user: CurrentUser,
     status: Optional[str] = None,
     project_id: Optional[int] = None,
     stage: Optional[str] = None,
     task: Optional[str] = None,
 ):
+    if project_id is not None:
+        _require_project_member(session, user, project_id)
     q = select(Ticket)
     if status:
         q = q.where(Ticket.status == status)
@@ -1050,6 +1155,7 @@ def list_tickets(
 def create_ticket(body: TicketIn, session: SessionDep, user: CurrentUser):
     if not session.get(Project, body.project_id):
         raise HTTPException(404, "project not found")
+    _require_project_member(session, user, body.project_id)
     row = Ticket(
         ticket_no=_next_ticket_no(session),
         project_id=body.project_id,
@@ -1072,12 +1178,13 @@ def create_ticket(body: TicketIn, session: SessionDep, user: CurrentUser):
 @router.get("/tickets/approval-status")
 def ticket_approval_status(
     session: SessionDep,
-    _user: CurrentUser,
+    user: CurrentUser,
     project_id: int,
     stage: str,
     task: str,
 ):
     """Used by nhx human sensors: is there an approved human-check ticket for this stage/task?"""
+    _require_project_member(session, user, project_id)
     rows = session.exec(
         select(Ticket).where(
             Ticket.project_id == project_id,
@@ -1190,6 +1297,7 @@ def sync_project_github(project_id: int, session: SessionDep, user: CurrentUser,
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404)
+    _require_project_member(session, user, project_id)
     if not project.github_repo:
         raise HTTPException(400, "project github_repo not configured")
     settings = get_settings()
@@ -1233,14 +1341,20 @@ def sync_project_github(project_id: int, session: SessionDep, user: CurrentUser,
 
 
 @router.get("/projects/{project_id}/github/jobs")
-def list_sync_jobs(project_id: int, session: SessionDep, _user: CurrentUser):
+def list_sync_jobs(project_id: int, session: SessionDep, user: CurrentUser):
+    _require_project_member(session, user, project_id)
     rows = session.exec(select(SyncJob).where(SyncJob.project_id == project_id)).all()
     return sorted(rows, key=lambda r: r.id or 0, reverse=True)
 
 
 @router.get("/github/sync-overview")
-def sync_overview(session: SessionDep, _user: CurrentUser):
-    projects = session.exec(select(Project)).all()
+def sync_overview(session: SessionDep, user: CurrentUser):
+    if _is_org_admin(user):
+        projects = session.exec(select(Project)).all()
+    else:
+        memberships = session.exec(select(ProjectMember).where(ProjectMember.user_id == user.id)).all()
+        pids = {m.project_id for m in memberships}
+        projects = [p for p in session.exec(select(Project)).all() if p.id in pids]
     out = []
     for p in projects:
         jobs = session.exec(select(SyncJob).where(SyncJob.project_id == p.id)).all()
@@ -1274,18 +1388,20 @@ class AssetSubmissionCreateIn(BaseModel):
 
 
 @router.get("/projects/{project_id}/promotable-assets")
-def get_promotable_assets(project_id: int, session: SessionDep, _user: CurrentUser):
+def get_promotable_assets(project_id: int, session: SessionDep, user: CurrentUser):
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404)
+    _require_project_member(session, user, project_id)
     return list_promotable(session, project)
 
 
 @router.get("/projects/{project_id}/asset-submissions")
-def list_project_asset_submissions(project_id: int, session: SessionDep, _user: CurrentUser):
+def list_project_asset_submissions(project_id: int, session: SessionDep, user: CurrentUser):
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404)
+    _require_project_member(session, user, project_id)
     rows = session.exec(
         select(AssetSubmission).where(AssetSubmission.project_id == project_id)
     ).all()
@@ -1303,6 +1419,7 @@ def post_project_asset_submission(
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(404)
+    _require_project_member(session, user, project_id)
     sub = create_submission(
         session,
         project,

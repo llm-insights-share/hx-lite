@@ -7,6 +7,7 @@ export type AuthUser = {
   username: string
   email: string
   display_name: string
+  avatar_url?: string
   roles: string
   is_active?: boolean
 }
@@ -19,6 +20,10 @@ export const useAuthStore = defineStore('auth', () => {
   const isOrgAdmin = computed(() => {
     const roles = (user.value?.roles || '').split(',').map((r) => r.trim())
     return roles.includes('org_admin')
+  })
+  const isProjectManager = computed(() => {
+    const roles = (user.value?.roles || '').split(',').map((r) => r.trim())
+    return roles.includes('org_admin') || roles.includes('project_owner')
   })
 
   async function login(username: string, password: string) {
@@ -62,5 +67,5 @@ export const useAuthStore = defineStore('auth', () => {
     clearToken()
   }
 
-  return { token, user, isLoggedIn, isOrgAdmin, login, register, fetchMe, logout }
+  return { token, user, isLoggedIn, isOrgAdmin, isProjectManager, login, register, fetchMe, logout }
 })

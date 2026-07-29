@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 
 from app.core.config import get_settings
@@ -71,6 +72,9 @@ def create_app() -> FastAPI:
     app.include_router(org_users_router)
     app.include_router(org_router)
     app.include_router(project_router)
+    avatar_dir = settings.data_dir / "avatars"
+    avatar_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/avatars", StaticFiles(directory=str(avatar_dir)), name="avatars")
 
     @app.get("/api/health")
     def health():

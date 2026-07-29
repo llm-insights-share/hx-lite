@@ -93,6 +93,9 @@ export async function exportProject(
   });
   if (!res.ok) {
     const text = await res.text();
+    if (res.status === 403) {
+      throw new Error("尚未被项目管理者加入项目，无法获取项目资产");
+    }
     throw new Error(`export failed (${res.status}): ${text}`);
   }
   return (await res.json()) as ExportPayload;

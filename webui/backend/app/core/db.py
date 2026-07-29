@@ -27,6 +27,9 @@ def _migrate_sqlite() -> None:
             if "email" not in unames:
                 conn.execute(text('ALTER TABLE "user" ADD COLUMN email VARCHAR DEFAULT \'\''))
                 conn.commit()
+            if "avatar_url" not in unames:
+                conn.execute(text('ALTER TABLE "user" ADD COLUMN avatar_url VARCHAR DEFAULT \'\''))
+                conn.commit()
             # backfill empty emails from username
             empties = conn.execute(
                 text("SELECT id, username FROM \"user\" WHERE email IS NULL OR email = ''")
