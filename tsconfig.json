@@ -12,13 +12,7 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
-    "baseUrl": ".",
-    "paths": {
-      "@harnessx/core": ["packages/core/src/index.ts"],
-      "@harnessx/core/*": ["packages/core/src/*"],
-      "@harnessx/sensors": ["packages/sensors/src/index.ts"],
-      "@harnessx/adapters": ["packages/adapters/src/index.ts"]
-    }
+    "baseUrl": "."
   },
-  "include": ["packages/**/*.ts", "bin/**/*.ts"]
+  "include": ["packages/nhx/src/**/*.ts", "bin/**/*.ts"]
 }

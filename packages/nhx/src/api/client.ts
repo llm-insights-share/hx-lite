@@ -219,7 +219,7 @@ export async function approvalStatus(
   const url = `${apiRoot(apiBase)}/api/tickets/approval-status?project_id=${projectId}&stage=${encodeURIComponent(stage)}&task=${encodeURIComponent(task)}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`approval-status failed (${res.status}): ${await res.text()}`);
-  return res.json();
+  return (await res.json()) as { approved: boolean; pending: boolean; approved_tickets: any[]; pending_tickets: any[] };
 }
 
 export async function health(apiBase: string): Promise<boolean> {
