@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "prd-generator": {
+      "source": "/Users/zhangjr/apps/LlmDemo/hx-project/hx-lite/prd-generator",
+      "sourceType": "local",
+      "computedHash": "62054e98ff8e41743fc765b2b04b6017805313bf0e57e42af2803ed1051da10f"
+    }
+  }
+}

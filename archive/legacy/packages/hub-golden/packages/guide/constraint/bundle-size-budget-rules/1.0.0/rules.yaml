@@ -1,7 +1,0 @@
-budgets:
-  - id: main-bundle-kb
-    metric: main_bundle_kb
-    max: 350
-  - id: route-chunk-kb
-    metric: route_chunk_kb
-    max: 120

@@ -1,3 +1,0 @@
-check: inline
-expr: "approval.prd == true"
-gate: prd

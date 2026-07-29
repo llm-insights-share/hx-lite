@@ -1,6 +1,0 @@
-rules:
-  - id: risk-tier-documented
-    status: trial
-    check: Risk tier is documented for the change
-    pattern: "\b(risk tier|high risk|low risk)\b"
-    severity: info

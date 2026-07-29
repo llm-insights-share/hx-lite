@@ -1,8 +1,0 @@
-id: spec-validate
-kind: sensor.script
-stage: dev
-task: propose
-version: 0.1.0
-origin: builtin
-status: enforced
-execution: computational

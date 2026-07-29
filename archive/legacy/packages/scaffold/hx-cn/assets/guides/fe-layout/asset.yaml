@@ -1,8 +1,0 @@
-id: fe-layout
-kind: guide.skill
-category: architecture
-version: 1.0.0
-origin: builtin
-status: enforced
-execution: inferential
-stage: dev

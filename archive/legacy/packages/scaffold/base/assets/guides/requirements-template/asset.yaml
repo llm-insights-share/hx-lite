@@ -1,9 +1,0 @@
-id: requirements-template
-kind: guide.template
-category: behaviour
-version: 1.0.0
-origin: builtin
-status: enforced
-execution: computational
-stage: dev
-task: propose

@@ -1,6 +1,0 @@
-rules:
-  - id: empty-state-defined
-    status: trial
-    check: UI changes mention empty/error states
-    pattern: "\b(empty state|error state|loading state)\b"
-    severity: warn

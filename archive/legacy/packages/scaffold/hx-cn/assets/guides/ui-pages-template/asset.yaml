@@ -1,9 +1,0 @@
-id: ui-pages-template
-kind: guide.template
-category: architecture
-version: 1.0.0
-origin: builtin
-status: enforced
-execution: computational
-stage: dev
-task: design

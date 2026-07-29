@@ -1,8 +1,0 @@
-id: prd-writing
-kind: guide.skill
-category: behaviour
-version: 1.0.0
-origin: builtin
-status: enforced
-execution: inferential
-stage: dev
