@@ -185,6 +185,30 @@ def _migrate_sqlite() -> None:
                         )
                 conn.commit()
 
+        # project task sort_order
+        ptrows = conn.execute(text("PRAGMA table_info(projecttask)")).fetchall()
+        if ptrows:
+            ptnames = {r[1] for r in ptrows}
+            if "sort_order" not in ptnames:
+                conn.execute(text("ALTER TABLE projecttask ADD COLUMN sort_order INTEGER DEFAULT 0"))
+                conn.commit()
+                groups = conn.execute(
+                    text("SELECT project_id, stage FROM projecttask GROUP BY project_id, stage")
+                ).fetchall()
+                for project_id, stage in groups:
+                    rows = conn.execute(
+                        text(
+                            "SELECT id FROM projecttask WHERE project_id=:p AND stage=:s ORDER BY id"
+                        ),
+                        {"p": project_id, "s": stage},
+                    ).fetchall()
+                    for idx, (rid,) in enumerate(rows):
+                        conn.execute(
+                            text("UPDATE projecttask SET sort_order=:ord WHERE id=:id"),
+                            {"ord": idx, "id": rid},
+                        )
+                conn.commit()
+
         # project creator + github token
         prows = conn.execute(text("PRAGMA table_info(project)")).fetchall()
         if prows:

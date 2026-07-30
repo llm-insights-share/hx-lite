@@ -50,7 +50,7 @@ def _sensor_map(session: Session, org_id: str) -> dict[str, Sensor]:
 
 def build_project_hx_view(session: Session, project: Project) -> dict[str, Any]:
     """Structured view: stages → tasks → bound guides/sensors, plus full asset library."""
-    tasks = session.exec(select(ProjectTask).where(ProjectTask.project_id == project.id)).all()
+    tasks = list(session.exec(select(ProjectTask).where(ProjectTask.project_id == project.id)).all())
     guides = session.exec(select(ProjectGuide).where(ProjectGuide.project_id == project.id)).all()
     sensors = session.exec(select(ProjectSensor).where(ProjectSensor.project_id == project.id)).all()
 
@@ -97,12 +97,16 @@ def build_project_hx_view(session: Session, project: Project) -> dict[str, Any]:
 
     bound_guide_ids: set[str] = set()
     bound_sensor_ids: set[str] = set()
-    stage_order: list[str] = []
     by_stage: dict[str, list[dict[str, Any]]] = {}
-    for t in tasks:
-        if t.stage not in by_stage:
-            stage_order.append(t.stage)
-            by_stage[t.stage] = []
+    for t in sorted(
+        tasks,
+        key=lambda r: (
+            0 if not r.custom else 1,
+            getattr(r, "sort_order", 0) or 0,
+            r.id or 0,
+        ),
+    ):
+        by_stage.setdefault(t.stage, [])
         gids = json.loads(t.guides_json or "[]")
         sids = json.loads(t.sensors_json or "[]")
         bound_guide_ids.update(gids)
@@ -147,7 +151,8 @@ def build_project_hx_view(session: Session, project: Project) -> dict[str, Any]:
     for item in sensors_flat:
         item["bound"] = item["asset_id"] in bound_sensor_ids
 
-    stages = [{"id": sid, "tasks": by_stage[sid]} for sid in stage_order]
+    stage_order = _resolve_project_stage_order(session, project, list(by_stage.keys()))
+    stages = [{"id": sid, "tasks": by_stage[sid]} for sid in stage_order if sid in by_stage]
     return {
         "profile": project.profile_key,
         "stages": stages,
@@ -162,6 +167,32 @@ def build_project_hx_view(session: Session, project: Project) -> dict[str, Any]:
             "bound_sensors": len(bound_sensor_ids),
         },
     }
+
+
+def _resolve_project_stage_order(session: Session, project: Project, present: list[str]) -> list[str]:
+    """Prefer Profile.stages_json, then config_json.stages, then task-discovered order."""
+    preferred: list[str] = []
+    org_id = "default"
+    try:
+        cfg = json.loads(project.config_json or "{}")
+        if isinstance(cfg.get("org_id"), str) and cfg["org_id"]:
+            org_id = cfg["org_id"]
+    except json.JSONDecodeError:
+        cfg = {}
+    profile = session.exec(
+        select(Profile).where(Profile.org_id == org_id, Profile.key == project.profile_key)
+    ).first()
+    if profile and profile.stages_json:
+        try:
+            preferred = [s for s in json.loads(profile.stages_json or "[]") if isinstance(s, str)]
+        except json.JSONDecodeError:
+            preferred = []
+    if not preferred:
+        preferred = [s for s in (cfg.get("stages") or []) if isinstance(s, str)]
+    present_set = set(present)
+    ordered = [s for s in preferred if s in present_set]
+    ordered.extend([s for s in present if s not in ordered])
+    return ordered
 
 
 def export_project_for_cli(
@@ -410,6 +441,7 @@ def materialize_project_config(session: Session, project: Project, org_id: str =
             guides_json=json.dumps(guide_ids, ensure_ascii=False),
             sensors_json=json.dumps(sensor_ids, ensure_ascii=False),
             custom=False,
+            sort_order=getattr(t, "sort_order", 0) or 0,
         )
         session.add(pt)
         by_stage.setdefault(t.stage, []).append(
@@ -655,6 +687,7 @@ def sync_project_from_org(session: Session, project: Project, org_id: str = "def
         title = t.title_zh or t.title_en or t.task_id
         guides_json = json.dumps(guide_ids, ensure_ascii=False)
         sensors_json = json.dumps(sensor_ids, ensure_ascii=False)
+        sort_order = getattr(t, "sort_order", 0) or 0
         pt = non_custom_by_key.get(key)
         label = f"{t.stage}/{t.task_id}"
         if not pt:
@@ -669,6 +702,7 @@ def sync_project_from_org(session: Session, project: Project, org_id: str = "def
                     guides_json=guides_json,
                     sensors_json=sensors_json,
                     custom=False,
+                    sort_order=sort_order,
                 )
             )
             changes["tasks"]["added"].append(label)
@@ -678,12 +712,14 @@ def sync_project_from_org(session: Session, project: Project, org_id: str = "def
                 or bool(pt.required) != bool(t.required)
                 or _norm_json_list(pt.guides_json) != _norm_json_list(guides_json)
                 or _norm_json_list(pt.sensors_json) != _norm_json_list(sensors_json)
+                or (getattr(pt, "sort_order", 0) or 0) != sort_order
             ):
                 pt.title = title
                 pt.required = t.required
                 pt.guides_json = guides_json
                 pt.sensors_json = sensors_json
                 pt.suite = ""
+                pt.sort_order = sort_order
                 session.add(pt)
                 changes["tasks"]["updated"].append(label)
 

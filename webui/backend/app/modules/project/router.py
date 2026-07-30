@@ -947,7 +947,15 @@ def export_project(
 @router.get("/projects/{project_id}/tasks")
 def list_project_tasks(project_id: int, session: SessionDep, user: CurrentUser):
     _require_project_member(session, user, project_id)
-    rows = session.exec(select(ProjectTask).where(ProjectTask.project_id == project_id)).all()
+    rows = list(session.exec(select(ProjectTask).where(ProjectTask.project_id == project_id)).all())
+    rows.sort(
+        key=lambda r: (
+            r.stage or "",
+            0 if not r.custom else 1,
+            getattr(r, "sort_order", 0) or 0,
+            r.id or 0,
+        )
+    )
     return [
         {
             **r.model_dump(),

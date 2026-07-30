@@ -216,6 +216,7 @@ class ProjectTask(SQLModel, table=True):
     guides_json: str = "[]"
     sensors_json: str = "[]"
     custom: bool = True
+    sort_order: int = 0
 
 
 class Artifact(SQLModel, table=True):
@@ -315,6 +316,19 @@ class ProjectOperationLog(SQLModel, table=True):
     actor_user_id: Optional[int] = Field(default=None, index=True)
     actor_username: str = ""
     action: str = Field(index=True)  # init_config|sync_config|member_add|...
+    summary: str = ""
+    detail_json: str = Field(default="{}", sa_column=Column(Text))
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class OrgOperationLog(SQLModel, table=True):
+    """Audit trail for organization-side HX / settings / user operations."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    org_id: str = Field(default="default", index=True)
+    actor_user_id: Optional[int] = Field(default=None, index=True)
+    actor_username: str = ""
+    action: str = Field(index=True)  # bootstrap|guide_create|task_update|...
     summary: str = ""
     detail_json: str = Field(default="{}", sa_column=Column(Text))
     created_at: datetime = Field(default_factory=utcnow)

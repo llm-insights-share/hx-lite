@@ -2,14 +2,20 @@
   <div>
     <div class="head">
       <h2>Guide & Sensor</h2>
-      <div>
+      <div class="head-actions">
+        <a-input-search
+          v-model:value="listFilter"
+          allow-clear
+          :placeholder="listFilterPlaceholder"
+          style="width: 280px"
+        />
         <a-button type="primary" @click="openCreateGuide">+ Guide</a-button>
-        <a-button style="margin-left: 8px" @click="openCreateSensor">+ Sensor</a-button>
+        <a-button @click="openCreateSensor">+ Sensor</a-button>
       </div>
     </div>
-    <a-tabs>
+    <a-tabs v-model:activeKey="activeTab">
       <a-tab-pane key="g" tab="Guides">
-        <a-table :dataSource="guides" :columns="gCols" row-key="id" :pagination="{ pageSize: 10 }">
+        <a-table :dataSource="filteredGuides" :columns="gCols" row-key="id" :pagination="{ pageSize: 10 }">
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'asset'">
               <div class="asset-id">{{ record.asset_id }}</div>
@@ -68,7 +74,7 @@
         </a-table>
       </a-tab-pane>
       <a-tab-pane key="s" tab="Sensors">
-        <a-table :dataSource="sensors" :columns="sCols" row-key="id" :pagination="{ pageSize: 10 }">
+        <a-table :dataSource="filteredSensors" :columns="sCols" row-key="id" :pagination="{ pageSize: 10 }">
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'asset'">
               <div class="asset-id">{{ record.asset_id }}</div>
@@ -426,24 +432,29 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <GuideViewModal v-model:open="guideViewOpen" :record="guideViewRecord" />
+    <SensorViewModal v-model:open="sensorViewOpen" :record="sensorViewRecord" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Modal, message } from 'ant-design-vue'
-import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import mammoth from 'mammoth'
 import * as XLSX from 'xlsx'
 import JSZip from 'jszip'
 import { api } from '../../api'
+import GuideViewModal from '../../components/org/GuideViewModal.vue'
+import SensorViewModal from '../../components/org/SensorViewModal.vue'
 import moreIcon from '../../assets/more.png'
 import {
   GUIDE_KIND_CARDS,
   guideKindCategory,
   guideKindIcon,
 } from '../../utils/guideKind'
+import { renderMarkdownDocument } from '../../utils/markdownDoc'
 import {
   CHECK_TYPE_OPTS,
   DEFAULT_TRIGGERS,
@@ -474,14 +485,20 @@ const ACTION_INLINE_MAX = 3
 
 const guides = ref<any[]>([])
 const sensors = ref<any[]>([])
+const activeTab = ref('g')
+const listFilter = ref('')
 const openGuide = ref(false)
 const openSensor = ref(false)
-const guideModalMode = ref<'create' | 'edit' | 'view'>('create')
-const sensorModalMode = ref<'create' | 'edit' | 'view'>('create')
+const guideViewOpen = ref(false)
+const guideViewRecord = ref<any | null>(null)
+const sensorViewOpen = ref(false)
+const sensorViewRecord = ref<any | null>(null)
+const guideModalMode = ref<'create' | 'edit'>('create')
+const sensorModalMode = ref<'create' | 'edit'>('create')
 const savingGuide = ref(false)
 const contentSource = ref<'view' | 'text' | 'markdown' | 'upload' | 'github'>('markdown')
-const guideReadonly = computed(() => guideModalMode.value === 'view')
-const sensorReadonly = computed(() => sensorModalMode.value === 'view')
+const guideReadonly = computed(() => false)
+const sensorReadonly = computed(() => false)
 const uploadMode = ref<'file' | 'folder'>('file')
 const uploadFileList = ref<{ file: File; rel: string; size: number }[]>([])
 const githubRepo = ref('')
@@ -507,6 +524,29 @@ const githubSkillOpts = computed(() =>
     label: s.path && s.path !== '.' ? `${s.id}  (${s.path})` : s.id,
   })),
 )
+
+const listFilterPlaceholder = computed(() =>
+  activeTab.value === 's' ? '按 Sensor ID 或名称筛选' : '按 Guide ID 或名称筛选',
+)
+
+function matchAssetFilter(record: any, q: string) {
+  if (!q) return true
+  const id = String(record?.asset_id || '').toLowerCase()
+  const name = String(record?.name || '').toLowerCase()
+  return id.includes(q) || name.includes(q)
+}
+
+const filteredGuides = computed(() => {
+  const q = listFilter.value.trim().toLowerCase()
+  if (!q) return guides.value
+  return guides.value.filter((g) => matchAssetFilter(g, q))
+})
+
+const filteredSensors = computed(() => {
+  const q = listFilter.value.trim().toLowerCase()
+  if (!q) return sensors.value
+  return sensors.value.filter((s) => matchAssetFilter(s, q))
+})
 
 const isMultiFilePackage = computed(() => {
   // Package mode: always use left tree + right preview when there is any file inventory.
@@ -579,16 +619,8 @@ const sensorForm = reactive({
   scope: [] as string[],
 })
 
-const guideModalTitle = computed(() => {
-  if (guideModalMode.value === 'view') return 'Guide 详情'
-  if (guideForm.id) return '编辑 Guide'
-  return '新建 Guide'
-})
-const sensorModalTitle = computed(() => {
-  if (sensorModalMode.value === 'view') return 'Sensor 详情'
-  if (sensorForm.id) return '编辑 Sensor'
-  return '新建 Sensor'
-})
+const guideModalTitle = computed(() => (guideForm.id ? '编辑 Guide' : '新建 Guide'))
+const sensorModalTitle = computed(() => (sensorForm.id ? '编辑 Sensor' : '新建 Sensor'))
 
 const cardKindSet = new Set(kindCards.map((k) => k.value))
 const legacyKind = computed(() =>
@@ -602,76 +634,6 @@ const mdPreviewHtml = computed(() => {
     return ''
   }
 })
-
-/** Parse leading YAML front matter between --- markers (skill SKILL.md formatter). */
-function parseYamlFrontMatter(src: string): { meta: Record<string, string>; body: string } {
-  const text = (src || '').replace(/^\uFEFF/, '')
-  if (!text.startsWith('---')) return { meta: {}, body: src }
-  const afterOpen = text.slice(3).replace(/^\r?\n/, '')
-  const endMatch = afterOpen.match(/\r?\n---[ \t]*(?:\r?\n|$)/)
-  if (!endMatch || endMatch.index === undefined) return { meta: {}, body: src }
-  const yamlBlock = afterOpen.slice(0, endMatch.index)
-  const body = afterOpen.slice(endMatch.index + endMatch[0].length)
-  const meta: Record<string, string> = {}
-  let currentKey = ''
-  for (const line of yamlBlock.split(/\r?\n/)) {
-    if (!line.trim()) continue
-    const kv = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/)
-    if (kv && !/^[ \t]/.test(line)) {
-      currentKey = kv[1]
-      let val = kv[2] ?? ''
-      if (
-        (val.startsWith('"') && val.endsWith('"') && val.length >= 2) ||
-        (val.startsWith("'") && val.endsWith("'") && val.length >= 2)
-      ) {
-        val = val.slice(1, -1)
-      }
-      if (val === '>' || val === '|' || val === '>-' || val === '|-') {
-        meta[currentKey] = ''
-      } else {
-        meta[currentKey] = val
-      }
-      continue
-    }
-    if (currentKey && /^[ \t]/.test(line)) {
-      const cont = line.replace(/^[ \t]+/, '')
-      meta[currentKey] = meta[currentKey] ? `${meta[currentKey]} ${cont}` : cont
-    }
-  }
-  return { meta, body }
-}
-
-function escapeHtml(s: string): string {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
-function renderFrontMatterTable(meta: Record<string, string>): string {
-  const keys = Object.keys(meta)
-  if (!keys.length) return ''
-  const preferred = ['name', 'description']
-  const ordered = [
-    ...preferred.filter((k) => k in meta),
-    ...keys.filter((k) => !preferred.includes(k)),
-  ]
-  const rows = ordered
-    .map(
-      (k) =>
-        `<tr><th>${escapeHtml(k)}</th><td>${escapeHtml(meta[k])}</td></tr>`,
-    )
-    .join('')
-  return `<table class="fm-meta"><tbody>${rows}</tbody></table>`
-}
-
-function renderMarkdownDocument(src: string): string {
-  const { meta, body } = parseYamlFrontMatter(src)
-  const table = renderFrontMatterTable(meta)
-  const mdHtml = marked.parse(body || '', { async: false }) as string
-  return DOMPurify.sanitize(table + mdHtml)
-}
 
 const gCols = [
   { title: 'ID', key: 'asset' },
@@ -948,9 +910,8 @@ function fillGuideForm(record: any) {
 }
 
 function viewGuide(record: any) {
-  guideModalMode.value = 'view'
-  fillGuideForm(record)
-  openGuide.value = true
+  guideViewRecord.value = record
+  guideViewOpen.value = true
 }
 
 function editGuide(record: any) {
@@ -1178,10 +1139,6 @@ function decodeAxiosDetail(e: any): string {
 }
 
 async function saveGuide() {
-  if (guideModalMode.value === 'view') {
-    openGuide.value = false
-    return
-  }
   // contentSource === 'view' means preview tab; still allow saving name/meta in edit mode
   if (contentSource.value === 'github') {
     if (!githubRepo.value.trim()) {
@@ -1345,9 +1302,8 @@ function fillSensorForm(record: any) {
 }
 
 function viewSensor(record: any) {
-  sensorModalMode.value = 'view'
-  fillSensorForm(record)
-  openSensor.value = true
+  sensorViewRecord.value = record
+  sensorViewOpen.value = true
 }
 
 function editSensor(record: any) {
@@ -1389,10 +1345,6 @@ function insertInlineFn(expr: string) {
 }
 
 async function saveSensor() {
-  if (sensorModalMode.value === 'view') {
-    openSensor.value = false
-    return
-  }
   if (!sensorForm.asset_id?.trim()) {
     message.warning('请填写 Asset ID')
     return Promise.reject()
@@ -1439,6 +1391,14 @@ onMounted(load)
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+  gap: 12px;
+}
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .asset-id {
   font-size: 13px;

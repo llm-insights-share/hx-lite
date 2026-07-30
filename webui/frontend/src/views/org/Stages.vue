@@ -26,7 +26,12 @@
           <MinusCircleOutlined v-else class="req-no" title="非必须" />
         </template>
         <template v-else-if="column.key === 'guides'">
-          <a-tag v-for="g in record.guides" :key="g" class="guide-tag">
+          <a-tag
+            v-for="g in record.guides"
+            :key="g"
+            class="guide-tag guide-tag-clickable"
+            @click.stop="openGuideDetail(g)"
+          >
             <component
               :is="guideKindIcon(guideKindById(g))"
               class="guide-tag-icon"
@@ -39,7 +44,9 @@
           <a-tag
             v-for="s in record.sensors || []"
             :key="s"
+            class="sensor-tag-clickable"
             :color="isHumanSensor(s) ? 'purple' : 'processing'"
+            @click.stop="openSensorDetail(s)"
           >
             {{ s }}
           </a-tag>
@@ -72,13 +79,12 @@
               <a-select
                 v-model:value="form.stage"
                 :options="stages.map((s) => ({ value: s, label: s }))"
-                :disabled="!!form.id"
               />
             </a-form-item>
           </a-col>
         </a-row>
         <a-form-item label="Task ID">
-          <a-input v-model:value="form.task_id" :disabled="!!form.id" />
+          <a-input v-model:value="form.task_id" />
         </a-form-item>
         <a-form-item label="标题(中)"><a-input v-model:value="form.title_zh" /></a-form-item>
         <a-form-item label="Guide 资产">
@@ -106,6 +112,9 @@
         <a-form-item label="必须"><a-switch v-model:checked="form.required" /></a-form-item>
       </a-form>
     </a-modal>
+
+    <GuideViewModal v-model:open="guideViewOpen" :record="guideViewRecord" />
+    <SensorViewModal v-model:open="sensorViewOpen" :record="sensorViewRecord" />
   </div>
 </template>
 
@@ -114,6 +123,8 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { CheckCircleFilled, MinusCircleOutlined } from '@ant-design/icons-vue'
 import { api } from '../../api'
+import GuideViewModal from '../../components/org/GuideViewModal.vue'
+import SensorViewModal from '../../components/org/SensorViewModal.vue'
 import { guideKindCategory, guideKindIcon } from '../../utils/guideKind'
 
 const stages = ['req', 'arch', 'dev', 'test']
@@ -174,6 +185,31 @@ const humanSensorIds = computed(() => {
 
 function isHumanSensor(assetId: string) {
   return humanSensorIds.value.has(assetId) || /approv|human|manual/i.test(assetId)
+}
+
+const guideViewOpen = ref(false)
+const guideViewRecord = ref<any | null>(null)
+const sensorViewOpen = ref(false)
+const sensorViewRecord = ref<any | null>(null)
+
+function openGuideDetail(assetId: string) {
+  const record = guides.value.find((g) => g.asset_id === assetId)
+  if (!record) {
+    message.warning(`未找到 Guide：${assetId}`)
+    return
+  }
+  guideViewRecord.value = record
+  guideViewOpen.value = true
+}
+
+function openSensorDetail(assetId: string) {
+  const record = sensors.value.find((s) => s.asset_id === assetId)
+  if (!record) {
+    message.warning(`未找到 Sensor：${assetId}`)
+    return
+  }
+  sensorViewRecord.value = record
+  sensorViewOpen.value = true
 }
 
 const columns = [
@@ -299,6 +335,10 @@ onMounted(async () => {
   align-items: center;
   gap: 4px;
   margin-bottom: 2px;
+}
+.guide-tag-clickable,
+.sensor-tag-clickable {
+  cursor: pointer;
 }
 .guide-tag-icon {
   font-size: 12px;

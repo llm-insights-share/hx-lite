@@ -13,7 +13,22 @@
     <a-row :gutter="16">
       <a-col :span="8">
         <a-card title="Task 壳" size="small">
-          <a-list :data-source="rows" :locale="{ emptyText: '暂无，请先一键初始化' }" size="small">
+          <div class="list-filters">
+            <a-select
+              v-model:value="listStage"
+              allow-clear
+              placeholder="Stage"
+              style="width: 100px"
+              :options="listStageOpts"
+            />
+            <a-input-search
+              v-model:value="listName"
+              allow-clear
+              placeholder="名称筛选"
+              style="flex: 1; min-width: 0"
+            />
+          </div>
+          <a-list :data-source="filteredRows" :locale="{ emptyText: '暂无，请先一键初始化' }" size="small">
             <template #renderItem="{ item }">
               <a-list-item
                 :class="{ active: item.id === current?.id }"
@@ -144,6 +159,8 @@ const commandMode = ref<'edit' | 'preview'>('edit')
 const skillMode = ref<'edit' | 'preview'>('edit')
 const previewLoading = ref(false)
 const allTasks = ref<any[]>([])
+const listStage = ref<string | undefined>()
+const listName = ref('')
 const form = reactive({
   stage: '',
   task: '',
@@ -153,12 +170,39 @@ const form = reactive({
   slash_name: '',
 })
 
+const STAGE_ORDER = ['req', 'arch', 'dev', 'test']
+
+const listStageOpts = computed(() => {
+  const set = new Set<string>()
+  for (const r of rows.value) {
+    if (r?.stage) set.add(r.stage)
+  }
+  return [...set]
+    .sort((a, b) => {
+      const ia = STAGE_ORDER.indexOf(a)
+      const ib = STAGE_ORDER.indexOf(b)
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
+    })
+    .map((s) => ({ value: s, label: s }))
+})
+
+const filteredRows = computed(() => {
+  const stage = listStage.value
+  const q = listName.value.trim().toLowerCase()
+  return rows.value.filter((r) => {
+    if (stage && r.stage !== stage) return false
+    if (!q) return true
+    const name = String(r.slash_name || '').toLowerCase()
+    const task = String(r.task || '').toLowerCase()
+    return name.includes(q) || task.includes(q)
+  })
+})
+
 const stageOptions = computed(() => {
   const set = new Set<string>()
   for (const t of allTasks.value) set.add(t.stage)
-  const order = ['req', 'arch', 'dev', 'test']
   return [...set].sort((a, b) => {
-    const ia = order.indexOf(a), ib = order.indexOf(b)
+    const ia = STAGE_ORDER.indexOf(a), ib = STAGE_ORDER.indexOf(b)
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
   })
 })
@@ -278,6 +322,12 @@ onMounted(() => { load(); loadTasks() })
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+}
+.list-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  align-items: center;
 }
 .active {
   background: #e6f4ff;

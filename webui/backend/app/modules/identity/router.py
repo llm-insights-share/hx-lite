@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.core.deps import CurrentUser, SessionDep, require_roles
 from app.core.models import ProjectMember, User
 from app.core.security import create_access_token, hash_password, verify_password
+from app.domain.org_oplog import write_org_log
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -237,7 +238,7 @@ def list_org_users(session: SessionDep, _admin: OrgAdmin):
 
 
 @org_users_router.post("/users", response_model=UserOut)
-def create_org_user(body: AdminCreateUserIn, session: SessionDep, _admin: OrgAdmin):
+def create_org_user(body: AdminCreateUserIn, session: SessionDep, admin: OrgAdmin):
     email, username = _validate_credentials(body.email, body.username, body.password)
     _ensure_unique(session, email=email, username=username)
     roles = ",".join(sorted(_role_set(body.roles))) or "member"
@@ -252,6 +253,13 @@ def create_org_user(body: AdminCreateUserIn, session: SessionDep, _admin: OrgAdm
     session.add(user)
     session.commit()
     session.refresh(user)
+    write_org_log(
+        session,
+        admin,
+        "user_create",
+        f"创建用户 {username}",
+        detail={"user_id": user.id, "username": username, "email": email, "roles": roles},
+    )
     return _user_out(user)
 
 
@@ -269,6 +277,13 @@ def set_user_active(user_id: int, body: ActiveIn, session: SessionDep, admin: Or
     session.add(user)
     session.commit()
     session.refresh(user)
+    write_org_log(
+        session,
+        admin,
+        "user_active",
+        f"{'启用' if body.is_active else '停用'}用户 {user.username}",
+        detail={"user_id": user.id, "username": user.username, "is_active": body.is_active},
+    )
     return _user_out(user)
 
 
@@ -282,10 +297,18 @@ def set_user_roles(user_id: int, body: RolesIn, session: SessionDep, admin: OrgA
     if "org_admin" not in next_roles and "org_admin" in _role_set(user.roles):
         if _count_active_org_admins(session, exclude_id=user.id) < 1:
             raise HTTPException(status_code=400, detail="Cannot remove the last org_admin")
+    old_roles = user.roles
     user.roles = roles
     session.add(user)
     session.commit()
     session.refresh(user)
+    write_org_log(
+        session,
+        admin,
+        "user_roles",
+        f"更新用户 {user.username} 角色",
+        detail={"user_id": user.id, "username": user.username, "old_roles": old_roles, "roles": roles},
+    )
     return _user_out(user)
 
 
@@ -299,8 +322,16 @@ def delete_org_user(user_id: int, session: SessionDep, admin: OrgAdmin):
     if "org_admin" in _role_set(user.roles) and user.is_active:
         if _count_active_org_admins(session, exclude_id=user.id) < 1:
             raise HTTPException(status_code=400, detail="Cannot delete the last org_admin")
+    detail = {"user_id": user.id, "username": user.username, "roles": user.roles}
     for m in session.exec(select(ProjectMember).where(ProjectMember.user_id == user_id)).all():
         session.delete(m)
     session.delete(user)
     session.commit()
+    write_org_log(
+        session,
+        admin,
+        "user_delete",
+        f"删除用户 {detail['username']}",
+        detail=detail,
+    )
     return {"ok": True}

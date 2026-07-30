@@ -17,6 +17,7 @@ from app.core.models import (
     AssetSubmission,
     CommandShell,
     Guide,
+    OrgOperationLog,
     OrgSettings,
     Profile,
     PushJob,
@@ -28,6 +29,7 @@ from app.domain.asset_submission import decide_submission, set_asset_status, sub
 from app.domain.bootstrap import bootstrap_org
 from app.domain.defaults import default_workflow_body, slash_name as make_slash_name
 from app.domain.hub_exporter import export_hub
+from app.domain.org_oplog import write_org_log
 from app.domain.shell_assembler import assemble_shell
 from app.services import github as github_svc
 
@@ -257,9 +259,41 @@ def dashboard(session: SessionDep, _user: CurrentUser, org_id: str = "default") 
     }
 
 
+@router.get("/operation-logs")
+def list_org_operation_logs(
+    session: SessionDep,
+    _user: CurrentUser,
+    org_id: str = "default",
+    limit: int = 50,
+    offset: int = 0,
+):
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+    rows = session.exec(select(OrgOperationLog).where(OrgOperationLog.org_id == org_id)).all()
+    rows_sorted = sorted(rows, key=lambda r: (r.id or 0), reverse=True)
+    page = rows_sorted[offset : offset + limit]
+    out = []
+    for r in page:
+        try:
+            detail = json.loads(r.detail_json or "{}")
+        except json.JSONDecodeError:
+            detail = {}
+        out.append({**r.model_dump(), "detail": detail})
+    return {"total": len(rows_sorted), "items": out}
+
+
 @router.post("/bootstrap")
-def bootstrap(body: BootstrapIn, session: SessionDep, _user: CurrentUser) -> dict[str, Any]:
-    return bootstrap_org(session, org_id=body.org_id, org_name=body.org_name)
+def bootstrap(body: BootstrapIn, session: SessionDep, user: CurrentUser) -> dict[str, Any]:
+    result = bootstrap_org(session, org_id=body.org_id, org_name=body.org_name)
+    write_org_log(
+        session,
+        user,
+        "bootstrap",
+        f"初始化组织 {body.org_id}",
+        detail={"org_id": body.org_id, "org_name": body.org_name, "result": result},
+        org_id=body.org_id,
+    )
+    return result
 
 
 @router.get("/settings")
@@ -268,14 +302,26 @@ def get_settings_api(session: SessionDep, _user: CurrentUser, org_id: str = "def
 
 
 @router.put("/settings")
-def put_settings(body: OrgSettingsIn, session: SessionDep, _user: CurrentUser, org_id: str = "default"):
+def put_settings(body: OrgSettingsIn, session: SessionDep, user: CurrentUser, org_id: str = "default"):
     row = _settings_or_404(session, org_id)
-    for k, v in body.model_dump(exclude_unset=True).items():
+    changes = body.model_dump(exclude_unset=True)
+    safe_detail = dict(changes)
+    if safe_detail.get("github_token"):
+        safe_detail["github_token"] = "***"
+    for k, v in changes.items():
         setattr(row, k, v)
     row.updated_at = datetime.now(timezone.utc)
     session.add(row)
     session.commit()
     session.refresh(row)
+    write_org_log(
+        session,
+        user,
+        "settings_update",
+        f"更新组织设置 {org_id}",
+        detail=safe_detail,
+        org_id=org_id,
+    )
     return row
 
 
@@ -374,7 +420,7 @@ def list_profiles(session: SessionDep, _user: CurrentUser, org_id: str = "defaul
 
 
 @router.post("/profiles")
-def create_profile(body: ProfileIn, session: SessionDep, _user: CurrentUser, org_id: str = "default"):
+def create_profile(body: ProfileIn, session: SessionDep, user: CurrentUser, org_id: str = "default"):
     if body.key in _BUILTIN_PROFILE_KEYS:
         raise HTTPException(400, f"不可使用内置 Profile Key「{body.key}」")
     exists = session.exec(select(Profile).where(Profile.org_id == org_id, Profile.key == body.key)).first()
@@ -392,11 +438,19 @@ def create_profile(body: ProfileIn, session: SessionDep, _user: CurrentUser, org
     _sync_profile_tasks(session, org_id, body.key, body.stages, body.tasks or {})
     session.commit()
     session.refresh(row)
+    write_org_log(
+        session,
+        user,
+        "profile_create",
+        f"新建 Profile {body.key}",
+        detail={"key": body.key, "stages": body.stages, "tasks": body.tasks or {}},
+        org_id=org_id,
+    )
     return _profile_payload(session, row)
 
 
 @router.put("/profiles/{profile_id}")
-def update_profile(profile_id: int, body: ProfileIn, session: SessionDep, _user: CurrentUser):
+def update_profile(profile_id: int, body: ProfileIn, session: SessionDep, user: CurrentUser):
     row = session.get(Profile, profile_id)
     if not row:
         raise HTTPException(404)
@@ -420,22 +474,40 @@ def update_profile(profile_id: int, body: ProfileIn, session: SessionDep, _user:
     _sync_profile_tasks(session, row.org_id, body.key, body.stages, body.tasks or {})
     session.commit()
     session.refresh(row)
+    write_org_log(
+        session,
+        user,
+        "profile_update",
+        f"更新 Profile {body.key}",
+        detail={"id": profile_id, "old_key": old_key, "key": body.key, "stages": body.stages, "tasks": body.tasks or {}},
+        org_id=row.org_id,
+    )
     return _profile_payload(session, row)
 
 
 @router.delete("/profiles/{profile_id}")
-def delete_profile(profile_id: int, session: SessionDep, _user: CurrentUser):
+def delete_profile(profile_id: int, session: SessionDep, user: CurrentUser):
     row = session.get(Profile, profile_id)
     if not row:
         raise HTTPException(404)
     if row.key in _BUILTIN_PROFILE_KEYS:
         raise HTTPException(400, f"内置 Profile「{row.key}」不可删除")
+    key = row.key
+    org_id = row.org_id
     for t in session.exec(
         select(StageTask).where(StageTask.org_id == row.org_id, StageTask.profile_key == row.key)
     ).all():
         session.delete(t)
     session.delete(row)
     session.commit()
+    write_org_log(
+        session,
+        user,
+        "profile_delete",
+        f"删除 Profile {key}",
+        detail={"id": profile_id, "key": key},
+        org_id=org_id,
+    )
     return {"ok": True}
 
 
@@ -491,7 +563,7 @@ def list_tasks(
 
 
 @router.post("/tasks")
-def create_task(body: StageTaskIn, session: SessionDep, _user: CurrentUser, org_id: str = "default"):
+def create_task(body: StageTaskIn, session: SessionDep, user: CurrentUser, org_id: str = "default"):
     row = StageTask(
         org_id=org_id,
         profile_key=body.profile_key,
@@ -508,11 +580,19 @@ def create_task(body: StageTaskIn, session: SessionDep, _user: CurrentUser, org_
     session.add(row)
     session.commit()
     session.refresh(row)
+    write_org_log(
+        session,
+        user,
+        "task_create",
+        f"新建 Task {body.stage}/{body.task_id}",
+        detail=body.model_dump(),
+        org_id=org_id,
+    )
     return row
 
 
 @router.put("/tasks/{task_row_id}")
-def update_task(task_row_id: int, body: StageTaskIn, session: SessionDep, _user: CurrentUser):
+def update_task(task_row_id: int, body: StageTaskIn, session: SessionDep, user: CurrentUser):
     row = session.get(StageTask, task_row_id)
     if not row:
         raise HTTPException(404)
@@ -529,6 +609,14 @@ def update_task(task_row_id: int, body: StageTaskIn, session: SessionDep, _user:
     session.add(row)
     session.commit()
     session.refresh(row)
+    write_org_log(
+        session,
+        user,
+        "task_update",
+        f"更新 Task {body.stage}/{body.task_id}",
+        detail={"id": task_row_id, **body.model_dump()},
+        org_id=row.org_id,
+    )
     return {
         "id": row.id,
         "profile_key": row.profile_key,
@@ -544,12 +632,21 @@ def update_task(task_row_id: int, body: StageTaskIn, session: SessionDep, _user:
 
 
 @router.delete("/tasks/{task_row_id}")
-def delete_task(task_row_id: int, session: SessionDep, _user: CurrentUser):
+def delete_task(task_row_id: int, session: SessionDep, user: CurrentUser):
     row = session.get(StageTask, task_row_id)
     if not row:
         raise HTTPException(404)
+    detail = {
+        "id": row.id,
+        "profile_key": row.profile_key,
+        "stage": row.stage,
+        "task_id": row.task_id,
+    }
+    org_id = row.org_id
+    summary = f"删除 Task {row.stage}/{row.task_id}"
     session.delete(row)
     session.commit()
+    write_org_log(session, user, "task_delete", summary, detail=detail, org_id=org_id)
     return {"ok": True}
 
 
@@ -562,7 +659,7 @@ def list_guides(session: SessionDep, _user: CurrentUser, org_id: str = "default"
 
 
 @router.post("/guides")
-def create_guide(body: GuideIn, session: SessionDep, _user: CurrentUser, org_id: str = "default"):
+def create_guide(body: GuideIn, session: SessionDep, user: CurrentUser, org_id: str = "default"):
     if body.kind not in GUIDE_KINDS:
         raise HTTPException(400, f"unsupported guide kind: {body.kind}")
     mode = body.content_mode if body.content_mode in ("text", "markdown", "package") else "markdown"
@@ -583,11 +680,19 @@ def create_guide(body: GuideIn, session: SessionDep, _user: CurrentUser, org_id:
     session.add(row)
     session.commit()
     session.refresh(row)
+    write_org_log(
+        session,
+        user,
+        "guide_create",
+        f"新建 Guide {body.asset_id}",
+        detail={"id": row.id, "asset_id": body.asset_id, "kind": body.kind, "content_mode": mode},
+        org_id=org_id,
+    )
     return row
 
 
 @router.put("/guides/{guide_id}")
-def update_guide(guide_id: int, body: GuideIn, session: SessionDep, _user: CurrentUser):
+def update_guide(guide_id: int, body: GuideIn, session: SessionDep, user: CurrentUser):
     row = session.get(Guide, guide_id)
     if not row:
         raise HTTPException(404)
@@ -611,13 +716,21 @@ def update_guide(guide_id: int, body: GuideIn, session: SessionDep, _user: Curre
     session.add(row)
     session.commit()
     session.refresh(row)
+    write_org_log(
+        session,
+        user,
+        "guide_update",
+        f"更新 Guide {body.asset_id}",
+        detail={"id": guide_id, "asset_id": body.asset_id, "kind": body.kind, "content_mode": mode, "status": body.status},
+        org_id=row.org_id,
+    )
     return row
 
 
 @router.post("/guides/upload")
 async def upload_guide(
     session: SessionDep,
-    _user: CurrentUser,
+    user: CurrentUser,
     asset_id: str = Form(...),
     name: str = Form(""),
     kind: str = Form("guide.skill"),
@@ -652,8 +765,12 @@ async def upload_guide(
         row = session.get(Guide, guide_id)
         if not row:
             raise HTTPException(404, "guide not found")
+        action = "guide_upload_update"
+        summary = f"上传更新 Guide {asset_id.strip()}"
     else:
         row = Guide(org_id=org_id)
+        action = "guide_upload_create"
+        summary = f"上传新建 Guide {asset_id.strip()}"
 
     row.asset_id = asset_id.strip()
     row.name = _normalize_asset_name(name, row.asset_id)
@@ -670,6 +787,14 @@ async def upload_guide(
     session.add(row)
     session.commit()
     session.refresh(row)
+    write_org_log(
+        session,
+        user,
+        action,
+        summary,
+        detail={"id": row.id, "asset_id": row.asset_id, "kind": kind, "files": saved, "package_path": pkg_rel},
+        org_id=org_id,
+    )
     return row
 
 
@@ -696,10 +821,10 @@ def list_github_skills(
 
 
 @router.post("/guides/from-github")
-def create_guide_from_github(body: GuideFromGithubIn, session: SessionDep, _user: CurrentUser):
+def create_guide_from_github(body: GuideFromGithubIn, session: SessionDep, user: CurrentUser):
     """Download a skill directory from GitHub and install as guide.skill package."""
     try:
-        return _install_guide_from_github(
+        result = _install_guide_from_github(
             session,
             repo=body.repo,
             skill_path=body.skill_path,
@@ -714,6 +839,16 @@ def create_guide_from_github(body: GuideFromGithubIn, session: SessionDep, _user
         raise
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(400, str(exc)) from exc
+    asset_id = getattr(result, "asset_id", None) or body.asset_id or body.skill_path
+    write_org_log(
+        session,
+        user,
+        "guide_from_github",
+        f"从 GitHub 安装 Guide {asset_id}",
+        detail={"repo": body.repo, "skill_path": body.skill_path, "asset_id": asset_id, "ref": body.ref},
+        org_id=body.org_id,
+    )
+    return result
 
 
 def _install_guide_from_github(
@@ -785,7 +920,7 @@ def _install_guide_from_github(
 
 
 @router.post("/guides/from-github-batch")
-def create_guides_from_github_batch(body: GuideFromGithubBatchIn, session: SessionDep, _user: CurrentUser):
+def create_guides_from_github_batch(body: GuideFromGithubBatchIn, session: SessionDep, user: CurrentUser):
     """Install multiple GitHub skills as guide.skill packages."""
     if not body.skills:
         raise HTTPException(400, "skills required")
@@ -814,6 +949,21 @@ def create_guides_from_github_batch(body: GuideFromGithubBatchIn, session: Sessi
             errors.append({"skill_path": sp, "detail": exc.detail})
         except Exception as exc:  # noqa: BLE001
             errors.append({"skill_path": sp, "detail": str(exc)})
+    created_ids = [getattr(r, "asset_id", None) for r in created if not isinstance(r, dict)]
+    write_org_log(
+        session,
+        user,
+        "guide_from_github_batch",
+        f"批量从 GitHub 安装 Guide：+{len(created_ids)}/skip{len(skipped)}/err{len(errors)}",
+        detail={
+            "repo": body.repo,
+            "ref": body.ref,
+            "created": created_ids,
+            "skipped": skipped,
+            "errors": errors,
+        },
+        org_id=body.org_id,
+    )
     return {"created": created, "skipped": skipped, "errors": errors}
 
 
@@ -906,12 +1056,16 @@ def get_guide_package_file(
 
 
 @router.delete("/guides/{guide_id}")
-def delete_guide(guide_id: int, session: SessionDep, _user: CurrentUser):
+def delete_guide(guide_id: int, session: SessionDep, user: CurrentUser):
     row = session.get(Guide, guide_id)
     if not row:
         raise HTTPException(404)
+    detail = {"id": row.id, "asset_id": row.asset_id, "kind": row.kind}
+    org_id = row.org_id
+    summary = f"删除 Guide {row.asset_id}"
     session.delete(row)
     session.commit()
+    write_org_log(session, user, "guide_delete", summary, detail=detail, org_id=org_id)
     return {"ok": True}
 
 
@@ -936,17 +1090,25 @@ def list_sensors(session: SessionDep, _user: CurrentUser, org_id: str = "default
 
 
 @router.post("/sensors")
-def create_sensor(body: SensorIn, session: SessionDep, _user: CurrentUser, org_id: str = "default"):
+def create_sensor(body: SensorIn, session: SessionDep, user: CurrentUser, org_id: str = "default"):
     data = _sensor_row_fields(body)
     row = Sensor(org_id=org_id, **data)
     session.add(row)
     session.commit()
     session.refresh(row)
+    write_org_log(
+        session,
+        user,
+        "sensor_create",
+        f"新建 Sensor {body.asset_id}",
+        detail={"id": row.id, "asset_id": body.asset_id, "check_type": getattr(row, "check_type", "")},
+        org_id=org_id,
+    )
     return row
 
 
 @router.put("/sensors/{sensor_id}")
-def update_sensor(sensor_id: int, body: SensorIn, session: SessionDep, _user: CurrentUser):
+def update_sensor(sensor_id: int, body: SensorIn, session: SessionDep, user: CurrentUser):
     row = session.get(Sensor, sensor_id)
     if not row:
         raise HTTPException(404)
@@ -956,16 +1118,28 @@ def update_sensor(sensor_id: int, body: SensorIn, session: SessionDep, _user: Cu
     session.add(row)
     session.commit()
     session.refresh(row)
+    write_org_log(
+        session,
+        user,
+        "sensor_update",
+        f"更新 Sensor {body.asset_id}",
+        detail={"id": sensor_id, "asset_id": body.asset_id, "check_type": getattr(row, "check_type", "")},
+        org_id=row.org_id,
+    )
     return row
 
 
 @router.delete("/sensors/{sensor_id}")
-def delete_sensor(sensor_id: int, session: SessionDep, _user: CurrentUser):
+def delete_sensor(sensor_id: int, session: SessionDep, user: CurrentUser):
     row = session.get(Sensor, sensor_id)
     if not row:
         raise HTTPException(404)
+    detail = {"id": row.id, "asset_id": row.asset_id, "kind": row.kind}
+    org_id = row.org_id
+    summary = f"删除 Sensor {row.asset_id}"
     session.delete(row)
     session.commit()
+    write_org_log(session, user, "sensor_delete", summary, detail=detail, org_id=org_id)
     return {"ok": True}
 
 
@@ -1018,7 +1192,7 @@ def preview_command(
 
 
 @router.post("/commands")
-def create_command(body: CommandIn, session: SessionDep, _user: CurrentUser, org_id: str = "default"):
+def create_command(body: CommandIn, session: SessionDep, user: CurrentUser, org_id: str = "default"):
     slash = body.slash_name or f"hx-{body.stage}-{body.task.replace('_', '-')}"
     row = CommandShell(
         org_id=org_id,
@@ -1033,11 +1207,19 @@ def create_command(body: CommandIn, session: SessionDep, _user: CurrentUser, org
     session.add(row)
     session.commit()
     session.refresh(row)
+    write_org_log(
+        session,
+        user,
+        "command_create",
+        f"新建 Command {slash}",
+        detail={"id": row.id, "stage": body.stage, "task": body.task, "slash_name": slash},
+        org_id=org_id,
+    )
     return row
 
 
 @router.put("/commands/{command_id}")
-def update_command(command_id: int, body: CommandIn, session: SessionDep, _user: CurrentUser):
+def update_command(command_id: int, body: CommandIn, session: SessionDep, user: CurrentUser):
     row = session.get(CommandShell, command_id)
     if not row:
         raise HTTPException(404)
@@ -1052,16 +1234,28 @@ def update_command(command_id: int, body: CommandIn, session: SessionDep, _user:
     session.add(row)
     session.commit()
     session.refresh(row)
+    write_org_log(
+        session,
+        user,
+        "command_update",
+        f"更新 Command {row.slash_name}",
+        detail={"id": command_id, "stage": body.stage, "task": body.task, "slash_name": row.slash_name},
+        org_id=row.org_id,
+    )
     return row
 
 
 @router.delete("/commands/{command_id}")
-def delete_command(command_id: int, session: SessionDep, _user: CurrentUser):
+def delete_command(command_id: int, session: SessionDep, user: CurrentUser):
     row = session.get(CommandShell, command_id)
     if not row:
         raise HTTPException(404)
+    detail = {"id": row.id, "slash_name": row.slash_name, "stage": row.stage, "task": row.task}
+    org_id = row.org_id
+    summary = f"删除 Command {row.slash_name}"
     session.delete(row)
     session.commit()
+    write_org_log(session, user, "command_delete", summary, detail=detail, org_id=org_id)
     return {"ok": True}
 
 
@@ -1069,10 +1263,18 @@ def delete_command(command_id: int, session: SessionDep, _user: CurrentUser):
 
 
 @router.post("/export-hub")
-def export_hub_api(session: SessionDep, _user: CurrentUser, org_id: str = "default"):
+def export_hub_api(session: SessionDep, user: CurrentUser, org_id: str = "default"):
     settings = get_settings()
     dest = settings.hubs_dir / org_id
     meta = export_hub(session, org_id, dest)
+    write_org_log(
+        session,
+        user,
+        "export_hub",
+        f"导出 Hub {org_id}",
+        detail={"path": str(dest), "export_meta": meta},
+        org_id=org_id,
+    )
     return {"ok": True, "path": str(dest), "export_meta": meta}
 
 
@@ -1109,7 +1311,7 @@ def github_dry_run(session: SessionDep, _user: CurrentUser, org_id: str = "defau
 @router.post("/github/push")
 def github_push(
     session: SessionDep,
-    _user: CurrentUser,
+    user: CurrentUser,
     org_id: str = "default",
     message: str = "chore: sync org HX hub from WebUI",
 ):
@@ -1147,6 +1349,21 @@ def github_push(
     session.add(job)
     session.commit()
     session.refresh(job)
+    write_org_log(
+        session,
+        user,
+        "github_push",
+        f"GitHub 推送：{msg}",
+        detail={
+            "ok": result.ok,
+            "message": msg,
+            "commit_sha": result.commit_sha,
+            "job_id": job.id,
+            "remote": cfg.github_repo,
+            "branch": cfg.github_branch,
+        },
+        org_id=org_id,
+    )
     return {
         "ok": result.ok,
         "message": msg,
@@ -1217,7 +1434,7 @@ def decide_asset_submission(
     row = session.get(AssetSubmission, submission_id)
     if not row:
         raise HTTPException(404)
-    return decide_submission(
+    result = decide_submission(
         session,
         row,
         decision=body.decision,
@@ -1225,13 +1442,40 @@ def decide_asset_submission(
         item_decisions=[i.model_dump() for i in body.items],
         decided_by=admin.username or admin.display_name or "",
     )
+    write_org_log(
+        session,
+        admin,
+        "asset_submission_decide",
+        f"审批资产提交 #{submission_id}：{body.decision}",
+        detail={"submission_id": submission_id, "decision": body.decision, "note": body.note, "items": [i.model_dump() for i in body.items]},
+        org_id=row.org_id,
+    )
+    return result
 
 
 @router.patch("/guides/{guide_id}/status")
-def patch_guide_status(guide_id: int, body: AssetStatusIn, session: SessionDep, _admin: OrgAdmin):
-    return set_asset_status(session, asset_type="guide", row_id=guide_id, status=body.status)
+def patch_guide_status(guide_id: int, body: AssetStatusIn, session: SessionDep, admin: OrgAdmin):
+    result = set_asset_status(session, asset_type="guide", row_id=guide_id, status=body.status)
+    write_org_log(
+        session,
+        admin,
+        "guide_status",
+        f"更新 Guide 状态 #{guide_id} → {body.status}",
+        detail=result,
+        org_id="default",
+    )
+    return result
 
 
 @router.patch("/sensors/{sensor_id}/status")
-def patch_sensor_status(sensor_id: int, body: AssetStatusIn, session: SessionDep, _admin: OrgAdmin):
-    return set_asset_status(session, asset_type="sensor", row_id=sensor_id, status=body.status)
+def patch_sensor_status(sensor_id: int, body: AssetStatusIn, session: SessionDep, admin: OrgAdmin):
+    result = set_asset_status(session, asset_type="sensor", row_id=sensor_id, status=body.status)
+    write_org_log(
+        session,
+        admin,
+        "sensor_status",
+        f"更新 Sensor 状态 #{sensor_id} → {body.status}",
+        detail=result,
+        org_id="default",
+    )
+    return result
