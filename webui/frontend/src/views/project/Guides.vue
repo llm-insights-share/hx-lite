@@ -36,6 +36,12 @@
           <div class="asset-id">{{ record.asset_id }}</div>
           <div class="asset-name">{{ record.name || '—' }}</div>
         </template>
+        <template v-else-if="column.key === 'kind'">
+          <span class="kind-cell" :class="guideKindCategory(record.kind)">
+            <component :is="guideKindIcon(record.kind)" class="kind-icon" />
+            <span>{{ record.kind }}</span>
+          </span>
+        </template>
         <template v-else-if="column.key === 'status'">
           <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
         </template>
@@ -160,6 +166,7 @@ import { message } from 'ant-design-vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { api } from '../../api'
+import { guideKindCategory, guideKindIcon } from '../../utils/guideKind'
 
 const projects = ref<any[]>([])
 const projectId = ref<number>()
@@ -254,7 +261,7 @@ const filteredRows = computed(() => {
 
 const columns = [
   { title: 'Asset', key: 'asset' },
-  { title: 'Kind', dataIndex: 'kind', width: 130 },
+  { title: 'Kind', key: 'kind', width: 180 },
   { title: 'Stage', key: 'stage', width: 120 },
   { title: 'Task', key: 'task', width: 180 },
   { title: 'Status', key: 'status', width: 90 },
@@ -595,6 +602,22 @@ onMounted(async () => {
 }
 .muted {
   color: #94a3b8;
+}
+.kind-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.kind-icon {
+  font-size: 14px;
+  color: #64748b;
+}
+.kind-cell.computational .kind-icon {
+  color: #0e7490;
+}
+.kind-cell.inferential .kind-icon {
+  color: #6d28d9;
 }
 .md-split {
   display: grid;

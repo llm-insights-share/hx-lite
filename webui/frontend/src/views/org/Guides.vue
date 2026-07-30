@@ -15,6 +15,12 @@
               <div class="asset-id">{{ record.asset_id }}</div>
               <div class="asset-name">{{ record.name || '—' }}</div>
             </template>
+            <template v-else-if="column.key === 'kind'">
+              <span class="kind-cell" :class="guideKindCategory(record.kind)">
+                <component :is="guideKindIcon(record.kind)" class="kind-icon" />
+                <span>{{ record.kind }}</span>
+              </span>
+            </template>
             <template v-else-if="column.key === 'mode'">
               <a-tag>{{ record.content_mode || 'markdown' }}</a-tag>
             </template>
@@ -169,7 +175,10 @@
               @click="!guideReadonly && selectKind(k.value)"
             >
               <span class="kind-badge" :class="k.category">{{ k.category }}</span>
-              <div class="kind-title">{{ k.title }}</div>
+              <div class="kind-title">
+                <component :is="k.icon" class="kind-card-icon" :class="k.category" />
+                <span>{{ k.title }}</span>
+              </div>
               <div class="kind-id">{{ k.value }}</div>
               <div class="kind-desc">{{ k.desc }}</div>
             </button>
@@ -205,7 +214,9 @@
               <iframe v-else-if="pkgPreviewKind === 'pdf'" class="pkg-iframe" :src="pkgPreviewUrl" />
               <div v-else-if="pkgPreviewKind === 'html'" class="md-preview" v-html="pkgPreviewHtml" />
               <div v-else-if="pkgPreviewKind === 'table'" class="pkg-table-wrap" v-html="pkgPreviewHtml" />
-              <div v-else class="muted">无法预览此格式，可下载查看：{{ pkgPreviewPath }}</div>
+              <img v-else-if="pkgPreviewKind === 'image'" :src="pkgPreviewUrl" class="pkg-image" />
+              <pre v-else-if="pkgPreviewKind === 'code'" class="pkg-code"><code :class="'lang-' + pkgPreviewLang">{{ pkgPreviewText }}</code></pre>
+              <div v-else class="muted">{{ pkgPreviewText || `无法预览此格式，可下载查看：${pkgPreviewPath}` }}</div>
             </div>
           </div>
           <div v-else class="pkg-preview single">
@@ -215,6 +226,8 @@
             <iframe v-else-if="pkgPreviewKind === 'pdf'" class="pkg-iframe" :src="pkgPreviewUrl" />
             <div v-else-if="pkgPreviewKind === 'html'" class="md-preview" v-html="pkgPreviewHtml" />
             <div v-else-if="pkgPreviewKind === 'table'" class="pkg-table-wrap" v-html="pkgPreviewHtml" />
+            <img v-else-if="pkgPreviewKind === 'image'" :src="pkgPreviewUrl" class="pkg-image" />
+            <pre v-else-if="pkgPreviewKind === 'code'" class="pkg-code"><code :class="'lang-' + pkgPreviewLang">{{ pkgPreviewText }}</code></pre>
             <div v-else-if="guideForm.content" class="md-preview" v-html="mdPreviewHtml" />
             <div v-else class="muted">无内容</div>
           </div>
@@ -423,8 +436,14 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import mammoth from 'mammoth'
 import * as XLSX from 'xlsx'
+import JSZip from 'jszip'
 import { api } from '../../api'
 import moreIcon from '../../assets/more.png'
+import {
+  GUIDE_KIND_CARDS,
+  guideKindCategory,
+  guideKindIcon,
+} from '../../utils/guideKind'
 import {
   CHECK_TYPE_OPTS,
   DEFAULT_TRIGGERS,
@@ -476,10 +495,11 @@ const pkgLoading = ref(false)
 const pkgSelectedKeys = ref<string[]>([])
 const pkgPreviewPath = ref('')
 const pkgPreviewLoading = ref(false)
-const pkgPreviewKind = ref<'md' | 'text' | 'pdf' | 'html' | 'table' | 'other'>('other')
+const pkgPreviewKind = ref<'md' | 'text' | 'pdf' | 'html' | 'table' | 'image' | 'code' | 'other'>('other')
 const pkgPreviewHtml = ref('')
 const pkgPreviewText = ref('')
 const pkgPreviewUrl = ref('')
+const pkgPreviewLang = ref('')
 
 const githubSkillOpts = computed(() =>
   githubSkills.value.map((s) => ({
@@ -489,6 +509,8 @@ const githubSkillOpts = computed(() =>
 )
 
 const isMultiFilePackage = computed(() => {
+  // Package mode: always use left tree + right preview when there is any file inventory.
+  if ((guideForm.content_mode || '') === 'package' && pkgFiles.value.length > 0) return true
   const files = pkgFiles.value
   if (files.length > 1) return true
   if (files.length === 1 && files[0].includes('/')) return true
@@ -528,56 +550,7 @@ function buildFileTree(files: string[]): TreeNode[] {
   return toNodes(root)
 }
 
-const kindCards = [
-  {
-    value: 'guide.skill',
-    title: 'Skill / 技能规范',
-    category: 'inferential',
-    desc: 'coding-conventions、prd-writing…',
-  },
-  {
-    value: 'guide.template',
-    title: 'Template / 模板',
-    category: 'computational',
-    desc: 'proposal-template、design-template…',
-  },
-  {
-    value: 'guide.constraint',
-    title: 'Constraint / 硬约束',
-    category: 'computational',
-    desc: 'layering-rules、budget-rules…',
-  },
-  {
-    value: 'guide.exemplar',
-    title: 'Exemplar / 范例',
-    category: 'inferential',
-    desc: '好/坏示例对照',
-  },
-  {
-    value: 'guide.scaffold',
-    title: 'Scaffold / 脚手架',
-    category: 'inferential',
-    desc: '工程脚手架注入 Context Pack',
-  },
-  {
-    value: 'guide.codemod',
-    title: 'Codemod / 改造指南',
-    category: 'inferential',
-    desc: '批量改造步骤与脚本指引',
-  },
-  {
-    value: 'guide.glossary',
-    title: 'Glossary / 术语表',
-    category: 'inferential',
-    desc: '领域术语约束 Agent 用词',
-  },
-  {
-    value: 'guide.capability',
-    title: 'Capability / 能力说明',
-    category: 'inferential',
-    desc: 'capability 写作与边界指引',
-  },
-]
+const kindCards = GUIDE_KIND_CARDS
 
 const guideForm = reactive<any>({
   id: null,
@@ -702,7 +675,7 @@ function renderMarkdownDocument(src: string): string {
 
 const gCols = [
   { title: 'ID', key: 'asset' },
-  { title: 'Kind', dataIndex: 'kind' },
+  { title: 'Kind', key: 'kind', width: 180 },
   { title: 'Mode', key: 'mode', width: 100 },
   { title: 'Status', key: 'status', width: 90 },
   { title: '操作', key: 'action', width: 200 },
@@ -858,10 +831,56 @@ function resetPkgPreview() {
   pkgPreviewKind.value = 'other'
   pkgPreviewHtml.value = ''
   pkgPreviewText.value = ''
+  pkgPreviewLang.value = ''
   if (pkgPreviewUrl.value) {
     URL.revokeObjectURL(pkgPreviewUrl.value)
     pkgPreviewUrl.value = ''
   }
+}
+
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'])
+const CODE_EXTS: Record<string, string> = {
+  ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+  py: 'python', java: 'java', go: 'go', rs: 'rust', rb: 'ruby',
+  c: 'c', cpp: 'cpp', h: 'c', hpp: 'cpp', cs: 'csharp',
+  css: 'css', scss: 'scss', less: 'less',
+  html: 'html', htm: 'html', xml: 'xml', svg: 'xml',
+  sql: 'sql', sh: 'shell', bash: 'shell', zsh: 'shell',
+  vue: 'vue', svelte: 'svelte', swift: 'swift', kt: 'kotlin',
+  dart: 'dart', lua: 'lua', r: 'r', php: 'php', toml: 'toml',
+  ini: 'ini', dockerfile: 'dockerfile', makefile: 'makefile',
+}
+
+function extMimeType(ext: string): string {
+  const map: Record<string, string> = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
+    bmp: 'image/bmp', ico: 'image/x-icon',
+  }
+  return map[ext] || 'application/octet-stream'
+}
+
+async function extractPptxText(buf: ArrayBuffer): Promise<string> {
+  const zip = await JSZip.loadAsync(buf)
+  const slides: { idx: number; text: string }[] = []
+  const slideRe = /^ppt\/slides\/slide(\d+)\.xml$/
+  for (const [name, file] of Object.entries(zip.files)) {
+    const m = name.match(slideRe)
+    if (!m) continue
+    const xml = await file.async('string')
+    const texts: string[] = []
+    const tagRe = /<a:t[^>]*>([\s\S]*?)<\/a:t>/g
+    let match: RegExpExecArray | null
+    while ((match = tagRe.exec(xml)) !== null) {
+      const t = match[1].trim()
+      if (t) texts.push(t)
+    }
+    slides.push({ idx: parseInt(m[1], 10), text: texts.join('\n') })
+  }
+  slides.sort((a, b) => a.idx - b.idx)
+  return slides
+    .map((s) => `--- Slide ${s.idx} ---\n${s.text || '(空白幻灯片)'}`)
+    .join('\n\n')
 }
 
 function selectKind(kind: string) {
@@ -992,13 +1011,19 @@ function onSkillsSelect(paths: string[]) {
 
 async function loadPackagePreview(guideId: number) {
   pkgLoading.value = true
+  pkgPreviewPath.value = ''
+  pkgSelectedKeys.value = []
   try {
     const { data } = await api.get(`/org/guides/${guideId}/package`)
     pkgFiles.value = data.files || []
     if (data.content && !guideForm.content) guideForm.content = data.content
-    if (pkgFiles.value.length === 1) {
-      await previewPackageFile(pkgFiles.value[0])
-    } else if (!pkgFiles.value.length && guideForm.content) {
+    if (pkgFiles.value.length) {
+      const skill =
+        pkgFiles.value.find((f) => f.replace(/\\/g, '/').split('/').pop()?.toLowerCase() === 'skill.md') ||
+        pkgFiles.value[0]
+      pkgSelectedKeys.value = [skill]
+      await previewPackageFile(skill)
+    } else if (guideForm.content) {
       pkgPreviewKind.value = 'md'
       try {
         pkgPreviewHtml.value = renderMarkdownDocument(guideForm.content || '')
@@ -1040,6 +1065,7 @@ async function previewPackageFile(relPath: string) {
   if (!guideForm.id) return
   pkgPreviewPath.value = relPath
   pkgPreviewLoading.value = true
+  pkgPreviewLang.value = ''
   if (pkgPreviewUrl.value) {
     URL.revokeObjectURL(pkgPreviewUrl.value)
     pkgPreviewUrl.value = ''
@@ -1053,30 +1079,59 @@ async function previewPackageFile(relPath: string) {
       responseType: 'arraybuffer',
     })
     const buf = res.data as ArrayBuffer
-    if (ext === 'md' || ext === 'markdown' || ext === 'txt' || ext === 'json' || ext === 'yaml' || ext === 'yml') {
+
+    // Markdown
+    if (ext === 'md' || ext === 'markdown') {
       const text = new TextDecoder('utf-8').decode(buf)
-      if (ext === 'md' || ext === 'markdown') {
-        pkgPreviewKind.value = 'md'
-        pkgPreviewHtml.value = renderMarkdownDocument(text)
-      } else {
-        pkgPreviewKind.value = 'text'
-        pkgPreviewText.value = text
-      }
-    } else if (ext === 'pdf') {
+      pkgPreviewKind.value = 'md'
+      pkgPreviewHtml.value = renderMarkdownDocument(text)
+    }
+    // Plain text / config
+    else if (['txt', 'json', 'yaml', 'yml', 'csv', 'tsv', 'log', 'env'].includes(ext)) {
+      pkgPreviewKind.value = 'text'
+      pkgPreviewText.value = new TextDecoder('utf-8').decode(buf)
+    }
+    // Images
+    else if (IMAGE_EXTS.has(ext)) {
+      pkgPreviewKind.value = 'image'
+      const blob = new Blob([buf], { type: extMimeType(ext) })
+      pkgPreviewUrl.value = URL.createObjectURL(blob)
+    }
+    // PDF
+    else if (ext === 'pdf') {
       pkgPreviewKind.value = 'pdf'
       const blob = new Blob([buf], { type: 'application/pdf' })
       pkgPreviewUrl.value = URL.createObjectURL(blob)
-    } else if (ext === 'docx') {
+    }
+    // Word
+    else if (ext === 'docx') {
       const result = await mammoth.convertToHtml({ arrayBuffer: buf })
       pkgPreviewKind.value = 'html'
       pkgPreviewHtml.value = DOMPurify.sanitize(result.value || '')
-    } else if (ext === 'xlsx' || ext === 'xls') {
+    }
+    // Excel
+    else if (ext === 'xlsx' || ext === 'xls') {
       const wb = XLSX.read(buf, { type: 'array' })
       const sheet = wb.Sheets[wb.SheetNames[0]]
       const html = XLSX.utils.sheet_to_html(sheet)
       pkgPreviewKind.value = 'table'
       pkgPreviewHtml.value = DOMPurify.sanitize(html)
-    } else {
+    }
+    // PowerPoint
+    else if (ext === 'pptx') {
+      const text = await extractPptxText(buf)
+      pkgPreviewKind.value = 'text'
+      pkgPreviewText.value = text || '(无法提取幻灯片文本)'
+    }
+    // Code files with language hint
+    else if (ext in CODE_EXTS) {
+      const text = new TextDecoder('utf-8').decode(buf)
+      pkgPreviewKind.value = 'code'
+      pkgPreviewLang.value = CODE_EXTS[ext]
+      pkgPreviewText.value = text
+    }
+    // Fallback: try text, else binary
+    else {
       try {
         const text = new TextDecoder('utf-8').decode(buf)
         if (/[\x00-\x08\x0e-\x1f]/.test(text.slice(0, 200))) {
@@ -1090,11 +1145,36 @@ async function previewPackageFile(relPath: string) {
       }
     }
   } catch (e: any) {
-    message.error(e?.response?.data?.detail || '预览失败')
+    const detail = decodeAxiosDetail(e) || '预览失败'
+    message.error(detail)
     pkgPreviewKind.value = 'other'
+    pkgPreviewText.value = detail
   } finally {
     pkgPreviewLoading.value = false
   }
+}
+
+function decodeAxiosDetail(e: any): string {
+  const data = e?.response?.data
+  if (!data) return ''
+  if (typeof data === 'string') {
+    try {
+      const j = JSON.parse(data)
+      return j?.detail || data
+    } catch {
+      return data
+    }
+  }
+  if (data instanceof ArrayBuffer) {
+    try {
+      const text = new TextDecoder('utf-8').decode(data)
+      const j = JSON.parse(text)
+      return j?.detail || text
+    } catch {
+      return ''
+    }
+  }
+  return data?.detail || ''
 }
 
 async function saveGuide() {
@@ -1417,10 +1497,39 @@ onMounted(load)
   color: #6d28d9;
 }
 .kind-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
   font-size: 13px;
   color: #0f172a;
   margin-bottom: 4px;
+}
+.kind-card-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.kind-card-icon.computational {
+  color: #0e7490;
+}
+.kind-card-icon.inferential {
+  color: #6d28d9;
+}
+.kind-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.kind-icon {
+  font-size: 14px;
+  color: #64748b;
+}
+.kind-cell.computational .kind-icon {
+  color: #0e7490;
+}
+.kind-cell.inferential .kind-icon {
+  color: #6d28d9;
 }
 .kind-id {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1563,6 +1672,31 @@ onMounted(load)
   width: 100%;
   height: 400px;
   border: 0;
+}
+.pkg-image {
+  max-width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: repeating-conic-gradient(#f0f0f0 0% 25%, #fff 0% 50%) 0 0 / 16px 16px;
+}
+.pkg-code {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 420px;
+}
+.pkg-code code {
+  font-family: inherit;
+  font-size: inherit;
 }
 .pkg-table-wrap {
   overflow: auto;

@@ -92,13 +92,39 @@
       </a-col>
     </a-row>
 
-    <a-modal v-model:open="openCreate" title="新建 Task 壳" @ok="create">
+    <a-modal v-model:open="openCreate" title="新建 Task 壳" width="720px" @ok="create">
       <a-form layout="vertical">
-        <a-form-item label="Stage"><a-input v-model:value="form.stage" /></a-form-item>
-        <a-form-item label="Task"><a-input v-model:value="form.task" /></a-form-item>
+        <a-row :gutter="12">
+          <a-col :span="8">
+            <a-form-item label="Stage" required>
+              <a-select v-model:value="form.stage" placeholder="选择 Stage" @change="onStageChange">
+                <a-select-option v-for="s in stageOptions" :key="s" :value="s">{{ s }}</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :span="16">
+            <a-form-item label="Task" required>
+              <a-select
+                v-model:value="form.task"
+                placeholder="选择 Task"
+                show-search
+                option-filter-prop="label"
+                @change="onTaskChange"
+              >
+                <a-select-option v-for="t in taskOptions" :key="t.task_id" :value="t.task_id" :label="t.task_id + ' ' + t.title_zh">
+                  {{ t.task_id }} <span style="color: #94a3b8; margin-left: 6px">{{ t.title_zh }}</span>
+                </a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+        </a-row>
         <a-form-item label="Description"><a-input v-model:value="form.description" /></a-form-item>
-        <a-form-item label="Body"><a-textarea v-model:value="form.body" :rows="8" /></a-form-item>
+        <a-form-item label="Body"><a-textarea v-model:value="form.body" :rows="10" class="mono" /></a-form-item>
+        <a-form-item label="Appendix（绑定 guides/sensors）"><a-textarea v-model:value="form.appendix" :rows="8" class="mono" /></a-form-item>
       </a-form>
+      <template v-if="previewLoading">
+        <a-spin size="small" style="margin-right: 8px" /> 正在生成初始内容…
+      </template>
     </a-modal>
   </div>
 </template>
@@ -116,14 +142,63 @@ const openCreate = ref(false)
 const shellTab = ref('command')
 const commandMode = ref<'edit' | 'preview'>('edit')
 const skillMode = ref<'edit' | 'preview'>('edit')
+const previewLoading = ref(false)
+const allTasks = ref<any[]>([])
 const form = reactive({
-  stage: 'dev',
+  stage: '',
   task: '',
   description: '',
   body: '',
   appendix: '',
   slash_name: '',
 })
+
+const stageOptions = computed(() => {
+  const set = new Set<string>()
+  for (const t of allTasks.value) set.add(t.stage)
+  const order = ['req', 'arch', 'dev', 'test']
+  return [...set].sort((a, b) => {
+    const ia = order.indexOf(a), ib = order.indexOf(b)
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
+  })
+})
+
+const taskOptions = computed(() => {
+  if (!form.stage) return []
+  return allTasks.value.filter((t: any) => t.stage === form.stage)
+})
+
+function onStageChange() {
+  form.task = ''
+  form.description = ''
+  form.body = ''
+  form.appendix = ''
+}
+
+async function onTaskChange() {
+  if (!form.stage || !form.task) return
+  previewLoading.value = true
+  try {
+    const { data } = await api.get('/org/commands/preview', { params: { stage: form.stage, task: form.task } })
+    form.description = data.description || ''
+    form.body = data.body || ''
+    form.appendix = data.appendix || ''
+    form.slash_name = data.slash_name || ''
+  } catch {
+    // keep form empty on error
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+async function loadTasks() {
+  try {
+    const { data } = await api.get('/org/tasks')
+    allTasks.value = data
+  } catch {
+    allTasks.value = []
+  }
+}
 
 const fullText = computed(() => {
   if (!current.value) return ''
@@ -194,7 +269,7 @@ async function create() {
   await load()
 }
 
-onMounted(load)
+onMounted(() => { load(); loadTasks() })
 </script>
 
 <style scoped>

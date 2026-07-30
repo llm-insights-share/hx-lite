@@ -26,7 +26,9 @@ from app.core.models import (
 )
 from app.domain.asset_submission import decide_submission, set_asset_status, submission_payload
 from app.domain.bootstrap import bootstrap_org
+from app.domain.defaults import default_workflow_body, slash_name as make_slash_name
 from app.domain.hub_exporter import export_hub
+from app.domain.shell_assembler import assemble_shell
 from app.services import github as github_svc
 
 router = APIRouter(prefix="/api/org", tags=["org"])
@@ -832,23 +834,32 @@ def get_guide_package(guide_id: int, session: SessionDep, _user: CurrentUser):
     row = session.get(Guide, guide_id)
     if not row:
         raise HTTPException(404)
-    files: list[str] = []
+    meta_files: list[str] = []
     try:
-        files = json.loads(row.package_files_json or "[]")
+        meta_files = [
+            str(f).replace("\\", "/").lstrip("./")
+            for f in json.loads(row.package_files_json or "[]")
+            if str(f).strip()
+        ]
     except json.JSONDecodeError:
-        files = []
+        meta_files = []
+    disk_files: list[str] = []
     if row.package_path:
         try:
             root = _guide_package_root(row)
-            disk = sorted(
+            disk_files = sorted(
                 str(p.relative_to(root)).replace("\\", "/")
                 for p in root.rglob("*")
                 if p.is_file()
             )
-            if disk:
-                files = disk
         except HTTPException:
-            pass
+            disk_files = []
+    # Merge metadata + disk so the left tree shows the full package inventory.
+    files = sorted({*meta_files, *disk_files})
+    # If primary SKILL.md is missing everywhere but content is stored in DB, keep a virtual entry.
+    content = (row.content or "").strip()
+    if content and not any(f.rsplit("/", 1)[-1].lower() == "skill.md" for f in files):
+        files = sorted({*files, "SKILL.md"})
     return {
         "id": row.id,
         "asset_id": row.asset_id,
@@ -874,15 +885,24 @@ def get_guide_package_file(
         raise HTTPException(400, "invalid path")
     root = _guide_package_root(row)
     target = (root / rel).resolve()
-    if not str(target).startswith(str(root)) or not target.is_file():
-        raise HTTPException(404, "file not found")
-    data = target.read_bytes()
-    ctype, _ = mimetypes.guess_type(str(target))
-    return Response(
-        content=data,
-        media_type=ctype or "application/octet-stream",
-        headers={"Content-Disposition": f'inline; filename="{target.name}"'},
-    )
+    if str(target).startswith(str(root)) and target.is_file():
+        data = target.read_bytes()
+        ctype, _ = mimetypes.guess_type(str(target))
+        return Response(
+            content=data,
+            media_type=ctype or "application/octet-stream",
+            headers={"Content-Disposition": f'inline; filename="{target.name}"'},
+        )
+    # Fallback: primary SKILL.md may be missing on disk while DB content remains
+    basename = Path(rel).name.lower()
+    if basename == "skill.md" and (row.content or "").strip():
+        data = (row.content or "").encode("utf-8")
+        return Response(
+            content=data,
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'inline; filename="{Path(rel).name}"'},
+        )
+    raise HTTPException(404, "文件不存在于包目录（可能已丢失）")
 
 
 @router.delete("/guides/{guide_id}")
@@ -952,6 +972,49 @@ def delete_sensor(sensor_id: int, session: SessionDep, _user: CurrentUser):
 @router.get("/commands")
 def list_commands(session: SessionDep, _user: CurrentUser, org_id: str = "default"):
     return session.exec(select(CommandShell).where(CommandShell.org_id == org_id)).all()
+
+
+@router.get("/commands/preview")
+def preview_command(
+    session: SessionDep,
+    _user: CurrentUser,
+    stage: str,
+    task: str,
+    org_id: str = "default",
+):
+    """Generate default shell content based on StageTask definition + bound guides/sensors."""
+    row = session.exec(
+        select(StageTask).where(
+            StageTask.org_id == org_id,
+            StageTask.profile_key == "*",
+            StageTask.stage == stage,
+            StageTask.task_id == task,
+        )
+    ).first()
+
+    title = row.title_zh if row else task
+    guide_ids: list[str] = json.loads(row.guides_json) if row else []
+    sensor_ids: list[str] = json.loads(row.sensors_json) if row else []
+
+    # Split guides into skills vs templates by querying Guide table
+    skills: list[str] = []
+    templates: list[str] = []
+    if guide_ids:
+        guide_rows = session.exec(
+            select(Guide).where(Guide.org_id == org_id, Guide.asset_id.in_(guide_ids))  # type: ignore[attr-defined]
+        ).all()
+        kind_map = {g.asset_id: g.kind for g in guide_rows}
+        for gid in guide_ids:
+            if kind_map.get(gid, "guide.skill") == "guide.template":
+                templates.append(gid)
+            else:
+                skills.append(gid)
+
+    body = default_workflow_body(stage, task, title)
+    description = f"{title} — {stage}/{task}"
+
+    result = assemble_shell(stage, task, description, body, skills, templates, sensor_ids)
+    return result
 
 
 @router.post("/commands")

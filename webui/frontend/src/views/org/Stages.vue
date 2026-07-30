@@ -26,7 +26,14 @@
           <MinusCircleOutlined v-else class="req-no" title="非必须" />
         </template>
         <template v-else-if="column.key === 'guides'">
-          <a-tag v-for="g in record.guides" :key="g">{{ g }}</a-tag>
+          <a-tag v-for="g in record.guides" :key="g" class="guide-tag">
+            <component
+              :is="guideKindIcon(guideKindById(g))"
+              class="guide-tag-icon"
+              :class="guideKindCategory(guideKindById(g))"
+            />
+            {{ g }}
+          </a-tag>
         </template>
         <template v-else-if="column.key === 'sensors'">
           <a-tag
@@ -107,6 +114,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { CheckCircleFilled, MinusCircleOutlined } from '@ant-design/icons-vue'
 import { api } from '../../api'
+import { guideKindCategory, guideKindIcon } from '../../utils/guideKind'
 
 const stages = ['req', 'arch', 'dev', 'test']
 const profiles = ref<any[]>([])
@@ -135,6 +143,18 @@ const guideOpts = computed(() =>
     label: g.name ? `${g.asset_id} — ${g.name}` : `${g.asset_id} (${g.kind})`,
   })),
 )
+
+const guideKindMap = computed(() => {
+  const m = new Map<string, string>()
+  for (const g of guides.value) {
+    if (g?.asset_id) m.set(g.asset_id, g.kind || 'guide.skill')
+  }
+  return m
+})
+
+function guideKindById(assetId: string) {
+  return guideKindMap.value.get(assetId) || 'guide.skill'
+}
 const sensorOpts = computed(() =>
   sensors.value.map((s) => ({
     value: s.asset_id,
@@ -273,5 +293,21 @@ onMounted(async () => {
 .muted {
   color: #94a3b8;
   font-size: 12px;
+}
+.guide-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+.guide-tag-icon {
+  font-size: 12px;
+  color: #64748b;
+}
+.guide-tag-icon.computational {
+  color: #0e7490;
+}
+.guide-tag-icon.inferential {
+  color: #6d28d9;
 }
 </style>
