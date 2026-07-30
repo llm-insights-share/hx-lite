@@ -14,7 +14,7 @@
         type="warning"
         show-icon
         style="margin-bottom: 12px"
-        message="human：触发时仅提醒「尚未批准」，不做文件/脚本检查；beforeSubmit 不阻断提交。"
+        message="human：通过前须先上传该任务产物，再创建并批准 human-check 工单；触发时仅提醒「尚未批准」，不做文件/脚本检查；beforeSubmit 不阻断提交。"
       />
       <a-form layout="vertical">
         <a-form-item label="Asset ID">

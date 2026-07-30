@@ -15,9 +15,18 @@
       <a-form-item label="名称">
         <a-input :value="record.name || (record.asset_id || '').slice(0, 20)" disabled />
       </a-form-item>
-      <a-form-item label="Version">
-        <a-input :value="record.version || '1.0.0'" style="width: 160px" disabled />
-      </a-form-item>
+      <a-row :gutter="12">
+        <a-col :span="12">
+          <a-form-item label="来源">
+            <a-input :value="record.source || '—'" disabled />
+          </a-form-item>
+        </a-col>
+        <a-col :span="12">
+          <a-form-item label="Version">
+            <a-input :value="record.version || '1.0.0'" disabled />
+          </a-form-item>
+        </a-col>
+      </a-row>
       <a-form-item label="Kind">
         <a-alert
           v-if="legacyKind"

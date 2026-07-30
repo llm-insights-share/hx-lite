@@ -75,6 +75,7 @@ class Guide(SQLModel, table=True):
     task: str = ""
     version: str = "1.0.0"
     status: str = "draft"
+    source: str = ""  # human-editable provenance label, max 16 chars
     content: str = Field(default="", sa_column=Column(Text))
     content_mode: str = "markdown"  # text|markdown|package
     package_path: str = ""  # relative to data_dir, e.g. guide-packages/default/id/1.0.0

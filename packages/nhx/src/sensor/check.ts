@@ -38,7 +38,7 @@ type SensorMeta = {
 const DEFAULT_TRIGGERS = ["hook:stop", "cli", "task-shell"];
 
 const INLINE_HELP =
-  "Supported: file.exists(path=...), file.min_bytes(path=..., n=...), doc.sections_complete(path=..., require=[...]), approval.prd|arch|arch-lld == true";
+  "Supported: file.exists(path=...), file.min_bytes(path=..., n=...), doc.sections_complete(path=..., require=[...]), approval.prd|arch|arch-lld == true. path 支持 * /**；多匹配须全部满足";
 
 function loadLockTasks(cwd: string): TaskMeta[] {
   const p = lockPath(cwd);
@@ -111,6 +111,81 @@ export function matchGlob(pattern: string, filePath: string): boolean {
     .replace(/\*/g, "[^/]*")
     .replace(/«DG»/g, ".*");
   return new RegExp(`^${esc}$`).test(norm);
+}
+
+export function pathHasGlob(pattern: string): boolean {
+  return /[*?]/.test(pattern.replace(/\\/g, "/"));
+}
+
+const SKIP_DIR_NAMES = new Set([
+  ".git",
+  "node_modules",
+  ".nhx",
+  "dist",
+  "build",
+  ".venv",
+  "venv",
+  "__pycache__",
+  ".cursor",
+  ".trae",
+  ".qoder",
+]);
+
+/** Directory to start walking: segments before first glob segment; empty → cwd. */
+export function globScanRoot(pattern: string): string {
+  const parts = pattern.replace(/\\/g, "/").replace(/^\.\//, "").split("/").filter(Boolean);
+  const prefix: string[] = [];
+  for (const part of parts) {
+    if (/[*?]/.test(part)) break;
+    prefix.push(part);
+  }
+  return prefix.join("/");
+}
+
+/** List files under cwd matching glob pattern (posix relative paths). */
+export function listFilesMatching(cwd: string, pattern: string): string[] {
+  const pat = pattern.replace(/\\/g, "/").replace(/^\.\//, "");
+  const scanRel = globScanRoot(pat);
+  const startAbs = scanRel ? path.join(cwd, scanRel) : cwd;
+  if (!fs.existsSync(startAbs)) return [];
+
+  const out: string[] = [];
+  const walk = (absDir: string) => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(absDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const ent of entries) {
+      if (ent.name === "." || ent.name === "..") continue;
+      if (ent.isDirectory()) {
+        if (SKIP_DIR_NAMES.has(ent.name)) continue;
+        walk(path.join(absDir, ent.name));
+        continue;
+      }
+      if (!ent.isFile()) continue;
+      const abs = path.join(absDir, ent.name);
+      const rel = path.relative(cwd, abs).replace(/\\/g, "/");
+      if (matchGlob(pat, rel)) out.push(rel);
+    }
+  };
+
+  const st = fs.statSync(startAbs);
+  if (st.isFile()) {
+    const rel = path.relative(cwd, startAbs).replace(/\\/g, "/");
+    if (matchGlob(pat, rel)) out.push(rel);
+    return out.sort();
+  }
+  walk(startAbs);
+  return out.sort();
+}
+
+/** Resolve exact path or expand glob; empty when glob matches nothing. */
+export function resolveInlinePaths(cwd: string, pattern: string): string[] {
+  const rel = pattern.replace(/\\/g, "/").replace(/^\.\//, "");
+  if (!pathHasGlob(rel)) return [rel];
+  return listFilesMatching(cwd, rel);
 }
 
 function scopeMatches(scope: string[], paths: string[] | undefined): boolean {
@@ -292,29 +367,61 @@ function checkShell(content: string, cwd: string): { ok: boolean; message: strin
   };
 }
 
-function checkFileExists(cwd: string, rel: string): { ok: boolean; message: string } {
-  const full = path.join(cwd, rel);
-  if (!fs.existsSync(full)) return { ok: false, message: `file.exists 失败: 缺少 ${rel}` };
-  return { ok: true, message: `file.exists ok: ${rel}` };
-}
-
-function checkFileMinBytes(cwd: string, rel: string, n: number): { ok: boolean; message: string } {
-  const full = path.join(cwd, rel);
-  if (!fs.existsSync(full)) return { ok: false, message: `file.min_bytes 失败: 缺少 ${rel}` };
-  const size = fs.statSync(full).size;
-  if (size < n) return { ok: false, message: `file.min_bytes 失败: ${rel} 仅 ${size}B < ${n}` };
-  return { ok: true, message: `file.min_bytes ok: ${rel} (${size}B)` };
-}
-
-function checkDocSections(cwd: string, rel: string, require: string[]): { ok: boolean; message: string } {
-  const full = path.join(cwd, rel);
-  if (!fs.existsSync(full)) return { ok: false, message: `doc.sections_complete 失败: 缺少 ${rel}` };
-  const text = fs.readFileSync(full, "utf8");
-  const missing = require.filter((k) => !text.toLowerCase().includes(k.toLowerCase()));
-  if (missing.length) {
-    return { ok: false, message: `doc.sections_complete 失败: 缺少章节关键词 ${missing.join(", ")}` };
+export function checkFileExists(cwd: string, rel: string): { ok: boolean; message: string } {
+  const paths = resolveInlinePaths(cwd, rel);
+  if (pathHasGlob(rel) && !paths.length) {
+    return { ok: false, message: `file.exists 失败: 无匹配文件 ${rel}` };
   }
-  return { ok: true, message: `doc.sections_complete ok (${require.length})` };
+  for (const p of paths) {
+    const full = path.join(cwd, p);
+    if (!fs.existsSync(full)) return { ok: false, message: `file.exists 失败: 缺少 ${p}` };
+  }
+  if (paths.length === 1) return { ok: true, message: `file.exists ok: ${paths[0]}` };
+  return { ok: true, message: `file.exists ok: ${paths.length} 个文件均存在 (${rel})` };
+}
+
+export function checkFileMinBytes(cwd: string, rel: string, n: number): { ok: boolean; message: string } {
+  const paths = resolveInlinePaths(cwd, rel);
+  if (pathHasGlob(rel) && !paths.length) {
+    return { ok: false, message: `file.min_bytes 失败: 无匹配文件 ${rel}` };
+  }
+  for (const p of paths) {
+    const full = path.join(cwd, p);
+    if (!fs.existsSync(full)) return { ok: false, message: `file.min_bytes 失败: 缺少 ${p}` };
+    const size = fs.statSync(full).size;
+    if (size < n) return { ok: false, message: `file.min_bytes 失败: ${p} 仅 ${size}B < ${n}` };
+  }
+  if (paths.length === 1) {
+    const size = fs.statSync(path.join(cwd, paths[0]!)).size;
+    return { ok: true, message: `file.min_bytes ok: ${paths[0]} (${size}B)` };
+  }
+  return { ok: true, message: `file.min_bytes ok: ${paths.length} 个文件均 ≥${n}B (${rel})` };
+}
+
+export function checkDocSections(cwd: string, rel: string, require: string[]): { ok: boolean; message: string } {
+  const paths = resolveInlinePaths(cwd, rel);
+  if (pathHasGlob(rel) && !paths.length) {
+    return { ok: false, message: `doc.sections_complete 失败: 无匹配文件 ${rel}` };
+  }
+  for (const p of paths) {
+    const full = path.join(cwd, p);
+    if (!fs.existsSync(full)) return { ok: false, message: `doc.sections_complete 失败: 缺少 ${p}` };
+    const text = fs.readFileSync(full, "utf8");
+    const missing = require.filter((k) => !text.toLowerCase().includes(k.toLowerCase()));
+    if (missing.length) {
+      return {
+        ok: false,
+        message: `doc.sections_complete 失败: ${p} 缺少章节关键词 ${missing.join(", ")}`,
+      };
+    }
+  }
+  if (paths.length === 1) {
+    return { ok: true, message: `doc.sections_complete ok (${require.length})` };
+  }
+  return {
+    ok: true,
+    message: `doc.sections_complete ok: ${paths.length} 个文件均含章节 (${require.length})`,
+  };
 }
 
 async function checkInline(

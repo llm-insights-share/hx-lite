@@ -171,6 +171,22 @@ export async function submitArtifact(
   return res.json();
 }
 
+export async function listArtifacts(
+  apiBase: string,
+  token: string,
+  params: { project_id: number; stage?: string; task?: string },
+): Promise<any[]> {
+  const q = new URLSearchParams();
+  q.set("project_id", String(params.project_id));
+  if (params.stage) q.set("stage", params.stage);
+  if (params.task) q.set("task", params.task);
+  const res = await fetch(`${apiRoot(apiBase)}/api/artifacts?${q.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`list artifacts failed (${res.status}): ${await res.text()}`);
+  return (await res.json()) as any[];
+}
+
 export async function createTicket(
   apiBase: string,
   token: string,

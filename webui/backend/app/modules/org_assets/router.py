@@ -77,11 +77,13 @@ class GuideIn(BaseModel):
     task: str = ""
     version: str = "1.0.0"
     status: str = "draft"
+    source: str = ""
     content: str = ""
     content_mode: str = "markdown"  # text|markdown|package
 
 
 ASSET_NAME_MAX = 20
+GUIDE_SOURCE_MAX = 16
 
 
 def _normalize_asset_name(name: str | None, asset_id: str) -> str:
@@ -91,6 +93,13 @@ def _normalize_asset_name(name: str | None, asset_id: str) -> str:
     if cleaned:
         return cleaned
     return (asset_id or "").strip()[:ASSET_NAME_MAX]
+
+
+def _normalize_guide_source(source: str | None) -> str:
+    cleaned = (source or "").strip()
+    if len(cleaned) > GUIDE_SOURCE_MAX:
+        raise HTTPException(400, f"来源不能超过 {GUIDE_SOURCE_MAX} 个字")
+    return cleaned
 
 
 class GuideFromGithubIn(BaseModel):
@@ -672,6 +681,7 @@ def create_guide(body: GuideIn, session: SessionDep, user: CurrentUser, org_id: 
         task=body.task,
         version=body.version,
         status=body.status,
+        source=_normalize_guide_source(body.source),
         content=body.content,
         content_mode=mode,
         package_path="",
@@ -706,6 +716,7 @@ def update_guide(guide_id: int, body: GuideIn, session: SessionDep, user: Curren
     row.task = body.task
     row.version = body.version
     row.status = body.status
+    row.source = _normalize_guide_source(body.source)
     row.content = body.content
     row.content_mode = mode
     if mode != "package":
@@ -738,6 +749,7 @@ async def upload_guide(
     task: str = Form(""),
     version: str = Form("1.0.0"),
     status: str = Form("draft"),
+    source: str = Form(""),
     org_id: str = Form("default"),
     guide_id: Optional[int] = Form(None),
     files: list[UploadFile] = File(default_factory=list),
@@ -779,6 +791,7 @@ async def upload_guide(
     row.task = task
     row.version = version.strip() or "1.0.0"
     row.status = status
+    row.source = _normalize_guide_source(source)
     row.content = content
     row.content_mode = "package"
     row.package_path = pkg_rel
@@ -1033,17 +1046,24 @@ def get_guide_package_file(
     rel = (path or "").replace("\\", "/").lstrip("./")
     if not rel or ".." in rel.split("/"):
         raise HTTPException(400, "invalid path")
-    root = _guide_package_root(row)
-    target = (root / rel).resolve()
-    if str(target).startswith(str(root)) and target.is_file():
-        data = target.read_bytes()
-        ctype, _ = mimetypes.guess_type(str(target))
-        return Response(
-            content=data,
-            media_type=ctype or "application/octet-stream",
-            headers={"Content-Disposition": f'inline; filename="{target.name}"'},
-        )
+    root = None
+    if (row.package_path or "").strip():
+        try:
+            root = _guide_package_root(row)
+        except HTTPException:
+            root = None
+    if root is not None:
+        target = (root / rel).resolve()
+        if str(target).startswith(str(root)) and target.is_file():
+            data = target.read_bytes()
+            ctype, _ = mimetypes.guess_type(str(target))
+            return Response(
+                content=data,
+                media_type=ctype or "application/octet-stream",
+                headers={"Content-Disposition": f'inline; filename="{target.name}"'},
+            )
     # Fallback: primary SKILL.md may be missing on disk while DB content remains
+    # (also covers markdown/text guides with virtual SKILL.md and empty package_path)
     basename = Path(rel).name.lower()
     if basename == "skill.md" and (row.content or "").strip():
         data = (row.content or "").encode("utf-8")
@@ -1052,6 +1072,8 @@ def get_guide_package_file(
             media_type="text/markdown; charset=utf-8",
             headers={"Content-Disposition": f'inline; filename="{Path(rel).name}"'},
         )
+    if root is None and not (row.package_path or "").strip():
+        raise HTTPException(404, "无 package")
     raise HTTPException(404, "文件不存在于包目录（可能已丢失）")
 
 

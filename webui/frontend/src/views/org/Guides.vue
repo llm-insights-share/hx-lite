@@ -158,9 +158,24 @@
             :disabled="guideReadonly"
           />
         </a-form-item>
-        <a-form-item label="Version">
-          <a-input v-model:value="guideForm.version" style="width: 160px" :disabled="guideReadonly" />
-        </a-form-item>
+        <a-row :gutter="12">
+          <a-col :span="12">
+            <a-form-item label="来源">
+              <a-input
+                v-model:value="guideForm.source"
+                :maxlength="16"
+                show-count
+                placeholder="不超过 16 字"
+                :disabled="guideReadonly"
+              />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="Version">
+              <a-input v-model:value="guideForm.version" :disabled="guideReadonly" />
+            </a-form-item>
+          </a-col>
+        </a-row>
 
         <a-form-item label="Kind">
           <a-alert
@@ -331,7 +346,7 @@
         type="warning"
         show-icon
         style="margin-bottom: 12px"
-        message="human：触发时仅提醒「尚未批准」，不做文件/脚本检查；beforeSubmit 不阻断提交。"
+        message="human：通过前须先上传该任务产物，再创建并批准 human-check 工单；触发时仅提醒「尚未批准」，不做文件/脚本检查；beforeSubmit 不阻断提交。"
       />
       <a-form layout="vertical">
         <a-form-item label="Asset ID">
@@ -599,6 +614,7 @@ const guideForm = reactive<any>({
   kind: 'guide.skill',
   version: '1.0.0',
   status: 'draft',
+  source: '',
   content: '',
   content_mode: 'markdown',
   package_path: '',
@@ -871,6 +887,7 @@ function resetGuideForm() {
     kind: 'guide.skill',
     version: '1.0.0',
     status: 'draft',
+    source: '',
     content: '',
     content_mode: 'markdown',
     package_path: '',
@@ -897,6 +914,7 @@ function fillGuideForm(record: any) {
     kind: record.kind || 'guide.skill',
     version: record.version || '1.0.0',
     status: record.status || 'draft',
+    source: record.source || '',
     content: record.content || '',
     content_mode: record.content_mode || 'markdown',
     package_path: record.package_path || '',
@@ -1158,6 +1176,11 @@ async function saveGuide() {
     message.warning('名称不能超过 20 个字')
     return Promise.reject()
   }
+  const guideSource = (guideForm.source || '').trim()
+  if (guideSource.length > 16) {
+    message.warning('来源不能超过 16 个字')
+    return Promise.reject()
+  }
   savingGuide.value = true
   try {
     if (contentSource.value === 'github') {
@@ -1199,6 +1222,7 @@ async function saveGuide() {
         fd.append('task', '')
         fd.append('version', guideForm.version || '1.0.0')
         fd.append('status', guideForm.status || 'draft')
+        fd.append('source', guideSource)
         if (guideForm.id) fd.append('guide_id', String(guideForm.id))
         for (const item of uploadFileList.value) {
           fd.append('files', item.file)
@@ -1217,6 +1241,7 @@ async function saveGuide() {
           task: '',
           version: guideForm.version,
           status: guideForm.status,
+          source: guideSource,
           content: guideForm.content,
           content_mode: guideForm.content_mode || 'package',
         }
@@ -1241,6 +1266,7 @@ async function saveGuide() {
         task: '',
         version: guideForm.version,
         status: guideForm.status,
+        source: guideSource,
         content: guideForm.content,
         content_mode: contentMode,
       }

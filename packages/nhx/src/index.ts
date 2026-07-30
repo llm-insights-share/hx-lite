@@ -8,6 +8,7 @@ import {
   createTicket,
   exportProject,
   health,
+  listArtifacts,
   login,
   submitTicket,
 } from "./api/client.js";
@@ -395,6 +396,21 @@ function buildProgram(): Command {
         const creds = loadCredentials(cwd);
         if (!cfg?.project_id || !creds?.access_token) throw new Error("请先 nhx login && nhx init");
         const api = resolveApiBase(undefined, cwd);
+        const arts = await listArtifacts(api, creds.access_token, {
+          project_id: cfg.project_id,
+          stage: opts.stage,
+          task: opts.task,
+        });
+        if (!arts.length) {
+          throw new Error(
+            `任务 ${opts.stage}/${opts.task} 尚无产物。请先 nhx submit 上传后再 approve request。`,
+          );
+        }
+        if (opts.artifact && !arts.some((a) => a.name === opts.artifact)) {
+          throw new Error(
+            `未找到产物「${opts.artifact}」（${opts.stage}/${opts.task}）。可用产物：${arts.map((a) => a.name).join(", ")}`,
+          );
+        }
         const ticket = await createTicket(api, creds.access_token, {
           project_id: cfg.project_id,
           title: opts.title || `人工检查 ${opts.stage}/${opts.task}`,

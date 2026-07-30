@@ -47,17 +47,17 @@ export const INLINE_FUNCTIONS: InlineFn[] = [
   {
     expr: 'file.exists(path=docs/prd/PRD.md)',
     label: 'file.exists',
-    desc: '检查相对仓库根的文件是否存在',
+    desc: '检查相对仓库根的文件是否存在；path 支持 * /**，多匹配须全部存在',
   },
   {
-    expr: 'file.min_bytes(path=docs/prd/PRD.md, n=200)',
+    expr: 'file.min_bytes(path=docs/req/bizmodel*.md, n=200)',
     label: 'file.min_bytes',
-    desc: '检查文件存在且至少 n 字节',
+    desc: '检查文件存在且至少 n 字节；通配时每个匹配文件都须 ≥ n',
   },
   {
     expr: 'doc.sections_complete(path=docs/prd/PRD.md, require=[用户故事, 验收标准])',
     label: 'doc.sections_complete',
-    desc: '检查 Markdown 中是否包含指定章节关键词',
+    desc: '检查 Markdown 中是否包含指定章节关键词；通配时每个匹配文件都须满足',
   },
   {
     expr: 'approval.prd == true',
@@ -97,22 +97,31 @@ npx --yes tsc --noEmit
   },
   inline: {
     title: 'inline 配置说明',
-    body: '仅写 check_type + expr。触发通道 / Scope 在上方表单。支持 file.exists / file.min_bytes / doc.sections_complete / approval.*',
+    body: '仅写 check_type + expr。触发通道 / Scope 在上方表单。支持 file.exists / file.min_bytes / doc.sections_complete / approval.*。path 支持 * 与 **；若匹配多个文件，须全部满足条件才通过。',
     example: `---
 check_type: inline
-expr: "file.exists(path=docs/prd/PRD.md)"
+expr: "file.min_bytes(path=docs/req/bizmodel*.md, n=200)"
 ---`,
   },
   human: {
     title: 'human 配置说明',
-    body: '仅写 check_type。触发通道在上方表单。触发时仅提醒「尚未批准」；需 WebUI human-check 工单。',
+    body: '写 check_type 与检查意图说明即可。触发通道在上方表单。须先上传该任务产物，再创建并批准 human-check 工单；触发时仅提醒「尚未批准」。',
     example: `---
 check_type: human
----`,
+---
+
+## 检查意图
+
+架构 LLD 人工审批。
+
+触发时仅提醒「尚未批准」，不执行自动文件/脚本检查；需人工确认后再继续。
+
+通过本门禁后再进入下一交付环节。
+`,
   },
 }
 
-/** Real config only — no prose / samples in the editor body. */
+/** Default editor body per check_type (frontmatter + intent prose for human). */
 const TEMPLATES: Record<SensorCheckType, string> = {
   rules: `---
 check_type: rules
@@ -143,6 +152,14 @@ expr: "doc.sections_complete(path=docs/prd/PRD.md, require=[用户故事, 验收
   human: `---
 check_type: human
 ---
+
+## 检查意图
+
+人工审批。
+
+触发时仅提醒「尚未批准」，不执行自动文件/脚本检查；需人工确认后再继续。须先上传该任务产物，再创建并批准 human-check 工单。
+
+通过本门禁后再进入下一交付环节。
 `,
 }
 

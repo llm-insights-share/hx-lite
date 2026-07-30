@@ -56,7 +56,7 @@ Sensor `check_type`：
 |------|------|
 | `rules` | 文本规则注入 Task 壳 / IDE hook，由对话模型评判；本地不跑 LLM。`input` 均缺失时确定性失败 |
 | `shell` | 执行 content 中首个 bash 代码块 |
-| `inline` | 内置函数：`file.exists` / `file.min_bytes` / `doc.sections_complete` / `approval.*` |
+| `inline` | 内置函数：`file.exists` / `file.min_bytes` / `doc.sections_complete` / `approval.*`。`path` 支持 `*` / `**`；多文件匹配时须**全部**满足条件才通过 |
 | `human` | 仅提醒「尚未批准」/已批准（查询 human-check 工单；不做文件脚本检查） |
 
 触发通道（可多选，存在 Sensor.triggers）：

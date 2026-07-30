@@ -8,7 +8,7 @@
       type="info"
       show-icon
       style="margin-bottom: 12px"
-      message="触发通道可多选（hooks / nhx CLI / command-skill 壳）。human 仅提醒「尚未批准」。配置说明点 ?"
+      message="触发通道可多选（hooks / nhx CLI / command-skill 壳）。human：须先上传任务产物并批准 human-check 工单；触发时仅提醒「尚未批准」。配置说明点 ?"
     />
     <a-form layout="inline" style="margin-bottom: 12px">
       <a-form-item label="项目">
@@ -79,7 +79,7 @@
         type="warning"
         show-icon
         style="margin-bottom: 12px"
-        message="human：触发时仅提醒「尚未批准」，不做文件/脚本检查。"
+        message="human：通过前须先上传该任务产物，再创建并批准 human-check 工单；触发时仅提醒「尚未批准」，不做文件/脚本检查。"
       />
       <a-form layout="vertical">
         <a-form-item label="Asset ID">

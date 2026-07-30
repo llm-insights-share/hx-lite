@@ -191,7 +191,8 @@ def _human(asset_id: str, title: str = "") -> dict[str, Any]:
     label = title or f"人工审批（{asset_id}）"
     content = _frontmatter("human") + _intent_note(
         label,
-        "触发时仅提醒「尚未批准」，不执行自动文件/脚本检查；需人工确认后再继续。",
+        "触发时仅提醒「尚未批准」，不执行自动文件/脚本检查；需人工确认后再继续。"
+        "须先上传该任务产物，再创建并批准 human-check 工单。",
     )
     return _pack("human", "sensor.human", content, {"approval": True, "reminder_only": True}, tr, sc)
 

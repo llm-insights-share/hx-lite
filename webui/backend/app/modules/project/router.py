@@ -1471,6 +1471,65 @@ def _next_ticket_no(session: SessionDep) -> str:
     return f"TK-{datetime.now().year}-{count:04d}"
 
 
+def _artifacts_for_scope(
+    session: SessionDep,
+    project_id: int,
+    stage: str,
+    task: str,
+    artifact_name: str = "",
+) -> list[Artifact]:
+    q = select(Artifact).where(
+        Artifact.project_id == project_id,
+        Artifact.stage == stage,
+        Artifact.task == task,
+    )
+    if artifact_name:
+        q = q.where(Artifact.name == artifact_name)
+    return list(session.exec(q).all())
+
+
+def _require_human_check_artifacts(
+    session: SessionDep,
+    *,
+    project_id: int,
+    stage: str,
+    task: str,
+    artifact_name: str = "",
+) -> list[Artifact]:
+    stage = (stage or "").strip()
+    task = (task or "").strip()
+    artifact_name = (artifact_name or "").strip()
+    if not stage or not task:
+        raise HTTPException(400, "human-check 工单必须填写 Stage 与 Task")
+    arts = _artifacts_for_scope(session, project_id, stage, task, artifact_name)
+    if not arts:
+        if artifact_name:
+            raise HTTPException(
+                400,
+                f"未找到产物「{artifact_name}」（{stage}/{task}）。请先在 WebUI「产物」页或 nhx submit 上传后再创建/提交工单。",
+            )
+        raise HTTPException(
+            400,
+            f"任务 {stage}/{task} 尚无产物。请先上传该任务产物（WebUI「产物」或 nhx submit）后再创建/提交人工审批工单。",
+        )
+    return arts
+
+
+def _ticket_artifact_payloads(arts: list[Artifact]) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": a.id,
+            "name": a.name,
+            "stage": a.stage,
+            "task": a.task,
+            "latest_version": a.latest_version,
+            "path_hint": a.path_hint,
+            "updated_at": a.updated_at.isoformat() if a.updated_at else None,
+        }
+        for a in arts
+    ]
+
+
 @router.get("/tickets")
 def list_tickets(
     session: SessionDep,
@@ -1504,6 +1563,14 @@ def create_ticket(body: TicketIn, session: SessionDep, user: CurrentUser):
     if not session.get(Project, body.project_id):
         raise HTTPException(404, "project not found")
     _require_project_member(session, user, body.project_id)
+    if (body.ticket_type or "") == "human-check":
+        _require_human_check_artifacts(
+            session,
+            project_id=body.project_id,
+            stage=body.stage or "",
+            task=body.task or "",
+            artifact_name=body.artifact_name or "",
+        )
     row = Ticket(
         ticket_no=_next_ticket_no(session),
         project_id=body.project_id,
@@ -1551,13 +1618,46 @@ def ticket_approval_status(
     }
 
 
-@router.post("/tickets/{ticket_id}/submit")
-def submit_ticket(ticket_id: int, session: SessionDep, _user: CurrentUser):
+@router.get("/tickets/{ticket_id}")
+def get_ticket(ticket_id: int, session: SessionDep, user: CurrentUser):
     row = session.get(Ticket, ticket_id)
     if not row:
         raise HTTPException(404)
+    _require_project_member(session, user, row.project_id)
+    p = session.get(Project, row.project_id)
+    arts = _artifacts_for_scope(
+        session,
+        row.project_id,
+        row.stage or "",
+        row.task or "",
+        row.artifact_name or "",
+    )
+    # If named artifact missing, still show all scope artifacts for review context
+    if (row.artifact_name or "").strip() and not arts:
+        arts = _artifacts_for_scope(session, row.project_id, row.stage or "", row.task or "", "")
+    return {
+        **row.model_dump(),
+        "project_name": p.name if p else "",
+        "artifacts": _ticket_artifact_payloads(arts),
+    }
+
+
+@router.post("/tickets/{ticket_id}/submit")
+def submit_ticket(ticket_id: int, session: SessionDep, user: CurrentUser):
+    row = session.get(Ticket, ticket_id)
+    if not row:
+        raise HTTPException(404)
+    _require_project_member(session, user, row.project_id)
     if row.status != "draft":
         raise HTTPException(400, f"cannot submit from {row.status}")
+    if (row.ticket_type or "") == "human-check":
+        _require_human_check_artifacts(
+            session,
+            project_id=row.project_id,
+            stage=row.stage or "",
+            task=row.task or "",
+            artifact_name=row.artifact_name or "",
+        )
     row.status = "submitted"
     row.updated_at = datetime.now(timezone.utc)
     session.add(row)

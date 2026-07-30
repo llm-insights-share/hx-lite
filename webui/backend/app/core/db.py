@@ -69,6 +69,8 @@ def _migrate_sqlite() -> None:
                 galters.append("ALTER TABLE guide ADD COLUMN package_path VARCHAR DEFAULT ''")
             if "package_files_json" not in gnames:
                 galters.append("ALTER TABLE guide ADD COLUMN package_files_json VARCHAR DEFAULT '[]'")
+            if "source" not in gnames:
+                galters.append("ALTER TABLE guide ADD COLUMN source VARCHAR DEFAULT ''")
             for sql in galters:
                 conn.execute(text(sql))
             if galters:
