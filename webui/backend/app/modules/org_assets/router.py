@@ -46,6 +46,8 @@ class OrgSettingsIn(BaseModel):
     github_repo: Optional[str] = None
     github_branch: Optional[str] = None
     github_token: Optional[str] = None
+    # Custom guide kinds: [{id, title, desc, category}]
+    guide_kinds: Optional[list[dict]] = None
 
 
 class ProfileIn(BaseModel):
@@ -127,16 +129,29 @@ class GuideFromGithubBatchIn(BaseModel):
     org_id: str = "default"
 
 
-GUIDE_KINDS = {
-    "guide.skill",
-    "guide.template",
-    "guide.constraint",
-    "guide.exemplar",
-    "guide.scaffold",
-    "guide.codemod",
-    "guide.glossary",
-    "guide.capability",
-}
+def _org_settings_row(session: SessionDep, org_id: str = "default"):
+    return session.exec(select(OrgSettings).where(OrgSettings.org_id == org_id)).first()
+
+
+def _allowed_guide_kinds(session: SessionDep, org_id: str = "default") -> set[str]:
+    from app.domain.guide_kinds import allowed_guide_kinds
+
+    return allowed_guide_kinds(_org_settings_row(session, org_id))
+
+
+def _assert_guide_kind_allowed(
+    session: SessionDep,
+    org_id: str,
+    kind: str,
+    *,
+    previous_kind: str | None = None,
+) -> None:
+    allowed = _allowed_guide_kinds(session, org_id)
+    if kind in allowed:
+        return
+    if previous_kind and kind == previous_kind:
+        return
+    raise HTTPException(400, f"unsupported guide kind: {kind}")
 
 
 def _pick_primary_content(files: dict[str, bytes], kind: str) -> str:
@@ -307,18 +322,51 @@ def bootstrap(body: BootstrapIn, session: SessionDep, user: CurrentUser) -> dict
 
 @router.get("/settings")
 def get_settings_api(session: SessionDep, _user: CurrentUser, org_id: str = "default"):
-    return _settings_or_404(session, org_id)
+    row = _settings_or_404(session, org_id)
+    from app.domain.guide_kinds import parse_custom_guide_kinds
+
+    return {
+        "id": row.id,
+        "org_id": row.org_id,
+        "org_name": row.org_name,
+        "github_repo": row.github_repo,
+        "github_branch": row.github_branch,
+        "github_token": row.github_token,
+        "guide_kinds": parse_custom_guide_kinds(getattr(row, "guide_kinds_json", None)),
+        "guide_kinds_json": getattr(row, "guide_kinds_json", None) or "[]",
+        "updated_at": row.updated_at,
+    }
+
+
+@router.get("/guide-kinds")
+def list_guide_kinds(session: SessionDep, _user: CurrentUser, org_id: str = "default"):
+    from app.domain.guide_kinds import guide_kinds_payload
+
+    row = session.exec(select(OrgSettings).where(OrgSettings.org_id == org_id)).first()
+    return guide_kinds_payload(row)
 
 
 @router.put("/settings")
 def put_settings(body: OrgSettingsIn, session: SessionDep, user: CurrentUser, org_id: str = "default"):
+    import json
+
+    from app.domain.guide_kinds import normalize_custom_guide_kinds
+
     row = _settings_or_404(session, org_id)
     changes = body.model_dump(exclude_unset=True)
     safe_detail = dict(changes)
     if safe_detail.get("github_token"):
         safe_detail["github_token"] = "***"
+    guide_kinds = changes.pop("guide_kinds", None)
     for k, v in changes.items():
         setattr(row, k, v)
+    if guide_kinds is not None:
+        try:
+            normalized = normalize_custom_guide_kinds(guide_kinds)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        row.guide_kinds_json = json.dumps(normalized, ensure_ascii=False)
+        safe_detail["guide_kinds"] = normalized
     row.updated_at = datetime.now(timezone.utc)
     session.add(row)
     session.commit()
@@ -331,7 +379,19 @@ def put_settings(body: OrgSettingsIn, session: SessionDep, user: CurrentUser, or
         detail=safe_detail,
         org_id=org_id,
     )
-    return row
+    from app.domain.guide_kinds import parse_custom_guide_kinds
+
+    return {
+        "id": row.id,
+        "org_id": row.org_id,
+        "org_name": row.org_name,
+        "github_repo": row.github_repo,
+        "github_branch": row.github_branch,
+        "github_token": row.github_token,
+        "guide_kinds": parse_custom_guide_kinds(getattr(row, "guide_kinds_json", None)),
+        "guide_kinds_json": getattr(row, "guide_kinds_json", None) or "[]",
+        "updated_at": row.updated_at,
+    }
 
 
 # ---- Profiles ----
@@ -669,8 +729,7 @@ def list_guides(session: SessionDep, _user: CurrentUser, org_id: str = "default"
 
 @router.post("/guides")
 def create_guide(body: GuideIn, session: SessionDep, user: CurrentUser, org_id: str = "default"):
-    if body.kind not in GUIDE_KINDS:
-        raise HTTPException(400, f"unsupported guide kind: {body.kind}")
+    _assert_guide_kind_allowed(session, org_id, body.kind)
     mode = body.content_mode if body.content_mode in ("text", "markdown", "package") else "markdown"
     row = Guide(
         org_id=org_id,
@@ -706,8 +765,9 @@ def update_guide(guide_id: int, body: GuideIn, session: SessionDep, user: Curren
     row = session.get(Guide, guide_id)
     if not row:
         raise HTTPException(404)
-    if body.kind not in GUIDE_KINDS:
-        raise HTTPException(400, f"unsupported guide kind: {body.kind}")
+    _assert_guide_kind_allowed(
+        session, row.org_id or "default", body.kind, previous_kind=row.kind
+    )
     mode = body.content_mode if body.content_mode in ("text", "markdown", "package") else "markdown"
     row.asset_id = body.asset_id
     row.name = _normalize_asset_name(body.name, body.asset_id)
@@ -756,8 +816,12 @@ async def upload_guide(
     relative_paths: list[str] = Form(default_factory=list),
 ):
     """Create/update a Guide from uploaded file(s) or folder (multipart)."""
-    if kind not in GUIDE_KINDS:
-        raise HTTPException(400, f"unsupported guide kind: {kind}")
+    if guide_id:
+        existing = session.get(Guide, guide_id)
+        prev = existing.kind if existing else None
+    else:
+        prev = None
+    _assert_guide_kind_allowed(session, org_id, kind, previous_kind=prev)
     if not asset_id.strip():
         raise HTTPException(400, "asset_id required")
     if not files:
@@ -1192,24 +1256,36 @@ def preview_command(
     guide_ids: list[str] = json.loads(row.guides_json) if row else []
     sensor_ids: list[str] = json.loads(row.sensors_json) if row else []
 
-    # Split guides into skills vs templates by querying Guide table
+    # Split guides into skills / templates / other by Guide.kind
+    from app.domain.guide_samples import split_guides_by_kind
+
     skills: list[str] = []
     templates: list[str] = []
+    other_guides: list[tuple[str, str]] = []
     if guide_ids:
         guide_rows = session.exec(
             select(Guide).where(Guide.org_id == org_id, Guide.asset_id.in_(guide_ids))  # type: ignore[attr-defined]
         ).all()
         kind_map = {g.asset_id: g.kind for g in guide_rows}
-        for gid in guide_ids:
-            if kind_map.get(gid, "guide.skill") == "guide.template":
-                templates.append(gid)
-            else:
-                skills.append(gid)
+        guide_content_map = {g.asset_id: g.content or "" for g in guide_rows}
+        skills, templates, other_guides = split_guides_by_kind(guide_ids, kind_map)
+    else:
+        guide_content_map = {}
 
     body = default_workflow_body(stage, task, title)
     description = f"{title} — {stage}/{task}"
 
-    result = assemble_shell(stage, task, description, body, skills, templates, sensor_ids)
+    result = assemble_shell(
+        stage,
+        task,
+        description,
+        body,
+        skills,
+        templates,
+        sensor_ids,
+        guide_contents=guide_content_map,
+        other_guides=other_guides,
+    )
     return result
 
 

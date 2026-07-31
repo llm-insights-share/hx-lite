@@ -5,6 +5,7 @@ import mimetypes
 import re
 import shutil
 from datetime import datetime, timezone
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, Optional
 
@@ -30,6 +31,7 @@ from app.core.models import (
     ProjectSensor,
     ProjectSuite,
     ProjectTask,
+    TaskShellRunLog,
     SyncJob,
     Ticket,
     User,
@@ -47,6 +49,8 @@ from app.domain.project_materializer import (
     sync_project_from_org,
 )
 from app.domain.project_oplog import summarize_sync_changes, sync_change_count, write_project_log
+from app.domain.shell_assembler import assemble_shell
+from app.domain import defaults
 from app.services import github as github_svc
 
 router = APIRouter(prefix="/api", tags=["project"])
@@ -233,6 +237,13 @@ class TicketDecisionIn(BaseModel):
     note: str = ""
 
 
+class TaskShellRunIn(BaseModel):
+    stage: str
+    task_id: str
+    trigger_mode: str = "command"  # command|skill
+    ide: str = "unknown"
+
+
 # ---- Users (for member picker) ----
 
 
@@ -245,20 +256,110 @@ def list_users(session: SessionDep, _user: CurrentUser):
 # ---- Dashboard ----
 
 
+def _as_utc(dt: datetime | None) -> datetime | None:
+    """Normalize SQLite-naive datetimes for safe comparison with aware UTC."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _usage_series_30d(
+    run_rows: list[Any],
+    now: datetime,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Build last-30-calendar-day (incl. today) series for users and runs."""
+    today = now.astimezone(timezone.utc).date()
+    day_keys = [today - timedelta(days=i) for i in range(29, -1, -1)]
+    users_by_day: dict[Any, set[str]] = {d: set() for d in day_keys}
+    count_by_day: dict[Any, int] = {d: 0 for d in day_keys}
+    for r in run_rows:
+        at = _as_utc(getattr(r, "run_at", None))
+        if at is None:
+            continue
+        d = at.date()
+        if d not in count_by_day:
+            continue
+        count_by_day[d] += 1
+        uname = (getattr(r, "runner_username", None) or "").strip()
+        if uname:
+            users_by_day[d].add(uname)
+    user_series = [{"date": d.isoformat(), "value": len(users_by_day[d])} for d in day_keys]
+    count_series = [{"date": d.isoformat(), "value": count_by_day[d]} for d in day_keys]
+    return user_series, count_series
+
+
 @router.get("/project/dashboard")
 def project_dashboard(session: SessionDep, _user: CurrentUser) -> dict[str, Any]:
     projects = session.exec(select(Project)).all()
     pending = session.exec(select(Ticket).where(Ticket.status == "submitted")).all()
     artifacts = session.exec(select(Artifact)).all()
     versions = session.exec(select(ArtifactVersion)).all()
+    now = datetime.now(timezone.utc)
+    recent_since = now - timedelta(days=30)
+    run_rows = session.exec(select(TaskShellRunLog)).all()
+    recent_run_rows = [
+        r for r in run_rows if (_as_utc(r.run_at) or now) >= recent_since
+    ]
+    total_users = {
+        (r.runner_username or "").strip()
+        for r in run_rows
+        if (r.runner_username or "").strip()
+    }
+    recent_users = {
+        (r.runner_username or "").strip()
+        for r in recent_run_rows
+        if (r.runner_username or "").strip()
+    }
+    user_series, count_series = _usage_series_30d(list(run_rows), now)
     return {
         "project_count": len(projects),
         "pending_tickets": len(pending),
         "artifact_count": len(artifacts),
         "version_count": len(versions),
+        "shell_run_count_total": len(run_rows),
+        "shell_run_count_30d": len(recent_run_rows),
+        "shell_run_user_count_total": len(total_users),
+        "shell_run_user_count_30d": len(recent_users),
+        "shell_run_window_days": 30,
+        "shell_run_user_series_30d": user_series,
+        "shell_run_count_series_30d": count_series,
         "recent_tickets": pending[:5],
         "projects": projects,
     }
+
+
+@router.post("/projects/{project_id}/task-shell-runs")
+def report_task_shell_run(
+    project_id: int,
+    body: TaskShellRunIn,
+    session: SessionDep,
+    user: CurrentUser,
+):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "project not found")
+    _require_project_member(session, user, project_id)
+    stage = (body.stage or "").strip()
+    task_id = (body.task_id or "").strip()
+    if not stage or not task_id:
+        raise HTTPException(400, "stage and task_id are required")
+    mode = (body.trigger_mode or "command").strip().lower()
+    if mode not in ("command", "skill"):
+        mode = "command"
+    row = TaskShellRunLog(
+        project_id=project_id,
+        stage=stage,
+        task_id=task_id,
+        runner_username=(user.username or "").strip(),
+        trigger_mode=mode,
+        ide=(body.ide or "unknown").strip() or "unknown",
+        source="nhx",
+    )
+    session.add(row)
+    session.commit()
+    return {"ok": True, "id": row.id}
 
 
 # ---- Projects ----
@@ -974,22 +1075,71 @@ def list_project_shells(project_id: int, session: SessionDep, user: CurrentUser)
         raise HTTPException(404)
     _require_project_member(session, user, project_id)
     tasks = session.exec(select(ProjectTask).where(ProjectTask.project_id == project_id)).all()
+    project_guides = session.exec(select(ProjectGuide).where(ProjectGuide.project_id == project_id)).all()
+    project_guide_map = {g.asset_id: g for g in project_guides}
     org_shells = session.exec(select(CommandShell).where(CommandShell.org_id == "default")).all()
     shell_map = {(s.stage or "", s.task or ""): s for s in org_shells}
     rows: list[dict[str, Any]] = []
     for t in tasks:
-        shell = shell_map.get((t.stage or "", t.task_id or ""))
+        stage = t.stage or ""
+        task_id = t.task_id or ""
+        title = t.title or task_id or ""
+        ide_slash = f"nhx-{stage}-{task_id.replace('_', '-')}"
+        shell = shell_map.get((stage, task_id))
+        command_body = (shell.body if shell else "") or ""
+        skill_body = (shell.appendix if shell else "") or ""
+        description = (shell.description if shell else "") or title
+        slash_name = (shell.slash_name if shell else "") or f"hx-{stage}-{task_id.replace('_', '-')}"
+        if not command_body.strip():
+            try:
+                guides = json.loads(t.guides_json or "[]")
+            except Exception:
+                guides = []
+            try:
+                sensors = json.loads(t.sensors_json or "[]")
+            except Exception:
+                sensors = []
+            guide_ids = [g for g in guides if isinstance(g, str) and g and not g.startswith("wf-")]
+            sensor_ids = [s for s in sensors if isinstance(s, str) and s]
+            from app.domain.guide_samples import split_guides_by_kind
+
+            kind_map = {
+                gid: ((project_guide_map[gid].kind if gid in project_guide_map else "") or "")
+                for gid in guide_ids
+            }
+            skills, templates, other_guides = split_guides_by_kind(guide_ids, kind_map)
+            guide_contents = {
+                gid: (project_guide_map[gid].content or "")
+                for gid in [*skills, *(g for g, _ in other_guides)]
+                if gid in project_guide_map
+            }
+            body = defaults.default_workflow_body(stage, task_id, title)
+            assembled = assemble_shell(
+                stage=stage,
+                task=task_id,
+                description=description or title,
+                body=body,
+                guides=skills,
+                templates=templates,
+                sensors=sensor_ids,
+                guide_contents=guide_contents,
+                other_guides=other_guides,
+            )
+            command_body = assembled["body"]
+            skill_body = assembled["appendix"]
+            description = assembled["description"] or description
         rows.append(
             {
                 "task_row_id": t.id,
-                "stage": t.stage or "",
-                "task_id": t.task_id or "",
-                "title": t.title or t.task_id or "",
-                "slash_name": (shell.slash_name if shell else "") or f"hx-{t.stage}-{(t.task_id or '').replace('_', '-')}",
-                "command_body": (shell.body if shell else "") or "",
-                "skill_body": (shell.appendix if shell else "") or "",
-                "description": (shell.description if shell else "") or "",
-                "source": "org",
+                "stage": stage,
+                "task_id": task_id,
+                "title": title,
+                "slash_name": slash_name,
+                "ide_slash_name": ide_slash,
+                "command_body": command_body,
+                "skill_body": skill_body,
+                "description": description,
+                "source": "org" if shell else "generated",
             }
         )
     rows_sorted = sorted(rows, key=lambda x: (x.get("stage", ""), x.get("task_id", "")))
@@ -1598,8 +1748,43 @@ def ticket_approval_status(
     stage: str,
     task: str,
 ):
-    """Used by nhx human sensors: is there an approved human-check ticket for this stage/task?"""
+    """Used by nhx human sensors.
+
+    An approved ticket permanently passing the same stage/task is incorrect for
+    repeated executions. Approval must cover the latest deliverable cutoff:
+    max(latest artifact updated_at, latest task-shell run_at). After a new shell
+    run or artifact submit, a fresh human-check approval is required.
+    """
     _require_project_member(session, user, project_id)
+    arts = _artifacts_for_scope(session, project_id, stage, task, "")
+    latest_art = None
+    latest_art_at: datetime | None = None
+    for a in arts:
+        at = _as_utc(a.updated_at)
+        if at is None:
+            continue
+        if latest_art_at is None or at > latest_art_at:
+            latest_art_at = at
+            latest_art = a
+
+    shell_rows = session.exec(
+        select(TaskShellRunLog).where(
+            TaskShellRunLog.project_id == project_id,
+            TaskShellRunLog.stage == stage,
+            TaskShellRunLog.task_id == task,
+        )
+    ).all()
+    latest_shell_at: datetime | None = None
+    for r in shell_rows:
+        at = _as_utc(r.run_at)
+        if at is None:
+            continue
+        if latest_shell_at is None or at > latest_shell_at:
+            latest_shell_at = at
+
+    cutoff_candidates = [t for t in (latest_art_at, latest_shell_at) if t is not None]
+    cutoff_at = max(cutoff_candidates) if cutoff_candidates else None
+
     rows = session.exec(
         select(Ticket).where(
             Ticket.project_id == project_id,
@@ -1608,13 +1793,44 @@ def ticket_approval_status(
             Ticket.ticket_type == "human-check",
         )
     ).all()
-    approved = [t for t in rows if t.status == "approved"]
-    pending = [t for t in rows if t.status in ("draft", "submitted")]
+
+    def _ticket_time(t: Ticket) -> datetime | None:
+        return _as_utc(t.updated_at) or _as_utc(t.created_at)
+
+    def _covers_latest(t: Ticket) -> bool:
+        if t.status != "approved":
+            return False
+        if cutoff_at is None:
+            return True
+        tt = _ticket_time(t)
+        return tt is not None and tt >= cutoff_at
+
+    def _pending_for_latest(t: Ticket) -> bool:
+        if t.status not in ("draft", "submitted"):
+            return False
+        if cutoff_at is None:
+            return True
+        tt = _ticket_time(t)
+        return tt is not None and tt >= cutoff_at
+
+    approved = [t for t in rows if _covers_latest(t)]
+    pending = [t for t in rows if _pending_for_latest(t)]
     return {
         "approved": len(approved) > 0,
         "pending": len(pending) > 0,
         "approved_tickets": [t.model_dump() for t in approved],
         "pending_tickets": [t.model_dump() for t in pending],
+        "latest_artifact": (
+            {
+                "id": latest_art.id,
+                "name": latest_art.name,
+                "latest_version": latest_art.latest_version,
+                "updated_at": latest_art.updated_at,
+            }
+            if latest_art
+            else None
+        ),
+        "cutoff_at": cutoff_at.isoformat() if cutoff_at else None,
     }
 
 

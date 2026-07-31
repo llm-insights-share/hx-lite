@@ -345,7 +345,7 @@ def default_workflow_body(stage: str, task: str, title: str) -> str:
             f"你正在执行 **{stage}** 阶段任务 `{task}`。",
             "",
             "## 输入",
-            "- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。",
+            "- 从斜杠命令参数或用户消息中解析输入（如 change / slug / 模块名等等）。",
             "",
             "## 步骤",
             "1. 加载本阶段/任务的 Context Pack 与约束。",

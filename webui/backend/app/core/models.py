@@ -33,6 +33,8 @@ class OrgSettings(SQLModel, table=True):
     github_repo: str = ""
     github_branch: str = "main"
     github_token: str = ""  # prefer env; field for UI override
+    # JSON list: [{id, title, desc, category}] — org-defined guide.* kinds
+    guide_kinds_json: str = Field(default="[]", sa_column=Column(Text))
     updated_at: datetime = Field(default_factory=utcnow)
 
 
@@ -69,7 +71,7 @@ class Guide(SQLModel, table=True):
     org_id: str = Field(default="default", index=True)
     asset_id: str = Field(index=True)
     name: str = ""
-    # guide.skill|template|constraint|exemplar|scaffold|codemod|glossary|capability (+ legacy workflow/command)
+    # guide.skill|template|constraint|exemplar|scaffold|glossary|capability|custom guide.* (+ legacy workflow/command)
     kind: str = "guide.skill"
     stage: str = ""
     task: str = ""
@@ -320,6 +322,20 @@ class ProjectOperationLog(SQLModel, table=True):
     summary: str = ""
     detail_json: str = Field(default="{}", sa_column=Column(Text))
     created_at: datetime = Field(default_factory=utcnow)
+
+
+class TaskShellRunLog(SQLModel, table=True):
+    """Runtime usage logs for nhx command/skill task shells."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(index=True)
+    stage: str = Field(default="", index=True)
+    task_id: str = Field(default="", index=True)
+    runner_username: str = Field(default="", index=True)
+    trigger_mode: str = Field(default="command")  # command|skill
+    ide: str = Field(default="unknown")
+    source: str = Field(default="nhx")
+    run_at: datetime = Field(default_factory=utcnow, index=True)
 
 
 class OrgOperationLog(SQLModel, table=True):

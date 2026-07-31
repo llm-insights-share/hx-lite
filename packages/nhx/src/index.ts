@@ -10,6 +10,7 @@ import {
   health,
   listArtifacts,
   login,
+  reportTaskShellRun,
   submitTicket,
 } from "./api/client.js";
 import { syncAdapters } from "./adapter/cursor.js";
@@ -358,11 +359,13 @@ function buildProgram(): Command {
     .action((opts: { stage?: string; task?: string; fromPrompt?: string }) => {
       let stage = opts.stage || "";
       let task = opts.task || "";
+      let triggerMode: "command" | "skill" = opts.fromPrompt ? "command" : "skill";
       if (opts.fromPrompt) {
         const parsed = parseNhxSlash(opts.fromPrompt);
         if (parsed) {
           stage = parsed.stage;
           task = parsed.task;
+          triggerMode = "command";
         }
       }
       if (!stage || !task) {
@@ -372,6 +375,21 @@ function buildProgram(): Command {
       }
       markSession(stage, task);
       console.log(`✓ session ${stage}/${task}`);
+      const cfg = loadConfig();
+      const creds = loadCredentials();
+      if (cfg?.project_id && creds?.access_token) {
+        const api = resolveApiBase(undefined, process.cwd());
+        void reportTaskShellRun(api, creds.access_token, {
+          project_id: cfg.project_id,
+          stage,
+          task_id: task,
+          trigger_mode: triggerMode,
+          ide: "cursor",
+        }).catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[nhx] report task-shell run failed: ${msg}`);
+        });
+      }
     });
 
   const approve = program.command("approve").description("人工检查审批");

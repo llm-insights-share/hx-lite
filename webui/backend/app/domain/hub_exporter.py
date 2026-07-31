@@ -38,6 +38,7 @@ def _guide_kind_dir(kind: str) -> str:
         "capability",
         "workflow",
         "command",
+        "other",
     }
     if suffix in known:
         return suffix

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import yaml from "yaml";
+import { createTicket, listArtifacts, submitTicket } from "../api/client.js";
 import { loadConfig, loadCredentials, lockPath, nhxRoot, resolveApiBase } from "../config.js";
 
 export type SensorFinding = {
@@ -307,15 +308,57 @@ async function checkHuman(
   if (!res.ok) {
     return { ok: false, message: `提醒：尚未批准（approval-status HTTP ${res.status}）` };
   }
-  const data = (await res.json()) as { approved: boolean; pending: boolean };
-  if (data.approved) return { ok: true, message: "人工审批已通过" };
+  const data = (await res.json()) as {
+    approved: boolean;
+    pending: boolean;
+    latest_artifact?: { name?: string } | null;
+    cutoff_at?: string | null;
+  };
+  if (data.approved) return { ok: true, message: "人工审批已通过（覆盖当前最新产物/任务执行）" };
   if (data.pending) {
     return { ok: false, message: "提醒：尚未批准（工单待处理 draft/submitted）" };
   }
-  return {
-    ok: false,
-    message: `提醒：尚未批准 — 请 nhx approve request --stage ${stage} --task ${task} 或在 WebUI 创建 human-check 工单`,
-  };
+
+  // No covering approval/pending → auto create + submit a fresh human-check ticket.
+  try {
+    const arts = await listArtifacts(api, creds.access_token, {
+      project_id: cfg.project_id,
+      stage,
+      task,
+    });
+    if (!arts.length) {
+      return {
+        ok: false,
+        message: `提醒：尚未批准 — 任务 ${stage}/${task} 尚无产物。请先 nhx submit 上传后再检查。`,
+      };
+    }
+    const latest = [...arts].sort((a, b) => {
+      const ta = Date.parse(String(a.updated_at || 0)) || 0;
+      const tb = Date.parse(String(b.updated_at || 0)) || 0;
+      return tb - ta;
+    })[0];
+    const artifactName = String(latest?.name || data.latest_artifact?.name || "");
+    const ticket = await createTicket(api, creds.access_token, {
+      project_id: cfg.project_id,
+      title: `人工检查 ${stage}/${task}${artifactName ? `：${artifactName}` : ""}`,
+      ticket_type: "human-check",
+      stage,
+      task,
+      artifact_name: artifactName,
+      body: `自动创建：任务壳执行后产物需重新审批（${stage}/${task}${artifactName ? ` / ${artifactName}` : ""}）`,
+    });
+    const submitted = await submitTicket(api, creds.access_token, ticket.id);
+    return {
+      ok: false,
+      message: `提醒：尚未批准 — 已自动创建并提交工单 ${submitted.ticket_no || ticket.ticket_no}，请在 WebUI 审批后再继续`,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      message: `提醒：尚未批准 — 自动建单失败（${msg}）。请手动 nhx approve request --stage ${stage} --task ${task}`,
+    };
+  }
 }
 
 function checkRules(

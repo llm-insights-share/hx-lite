@@ -1,10 +1,10 @@
-# hx-lite <img src="webui/frontend/public/logo.svg" alt="hx-lite logo" width="32" />
+# HX-lite   组织AI交付管理框架
 
-团队可控交付工作台：**WebUI 做组织治理，nhx 做本地执行**。
+组织可控交付工作台：**WebUI 做组织治理，nhx 做本地执行**。
 
 你可以把 `hx-lite` 理解为一条完整交付链路：组织在 WebUI 里维护规则和资产，项目通过 `nhx` 同步并落地执行，整个过程可追踪、可复盘、可复用。
 
-## 为什么有 hx-lite
+## 为什么有 HX-lite
 
 AI 编程工具让“写代码”更快了，但团队交付仍常在这些地方断掉：
 
@@ -36,6 +36,8 @@ cd webui
 ./start.sh
 ```
 
+
+
 ## 设计理念
 
 - **组织中心化**：组织统一维护交付资产，项目侧只做初始化和增量同步。
@@ -44,6 +46,8 @@ cd webui
 - **前后端闭环**：WebUI 治理与 `nhx` 执行通过 API 与项目配置联动。
 - **渐进式演进**：主线保持精简，历史能力归档到 `archive/`。
 
+
+
 ## 推荐阅读顺序
 
 1. [WebUI + nhx 使用手册](docs/webui-nhx-usage.zh-CN.md)
@@ -51,7 +55,10 @@ cd webui
 3. [nhx 命令详解](docs/nhx-command-manual.zh-CN.md)
 4. [交付系统设计说明（HTML）](docs/harness-delivery-system-design.html)
 
+
+
 ## 仓库边界说明
 
 - 当前主线：`WebUI + nhx`
 - 历史能力与旧文档：`archive/`
+

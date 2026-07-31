@@ -46,6 +46,7 @@ const router = createRouter({
             { path: 'tasks', component: () => import('../views/project/CustomTasks.vue') },
             { path: 'tickets', component: () => import('../views/project/Tickets.vue') },
             { path: 'nhx-usage', component: () => import('../views/project/NhxUsage.vue') },
+            { path: 'shell-usage', component: () => import('../views/project/ShellUsage.vue') },
             { path: ':id', component: () => import('../views/project/ProjectDetail.vue') },
           ],
         },

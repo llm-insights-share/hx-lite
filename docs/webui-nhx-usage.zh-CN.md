@@ -30,6 +30,7 @@
 - **任务直接绑定 Sensor**（已取消 Suite 中间层）。
 - **人工审查** = 给 Task 绑定 `check_type=human` 的 Sensor；通过 **`human-check` 工单批准** 后关卡才过。
 - 默认人工资产：`prd-approved`、`arch-lld-approved`、`test-cases-approved`。
+- Guide 除 skill / template 外，还可使用 constraint / exemplar / scaffold / glossary / capability，并在组织设置中自定义 `guide.*` 类型；设计与样例见 [guide-kinds-harness-samples.zh-CN.md](./guide-kinds-harness-samples.zh-CN.md)。
 
 ---
 

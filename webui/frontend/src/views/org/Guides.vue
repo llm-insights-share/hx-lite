@@ -183,7 +183,7 @@
             type="warning"
             show-icon
             style="margin-bottom: 8px"
-            :message="`当前为遗留类型 ${legacyKind}，可改选下方 8 类之一`"
+            :message="`当前为遗留类型 ${legacyKind}，可改选下方类型之一`"
           />
           <div class="kind-grid">
             <button
@@ -468,6 +468,8 @@ import {
   GUIDE_KIND_CARDS,
   guideKindCategory,
   guideKindIcon,
+  toGuideKindCards,
+  type GuideKindCard,
 } from '../../utils/guideKind'
 import { renderMarkdownDocument } from '../../utils/markdownDoc'
 import {
@@ -605,7 +607,7 @@ function buildFileTree(files: string[]): TreeNode[] {
   return toNodes(root)
 }
 
-const kindCards = GUIDE_KIND_CARDS
+const kindCards = ref<GuideKindCard[]>([...GUIDE_KIND_CARDS])
 
 const guideForm = reactive<any>({
   id: null,
@@ -638,10 +640,22 @@ const sensorForm = reactive({
 const guideModalTitle = computed(() => (guideForm.id ? '编辑 Guide' : '新建 Guide'))
 const sensorModalTitle = computed(() => (sensorForm.id ? '编辑 Sensor' : '新建 Sensor'))
 
-const cardKindSet = new Set(kindCards.map((k) => k.value))
+const cardKindSet = computed(() => new Set(kindCards.value.map((k) => k.value)))
 const legacyKind = computed(() =>
-  guideForm.kind && !cardKindSet.has(guideForm.kind) ? guideForm.kind : '',
+  guideForm.kind && !cardKindSet.value.has(guideForm.kind) ? guideForm.kind : '',
 )
+
+async function loadGuideKinds() {
+  try {
+    const { data } = await api.get('/org/guide-kinds')
+    const all = data?.all || []
+    if (Array.isArray(all) && all.length) {
+      kindCards.value = toGuideKindCards(all)
+    }
+  } catch {
+    kindCards.value = [...GUIDE_KIND_CARDS]
+  }
+}
 
 const mdPreviewHtml = computed(() => {
   try {
@@ -900,9 +914,10 @@ function resetGuideForm() {
   resetPkgPreview()
 }
 
-function openCreateGuide() {
+async function openCreateGuide() {
   resetGuideForm()
   guideModalMode.value = 'create'
+  await loadGuideKinds()
   openGuide.value = true
 }
 
@@ -935,7 +950,9 @@ function viewGuide(record: any) {
 function editGuide(record: any) {
   guideModalMode.value = 'edit'
   fillGuideForm(record)
-  openGuide.value = true
+  void loadGuideKinds().then(() => {
+    openGuide.value = true
+  })
 }
 
 function onFilePick(ev: Event) {
@@ -1408,7 +1425,10 @@ async function delSensor(id: number) {
   await load()
 }
 
-onMounted(load)
+onMounted(async () => {
+  await loadGuideKinds()
+  await load()
+})
 </script>
 
 <style scoped>

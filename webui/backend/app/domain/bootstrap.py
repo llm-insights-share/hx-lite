@@ -32,20 +32,27 @@ def _guide_kind_for_asset(gid: str) -> str:
 
 def load_guide_package_content(gid: str, kind: str | None = None) -> str:
     """Load Guide body from default Hub package; Chinese short stub if missing."""
+    from app.domain.guide_samples import GUIDE_KIND_FILENAMES
+
     kind = kind or _guide_kind_for_asset(gid)
     kind_dir = (kind or "guide.skill").replace("guide.", "") or "skill"
     hubs = get_settings().hubs_dir / "default" / "packages" / "guide"
-    names = {
-        "skill": ["SKILL.md", "skill.md"],
-        "template": ["template.md", "TEMPLATE.md"],
-        "constraint": [f"{gid}.md", "constraint.md", "SKILL.md"],
-    }
     candidates: list[Path] = []
-    for kd in (kind_dir, "skill", "template", "constraint", "exemplar"):
+    search_dirs = [
+        kind_dir,
+        "skill",
+        "template",
+        "constraint",
+        "exemplar",
+        "scaffold",
+        "glossary",
+        "capability",
+    ]
+    for kd in search_dirs:
         base = hubs / kd / gid / "1.0.0"
-        for name in names.get(kd, ["SKILL.md", "template.md", f"{gid}.md"]):
-            candidates.append(base / name)
-        # any md in package root
+        raw_names = GUIDE_KIND_FILENAMES.get(kd, ["SKILL.md", "template.md", f"{gid}.md"])
+        for name in raw_names:
+            candidates.append(base / name.replace("{gid}", gid))
         if base.is_dir():
             candidates.extend(sorted(base.glob("*.md")))
     seen: set[str] = set()
@@ -133,9 +140,11 @@ def bootstrap_org(session: Session, org_id: str = "default", org_name: str = "De
                 guide_ids.update(base["guides"])
 
     # guides
+    guide_content_map: dict[str, str] = {}
     for gid in sorted(guide_ids):
         kind = _guide_kind_for_asset(gid)
         content = load_guide_package_content(gid, kind)
+        guide_content_map[gid] = content
         session.add(
             Guide(
                 org_id=org_id,
@@ -171,19 +180,23 @@ def bootstrap_org(session: Session, org_id: str = "default", org_name: str = "De
     session.commit()
 
     # command shells for all catalog tasks
+    from app.domain.guide_samples import split_guides_by_kind
+
     shells = 0
     for stage, tasks in defaults.STAGE_TASKS.items():
         for t in tasks:
-            guides = [g for g in t["guides"] if "template" not in g and not g.endswith("-template")]
-            templates = [g for g in t["guides"] if g not in guides]
+            kind_map = {gid: _guide_kind_for_asset(gid) for gid in t["guides"]}
+            skills, templates, other_guides = split_guides_by_kind(t["guides"], kind_map)
             assembled = assemble_shell(
                 stage=stage,
                 task=t["id"],
                 description=t["title_zh"] or t["title_en"],
                 body=defaults.default_workflow_body(stage, t["id"], t["title_zh"]),
-                guides=guides,
+                guides=skills,
                 templates=templates,
                 sensors=list(t.get("sensors") or []),
+                guide_contents=guide_content_map,
+                other_guides=other_guides,
             )
             session.add(
                 CommandShell(

@@ -12,23 +12,15 @@ from app.domain import defaults
 from app.domain.shell_assembler import assemble_shell
 
 
-def _split_guides(guide_ids: list[str], session: Session, project_id: int) -> tuple[list[str], list[str]]:
-    """Split into skills vs templates using project guide kinds when available."""
+def _split_guides(
+    guide_ids: list[str], session: Session, project_id: int
+) -> tuple[list[str], list[str], list[tuple[str, str]]]:
+    """Split into skills / templates / other guides using project guide kinds."""
+    from app.domain.guide_samples import split_guides_by_kind
+
     rows = session.exec(select(ProjectGuide).where(ProjectGuide.project_id == project_id)).all()
     kind_map = {g.asset_id: g.kind for g in rows}
-    skills: list[str] = []
-    templates: list[str] = []
-    for gid in guide_ids:
-        if gid.startswith("wf-"):
-            continue
-        kind = kind_map.get(gid, "")
-        if kind in ("guide.workflow", "guide.command"):
-            continue
-        if kind == "guide.template" or "template" in gid or gid.endswith("-outline") or gid.endswith("-checklist"):
-            templates.append(gid)
-        else:
-            skills.append(gid)
-    return skills, templates
+    return split_guides_by_kind(guide_ids, kind_map)
 
 
 def ensure_task_shells(
@@ -55,9 +47,11 @@ def ensure_task_shells(
     # Drop legacy wf-* and do not auto-inject task_id as a Guide skill shell
     bound = [g for g in guides if g and not str(g).startswith("wf-") and g != f"wf-{task_id}"]
 
-    skills, templates = _split_guides(bound, session, project_id)
+    skills, templates, other_guides = _split_guides(bound, session, project_id)
 
     body = defaults.default_workflow_body(stage, task_id, title)
+    guide_rows = session.exec(select(ProjectGuide).where(ProjectGuide.project_id == project_id)).all()
+    guide_content_map = {g.asset_id: g.content or "" for g in guide_rows}
     assembled = assemble_shell(
         stage=stage,
         task=task_id,
@@ -66,6 +60,8 @@ def ensure_task_shells(
         guides=skills,
         templates=templates,
         sensors=sensors,
+        guide_contents=guide_content_map,
+        other_guides=other_guides,
     )
 
     # Remove leftover guide.workflow / auto skill-shell ProjectGuide for this task

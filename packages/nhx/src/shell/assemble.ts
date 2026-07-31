@@ -18,8 +18,8 @@ function packLoadStep(stage: string, task: string): string {
 
 function gateReminder(stage: string, task: string): string {
   return [
-    "### Constraint — Gate",
-    `Before claiming done: ensure stage \`${stage}\` / task \`${task}\` checks are green.`,
+    "### 特别约束 — 门禁",
+    `宣称完成前：执行 \`nhx sensor check --stage ${stage} --task ${task}\`，未通过不得结束（本地无独立 gate 命令）。`,
   ].join("\n");
 }
 
@@ -56,11 +56,15 @@ export function assembleAppendix(opts: {
   templates: string[];
   sensors: string[];
   sensorDetails?: SensorShellInfo[];
+  otherGuides?: Array<{ id: string; kind: string }>;
 }): string {
+  const otherGuides = opts.otherGuides || [];
   const skillRows =
     opts.guides.map((g) => `| \`${g}\` | guide.skill | |`).join("\n") || "| — | — | — |";
   const tplRows =
     opts.templates.map((t) => `| \`${t}\` | guide.template | |`).join("\n") || "| — | — | — |";
+  const otherRows =
+    otherGuides.map((g) => `| \`${g.id}\` | \`${g.kind}\` | |`).join("\n") || "| — | — | — |";
   const sensorRows =
     opts.sensors.map((s) => `| \`${s}\` |`).join("\n") || "| — |";
 
@@ -77,6 +81,15 @@ export function assembleAppendix(opts: {
   else if (opts.templates.length > 1)
     selection.push(
       `- **Templates (${opts.templates.length}):** Normally pick **one** output shape; ask if unclear.`,
+    );
+
+  if (otherGuides.length === 1)
+    selection.push(
+      `- **Other Guide (\`${otherGuides[0].kind}\`):** Follow \`${otherGuides[0].id}\`.`,
+    );
+  else if (otherGuides.length > 1)
+    selection.push(
+      `- **Other Guides (${otherGuides.length}):** Apply by kind (constraint/exemplar/scaffold/…); ask if unclear.`,
     );
 
   const details =
@@ -102,6 +115,12 @@ export function assembleAppendix(opts: {
     "| id | kind | source |",
     "|----|------|--------|",
     tplRows,
+    "",
+    "### Other Guides",
+    "",
+    "| id | kind | source |",
+    "|----|------|--------|",
+    otherRows,
     "",
     selection.join("\n"),
     "",
@@ -157,6 +176,7 @@ export function assembleShell(opts: {
   templates: string[];
   sensors: string[];
   sensorDetails?: SensorShellInfo[];
+  otherGuides?: Array<{ id: string; kind: string }>;
 }): { slash_name: string; body: string; appendix: string; full: string } {
   const slash_name = slashName(opts.stage, opts.task);
   const body = (opts.body || defaultWorkflowBody(opts.stage, opts.task, opts.title)).trim();

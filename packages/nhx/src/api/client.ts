@@ -246,3 +246,32 @@ export async function health(apiBase: string): Promise<boolean> {
     return false;
   }
 }
+
+export async function reportTaskShellRun(
+  apiBase: string,
+  token: string,
+  body: {
+    project_id: number;
+    stage: string;
+    task_id: string;
+    trigger_mode?: "command" | "skill";
+    ide?: string;
+  },
+): Promise<void> {
+  const res = await fetch(`${apiRoot(apiBase)}/api/projects/${body.project_id}/task-shell-runs`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      stage: body.stage,
+      task_id: body.task_id,
+      trigger_mode: body.trigger_mode || "command",
+      ide: body.ide || "unknown",
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`report task-shell run failed (${res.status}): ${await res.text()}`);
+  }
+}

@@ -7,7 +7,6 @@ import {
   FileTextOutlined,
   SafetyCertificateOutlined,
   StarOutlined,
-  SwapOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons-vue'
 
@@ -21,7 +20,7 @@ export type GuideKindCard = {
   icon: Component
 }
 
-/** Icon + category for each guide kind (shared by org/project Guides views). */
+/** Icon + category for each builtin guide kind (shared by org/project Guides views). */
 export const GUIDE_KIND_META: Record<
   string,
   { icon: Component; category: GuideKindCategory }
@@ -31,11 +30,11 @@ export const GUIDE_KIND_META: Record<
   'guide.constraint': { icon: SafetyCertificateOutlined, category: 'computational' },
   'guide.exemplar': { icon: StarOutlined, category: 'inferential' },
   'guide.scaffold': { icon: BuildOutlined, category: 'inferential' },
-  'guide.codemod': { icon: SwapOutlined, category: 'inferential' },
   'guide.glossary': { icon: BookOutlined, category: 'inferential' },
   'guide.capability': { icon: ApiOutlined, category: 'inferential' },
 }
 
+/** Builtin cards only; org custom kinds are merged at runtime from GET /org/guide-kinds. */
 export const GUIDE_KIND_CARDS: GuideKindCard[] = [
   {
     value: 'guide.skill',
@@ -73,13 +72,6 @@ export const GUIDE_KIND_CARDS: GuideKindCard[] = [
     icon: BuildOutlined,
   },
   {
-    value: 'guide.codemod',
-    title: 'Codemod / 改造指南',
-    category: 'inferential',
-    desc: '批量改造步骤与脚本指引',
-    icon: SwapOutlined,
-  },
-  {
     value: 'guide.glossary',
     title: 'Glossary / 术语表',
     category: 'inferential',
@@ -94,6 +86,30 @@ export const GUIDE_KIND_CARDS: GuideKindCard[] = [
     icon: ApiOutlined,
   },
 ]
+
+export type GuideKindApiItem = {
+  id: string
+  title: string
+  desc?: string
+  category?: string
+}
+
+export function toGuideKindCards(items: GuideKindApiItem[]): GuideKindCard[] {
+  return items.map((item) => {
+    const meta = GUIDE_KIND_META[item.id]
+    const category =
+      item.category === 'computational' || item.category === 'inferential'
+        ? item.category
+        : meta?.category || 'inferential'
+    return {
+      value: item.id,
+      title: item.title || item.id,
+      category,
+      desc: item.desc || '',
+      icon: meta?.icon || FileOutlined,
+    }
+  })
+}
 
 export function guideKindIcon(kind: string | undefined | null): Component {
   return GUIDE_KIND_META[kind || '']?.icon || FileOutlined

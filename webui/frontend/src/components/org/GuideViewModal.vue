@@ -104,7 +104,7 @@ import mammoth from 'mammoth'
 import * as XLSX from 'xlsx'
 import JSZip from 'jszip'
 import { api } from '../../api'
-import { GUIDE_KIND_CARDS } from '../../utils/guideKind'
+import { GUIDE_KIND_CARDS, toGuideKindCards, type GuideKindCard } from '../../utils/guideKind'
 import { renderMarkdownDocument } from '../../utils/markdownDoc'
 
 const props = defineProps<{
@@ -114,13 +114,25 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:open': [boolean] }>()
 
-const kindCards = GUIDE_KIND_CARDS
-const cardKindSet = new Set(kindCards.map((k) => k.value))
+const kindCards = ref<GuideKindCard[]>([...GUIDE_KIND_CARDS])
+const cardKindSet = computed(() => new Set(kindCards.value.map((k) => k.value)))
 
 const legacyKind = computed(() => {
   const kind = props.record?.kind
-  return kind && !cardKindSet.has(kind) ? kind : ''
+  return kind && !cardKindSet.value.has(kind) ? kind : ''
 })
+
+async function loadGuideKinds() {
+  try {
+    const { data } = await api.get('/org/guide-kinds')
+    const all = data?.all || []
+    if (Array.isArray(all) && all.length) {
+      kindCards.value = toGuideKindCards(all)
+    }
+  } catch {
+    kindCards.value = [...GUIDE_KIND_CARDS]
+  }
+}
 
 const fallbackContent = ref('')
 const pkgFiles = ref<string[]>([])
@@ -436,6 +448,7 @@ watch(
       resetPkgPreview()
       return
     }
+    void loadGuideKinds()
     resetPkgPreview()
     fallbackContent.value = props.record?.content || ''
     void loadPackagePreview(id)
