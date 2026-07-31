@@ -1,4 +1,4 @@
-# HX-lite   组织AI交付管理框架
+# HX-lite <img src="webui/frontend/public/logo.svg" alt="hx-lite logo" width="32" />  组织AI交付管理框架
 
 组织可控交付工作台：**WebUI 做组织治理，nhx 做本地执行**。
 
