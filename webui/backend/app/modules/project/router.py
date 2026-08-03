@@ -964,7 +964,7 @@ def create_project_sensor(project_id: int, body: ProjectAssetIn, session: Sessio
         project_id,
         user,
         "sensor_create",
-        f"新建项目 Sensor {row.asset_id}",
+        f"新建项目 Check {row.asset_id}",
         {"asset_id": row.asset_id, "check_type": row.check_type},
     )
     return row
@@ -999,7 +999,7 @@ def update_project_sensor(
         project_id,
         user,
         "sensor_update",
-        f"更新项目 Sensor {row.asset_id}",
+        f"更新项目 Check {row.asset_id}",
         {"asset_id": row.asset_id, "check_type": row.check_type},
     )
     return row
@@ -1019,7 +1019,7 @@ def delete_project_sensor(project_id: int, sensor_id: int, session: SessionDep, 
         project_id,
         user,
         "sensor_delete",
-        f"删除项目 Sensor {aid}",
+        f"删除项目 Check {aid}",
         {"asset_id": aid},
     )
     return {"ok": True}

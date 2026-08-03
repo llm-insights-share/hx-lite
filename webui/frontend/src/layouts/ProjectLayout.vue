@@ -38,7 +38,7 @@ const items = [
     label: '资产管理',
     children: [
       { key: 'guides', label: 'Guide 管理' },
-      { key: 'sensors', label: 'Sensor 管理' },
+      { key: 'sensors', label: 'Check 管理' },
       { key: 'shells', label: 'Shell 管理' },
       { key: 'asset-submit', label: '资产提交' },
       { key: 'artifacts', label: '产物列表' },

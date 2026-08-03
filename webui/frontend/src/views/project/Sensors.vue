@@ -1,8 +1,8 @@
 <template>
   <div>
     <div class="head">
-      <h2>项目 Sensor 管理</h2>
-      <a-button type="primary" @click="openCreate">+ 新建 Sensor</a-button>
+      <h2>项目 Check 管理</h2>
+      <a-button type="primary" @click="openCreate">+ 新建 Check</a-button>
     </div>
     <a-alert
       type="info"
@@ -73,7 +73,7 @@
       </template>
     </a-table>
 
-    <a-modal v-model:open="open" :title="form.id ? '编辑项目 Sensor' : '新建项目 Sensor'" @ok="save" width="720px">
+    <a-modal v-model:open="open" :title="form.id ? '编辑项目 Check' : '新建项目 Check'" @ok="save" width="720px">
       <a-alert
         v-if="normalizeCheckType(form.check_type) === 'human'"
         type="warning"
@@ -257,7 +257,7 @@ const columns = [
   { title: 'Kind', dataIndex: 'kind', width: 120 },
   { title: 'Stage', key: 'stage', width: 120 },
   { title: 'Task', key: 'task', width: 180 },
-  { title: 'Check', key: 'check_type', dataIndex: 'check_type', width: 100 },
+  { title: 'Check Type', key: 'check_type', dataIndex: 'check_type', width: 100 },
   { title: 'Triggers', key: 'triggers', width: 140 },
   { title: '操作', key: 'action', width: 150 },
 ]

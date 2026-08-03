@@ -81,7 +81,7 @@ def _readme(org_name: str) -> str:
 | `commands/` | IDE 斜杠命令壳（Command Shell） |
 | `skill-shells/` | IDE Skill 壳（无 slash command 的 IDE） |
 | `packages/guide/` | Guide 资产包（skill / template / …） |
-| `packages/sensor/` | Sensor 资产包 |
+| `packages/sensor/` | Check 资产包 |
 | `.hx-webui/export-meta.yaml` | 导出元数据 |
 
 ## 消费方式

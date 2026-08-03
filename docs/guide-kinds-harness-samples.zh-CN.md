@@ -15,7 +15,7 @@ Skill / Template 解决「怎么写」与「产出长什么样」。交付系统
 - **能力边界**（能调什么工具）→ Capability  
 - **组织扩展** → 自定义 `guide.<slug>`（在组织设置中维护）
 
-它们与 Sensor **成对**才构成完整 harness：Guide 前馈改变行为分布，Sensor 反馈给出可消费的校正信号。
+它们与 Check **成对**才构成完整 harness：Guide 前馈改变行为分布，Check 反馈给出可消费的校正信号。
 
 ## 2. 与 Skill / Template 的分工
 
@@ -33,7 +33,7 @@ Skill / Template 解决「怎么写」与「产出长什么样」。交付系统
 
 - **Harness 作用**：把非法解直接排除（依赖方向、兼容性禁令等）。  
 - **写法**：条目化 + 理由 + 违规示例；尽量可被结构测试/规则 sensor 复用。  
-- **成对 Sensor**：`sensor.arch` / `sensor.rule` / inline `file.exists` 等。  
+- **成对 Check**：`sensor.arch` / `sensor.rule` / inline `file.exists` 等。  
 - **建议阶段**：`arch`、`dev`。
 
 ### 3.2 `guide.exemplar`（范例）
@@ -93,7 +93,7 @@ Skill / Template 解决「怎么写」与「产出长什么样」。交付系统
 1. 组织 HX → Guides：按 kind 筛选查看样例。  
 2. Stage & Task：将 Guide 绑到任务。  
 3. 项目侧「初始化/同步」或本地 `nhx sync` 后，任务壳附录可见绑定。  
-4. 宣称完成前：`nhx sensor check --stage … --task …`。
+4. 宣称完成前：`nhx check --stage … --task …`。
 
 ## 6. 维护约定
 

@@ -1186,7 +1186,7 @@ def create_sensor(body: SensorIn, session: SessionDep, user: CurrentUser, org_id
         session,
         user,
         "sensor_create",
-        f"新建 Sensor {body.asset_id}",
+        f"新建 Check {body.asset_id}",
         detail={"id": row.id, "asset_id": body.asset_id, "check_type": getattr(row, "check_type", "")},
         org_id=org_id,
     )
@@ -1208,7 +1208,7 @@ def update_sensor(sensor_id: int, body: SensorIn, session: SessionDep, user: Cur
         session,
         user,
         "sensor_update",
-        f"更新 Sensor {body.asset_id}",
+        f"更新 Check {body.asset_id}",
         detail={"id": sensor_id, "asset_id": body.asset_id, "check_type": getattr(row, "check_type", "")},
         org_id=row.org_id,
     )
@@ -1222,7 +1222,7 @@ def delete_sensor(sensor_id: int, session: SessionDep, user: CurrentUser):
         raise HTTPException(404)
     detail = {"id": row.id, "asset_id": row.asset_id, "kind": row.kind}
     org_id = row.org_id
-    summary = f"删除 Sensor {row.asset_id}"
+    summary = f"删除 Check {row.asset_id}"
     session.delete(row)
     session.commit()
     write_org_log(session, user, "sensor_delete", summary, detail=detail, org_id=org_id)
@@ -1572,7 +1572,7 @@ def patch_sensor_status(sensor_id: int, body: AssetStatusIn, session: SessionDep
         session,
         admin,
         "sensor_status",
-        f"更新 Sensor 状态 #{sensor_id} → {body.status}",
+        f"更新 Check 状态 #{sensor_id} → {body.status}",
         detail=result,
         org_id="default",
     )

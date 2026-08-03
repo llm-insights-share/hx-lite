@@ -1,0 +1,43 @@
+# hx-lite
+
+> HX-lite is an enterprise Harness control framework for governed, auditable AI-assisted software delivery ("Vibe Coding"). It pairs a central WebUI (organization-level governance) with a local CLI called `nhx` (project-level sync and execution).
+
+## Core concepts
+
+- **Guide**: a reusable, organization-defined standard, template, or instruction set that AI agents follow during a task (feed-forward control).
+- **Sensor**: a validation/check rule that observes task execution and reports compliance (feedback control).
+- **Stage / Task**: the unit of delivery work to which Guides and Sensors attach.
+- **nhx**: the local CLI projects use to pull organizational assets (Guides/Sensors) and execute delivery tasks with traceability.
+
+## Problems it solves
+
+- Requirements and acceptance criteria drifting as they pass through a delivery chain
+- Organizational standards/templates/review rules that can't be reused across projects
+- AI-assisted development decisions and changes that aren't auditable
+- Disconnected roles (PM, architect, developer, QA) with no shared control plane
+
+## Architecture
+
+WebUI (org-level asset governance: Stage/Task, Guide, Sensor) <-> nhx (project-level sync, projection, local execution). Both share the same rule and state model.
+
+## Docs
+
+- README: https://github.com/llm-insights-share/hx-lite/blob/main/README.md
+- WebUI + nhx usage manual (zh-CN): https://github.com/llm-insights-share/hx-lite/blob/main/docs/webui-nhx-usage.zh-CN.md
+- nhx CLI manual: https://github.com/llm-insights-share/hx-lite/blob/main/packages/nhx/README.md
+- nhx command reference (zh-CN): https://github.com/llm-insights-share/hx-lite/blob/main/docs/nhx-command-manual.zh-CN.md
+- Delivery system design (HTML): https://github.com/llm-insights-share/hx-lite/blob/main/docs/harness-delivery-system-design.html
+
+## Quick start
+
+```
+git clone https://github.com/llm-insights-share/hx-lite.git
+cd hx-lite
+npm install
+npm install -g .
+nhx --help
+```
+
+## License
+
+MIT

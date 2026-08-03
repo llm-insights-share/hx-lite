@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "HX-lite: An Enterprise Harness Control Framework for Governed AI-Assisted Delivery"
+type: software
+repository-code: "https://github.com/llm-insights-share/hx-lite"
+license: MIT
+keywords:
+  - harness-engineering
+  - vibe-coding
+  - enterprise-software
+  - ai-agent
+  - spec-driven-development

@@ -360,6 +360,6 @@ def default_workflow_body(stage: str, task: str, title: str) -> str:
             "- 不得伪造未确认的业务规则或接口。",
             "",
             "## 完成标准",
-            "- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+            "- 本阶段/任务对应的 Check 门禁通过（绿灯）。",
         ]
     )

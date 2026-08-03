@@ -1,6 +1,6 @@
 # nhx — 项目 HX 交付 CLI
 
-独立于 `hx` / `hxhub`：从 WebUI 按 stage 同步资产，投影到 Cursor / Trae，任务**直接绑定 Sensor**（无 Suite 层），并用 IDE hooks 做检查；支持人工审批工单。
+独立于 `hx` / `hxhub`：从 WebUI 按 stage 同步资产，投影到 Cursor / Trae，任务**直接绑定 Check**（无 Suite 层），并用 IDE hooks 做检查；支持人工审批工单。
 
 **完整使用手册（WebUI + nhx）：** [docs/webui-nhx-usage.zh-CN.md](../../docs/webui-nhx-usage.zh-CN.md)
 
@@ -11,7 +11,7 @@
 npm install -g .    # 推荐；也可用 npm link
 nhx login
 nhx init --project 1 --stages req,dev
-nhx sensor check --stage req --task prd-writing
+nhx check --stage req --task prd-writing
 nhx approve request --stage req --task prd-writing
 # 审批人在 WebUI「审批工单」批准后：
 nhx approve status --stage req --task prd-writing
@@ -27,15 +27,16 @@ nhx submit ./docs/prd-pack --name prd-pack --stage req --task prd-writing
 | `nhx login -u <user>` | 终端提示输入密码后登录 |
 | `nhx login -u <user> -p <pass>` | 直接验证登录（默认 API `http://127.0.0.1:8000`） |
 | `nhx init / sync` | 拉取资产并投影 IDE |
-| `nhx sensor check` | 运行任务绑定的 sensor（按 `--channel` 过滤触发通道） |
+| `nhx check` | 运行任务绑定的 Check（按 `--channel` 过滤触发通道） |
+| `nhx sensor check` | （兼容别名）同 `nhx check` |
 | `nhx session mark` | 记录当前 stage/task |
 | `nhx approve request/status` | 发起 / 查询人工审批 |
 | `nhx submit` | 上传产物（单文件或目录递归） |
 | `nhx doctor` / `status` / `adapter sync` | 诊断与重投影 |
 
-## 任务 ↔ Sensor（无 Suite）
+## 任务 ↔ Check（无 Suite）
 
-导出与自定义任务均将 Sensor **直接挂在 Task** 上。本地 `.nhx/tasks.json` 记录绑定关系。
+导出与自定义任务均将 Check **直接挂在 Task** 上。本地 `.nhx/tasks.json` 记录绑定关系。
 
 `nhx sync` / `adapter sync` **始终**投影两种壳（同一份 body+appendix）：
 
@@ -47,10 +48,10 @@ nhx submit ./docs/prd-pack --name prd-pack --stage req --task prd-writing
 `nhx adapter sync` / `init` 会**合并**写入（不覆盖已有 hx hooks）：
 
 - `beforeSubmitPrompt` → `nhx-session.mjs`（解析 `/nhx-stage-task` + `hook:beforeSubmit` 提醒）
-- `stop` → `nhx-sensor-stop.mjs`（`hook:stop`；失败则 `followup_message`）
-- `afterFileEdit` → `nhx-sensor-after-edit.mjs`（`hook:afterFileEdit` + scope）
+- `stop` → `nhx-check-stop.mjs`（`hook:stop`；失败则 `followup_message`）
+- `afterFileEdit` → `nhx-check-after-edit.mjs`（`hook:afterFileEdit` + scope）
 
-Sensor `check_type`：
+Check `check_type`：
 
 | 类型 | 行为 |
 |------|------|
@@ -59,22 +60,22 @@ Sensor `check_type`：
 | `inline` | 内置函数：`file.exists` / `file.min_bytes` / `doc.sections_complete` / `approval.*`。`path` 支持 `*` / `**`；多文件匹配时须**全部**满足条件才通过 |
 | `human` | 仅提醒「尚未批准」/已批准（查询 human-check 工单；不做文件脚本检查） |
 
-触发通道（可多选，存在 Sensor.triggers）：
+触发通道（可多选，存在 Check.triggers）：
 
 | 通道 | 含义 |
 |------|------|
 | `hook:beforeSubmit` | 提交任务指令前（不阻断） |
 | `hook:afterFileEdit` | 文件编辑后（按 scope glob） |
 | `hook:stop` | Agent 回合结束 |
-| `cli` | `nhx sensor check`（默认 channel） |
+| `cli` | `nhx check`（默认 channel） |
 | `task-shell` | command/skill 壳文案要求执行 check |
 
 ## 配置人工审查（产品化）
 
-1. **组织 HX → Guide & Sensor**：新建/编辑 Sensor，Check Type 选 **`human`**。
-2. **组织 HX → Stage & Task**（或项目「自定义 Task」）：编辑目标 Task，在 **Sensor 资产** 中勾选该人工 Sensor。
+1. **组织 HX → Guide & Check**：新建/编辑 Check，Check Type 选 **`human`**。
+2. **组织 HX → Stage & Task**（或项目「自定义 Task」）：编辑目标 Task，在 **Check 资产** 中勾选该人工 Check。
 3. 项目侧 **重新初始化配置** 或本地 `nhx sync`。
-4. 完成后：`nhx approve request --stage … --task …` → WebUI 批准 → `nhx sensor check` 通过。
+4. 完成后：`nhx approve request --stage … --task …` → WebUI 批准 → `nhx check` 通过。
 
 默认资产 `prd-approved` / `arch-lld-approved` / `test-cases-approved` 的 `check_type` 已为 **`human`**。启动后端时会对已有库做一次迁移升级。
 

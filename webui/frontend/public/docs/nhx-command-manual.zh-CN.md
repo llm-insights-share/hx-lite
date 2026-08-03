@@ -1,6 +1,6 @@
 # nhx 命令手册（项目 HX）
 
-`nhx` 是面向项目 HX 交付的 CLI：从 WebUI 拉取任务资产、投影到 IDE、执行 Sensor 检查并提交产物。
+`nhx` 是面向项目 HX 交付的 CLI：从 WebUI 拉取任务资产、投影到 IDE、执行 Check 检查并提交产物。
 
 ## 1. 安装与前置
 
@@ -32,7 +32,8 @@ nhx --help
 | `nhx adapter sync [--targets <list>]` | 只做 IDE 投影，不拉远端资产 |
 | `nhx status` | 查看本地状态（配置、登录、命令等） |
 | `nhx doctor` | 健康诊断（API、凭证、目录、投影） |
-| `nhx sensor check [--stage --task --channel --paths --json]` | 执行 Sensor 检查 |
+| `nhx check [--stage --task --channel --paths --json]` | 执行 Check 检查 |
+| `nhx sensor check …` | （兼容别名）同 `nhx check` |
 | `nhx session mark --stage <stage> --task <task>` | 记录当前会话任务上下文 |
 | `nhx approve request --stage --task [--title --body --project --submit]` | 创建并提交人工审批工单 |
 | `nhx approve status --stage --task [--project]` | 查询人工审批状态 |
@@ -98,14 +99,14 @@ nhx doctor
 - `status`：输出当前 root、api、登录状态、配置、命令列表
 - `doctor`：检查 API 联通性、token、目录、投影有效性
 
-### 4.6 `sensor check`
+### 4.6 `check`
 
 ```bash
-nhx sensor check
-nhx sensor check --stage req --task prd-writing
-nhx sensor check --channel hook:stop
-nhx sensor check --channel hook:afterFileEdit --paths docs/prd/PRD.md
-nhx sensor check --json
+nhx check
+nhx check --stage req --task prd-writing
+nhx check --channel hook:stop
+nhx check --channel hook:afterFileEdit --paths docs/prd/PRD.md
+nhx check --json
 ```
 
 - 默认 `--channel cli`
@@ -128,7 +129,7 @@ nhx approve status --stage req --task prd-writing
 ```
 
 - 人工关卡依赖 `human-check` 工单状态
-- 审批通过后，对应 `human` sensor 才会 PASS
+- 审批通过后，对应 `human` Check 才会 PASS
 
 ### 4.9 `submit`
 
@@ -157,12 +158,12 @@ nhx init --project 1 --stages req,dev
 # 4) 提交产物
 nhx submit ./docs/prd/PRD.md --name prd --stage req --task prd-writing
 
-# 5) 发起人工审批（如任务绑定了 human sensor）
+# 5) 发起人工审批（如任务绑定了 human Check）
 nhx approve request --stage req --task prd-writing
 
 # 6) 审批后检查
 nhx approve status --stage req --task prd-writing
-nhx sensor check --stage req --task prd-writing
+nhx check --stage req --task prd-writing
 
 # 7) 组织/项目配置变更后再同步
 nhx sync
@@ -194,6 +195,6 @@ nhx sync
 | `未登录` / token 失效 | 重新执行 `nhx login`，再 `nhx status` 确认 |
 | 初始化后无命令壳 | 执行 `nhx adapter sync`，检查 `.cursor/commands/nhx-*.md` |
 | 组织改了绑定但本地未生效 | 执行 `nhx sync`（必要时加 `--stages`） |
-| human sensor 一直不通过 | 确认工单类型是 `human-check` 且状态已 `approved` |
+| human Check 一直不通过 | 确认工单类型是 `human-check` 且状态已 `approved` |
 | 产物提交失败 | 校验文件路径存在、`--name` 有值、登录态有效 |
 

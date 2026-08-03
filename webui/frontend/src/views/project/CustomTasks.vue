@@ -8,7 +8,7 @@
       type="info"
       show-icon
       style="margin-bottom: 12px"
-      message="任务直接绑定 Guide / Sensor。人工审查：编辑任务并勾选 check_type=human 的 Sensor。Profile 任务也可改绑定（无需删建）。"
+      message="任务直接绑定 Guide / Check。人工审查：编辑任务并勾选 check_type=human 的 Check。Profile 任务也可改绑定（无需删建）。"
     />
     <a-form layout="inline" style="margin-bottom: 12px">
       <a-form-item label="项目">
@@ -95,13 +95,13 @@
             show-search
           />
         </a-form-item>
-        <a-form-item label="Sensor 资产">
+        <a-form-item label="Check 资产">
           <a-select
             v-model:value="form.sensors"
             mode="multiple"
             style="width: 100%"
             :options="sensorOpts"
-            placeholder="直接选择要绑定的 Sensor（可多选）"
+            placeholder="直接选择要绑定的 Check（可多选）"
             option-filter-prop="label"
             show-search
           />
@@ -189,7 +189,7 @@ const columns = [
   { title: 'Task', dataIndex: 'task_id', width: 160 },
   { title: '标题', dataIndex: 'title' },
   { title: 'Guides', key: 'guides' },
-  { title: 'Sensors', key: 'sensors' },
+  { title: 'Checks', key: 'sensors' },
   { title: 'Command 壳', key: 'shell', width: 200 },
   { title: '来源', key: 'custom', width: 110 },
   { title: '操作', key: 'action', width: 140 },

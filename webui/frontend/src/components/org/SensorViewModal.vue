@@ -1,7 +1,7 @@
 <template>
   <a-modal
     :open="open"
-    title="Sensor 详情"
+    title="Check 详情"
     width="720px"
     :footer="null"
     :z-index="1100"

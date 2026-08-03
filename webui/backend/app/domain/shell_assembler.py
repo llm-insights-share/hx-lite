@@ -66,8 +66,8 @@ def pack_load_step(stage: str, task: str) -> str:
 def gate_reminder(stage: str, task: str) -> str:
     return (
         "### 特别约束 — 门禁\n"
-        f"宣称完成前：执行 `nhx sensor check --stage {stage} --task {task}`，"
-        "未通过不得结束（本地无独立 `gate` 命令，请使用 nhx sensor check）。"
+        f"宣称完成前：执行 `nhx check --stage {stage} --task {task}`，"
+        "未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。"
     )
 
 
@@ -137,9 +137,9 @@ def assemble_appendix(
         "",
         "\n".join(selection),
         "",
-        "### 特别约束 — 绑定 Sensors",
+        "### 特别约束 — 绑定 Checks",
         "",
-        "| sensor |",
+        "| check |",
         "|--------|",
         sensor_rows,
         "",

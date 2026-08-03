@@ -76,7 +76,7 @@ export function syncCursor(cwd = process.cwd()): { commands: number; skills: num
     }
   }
 
-  // Merge nhx sensor hooks into .cursor/hooks.json (preserve existing hx hooks)
+  // Merge nhx check hooks into .cursor/hooks.json (preserve existing hx hooks)
   const hooks = syncCursorHooks(cwd);
 
   return { commands, skills, hooks };

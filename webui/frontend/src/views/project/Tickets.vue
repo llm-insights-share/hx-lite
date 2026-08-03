@@ -8,7 +8,7 @@
       type="info"
       show-icon
       style="margin-bottom: 12px"
-      message="人工检查（human-check）：须先上传该 Stage/Task 产物，再创建并提交工单；批准后 nhx 人工 Sensor 才会通过。审核时可在详情中查看关联产物。"
+      message="人工检查（human-check）：须先上传该 Stage/Task 产物，再创建并提交工单；批准后 nhx 人工 Check 才会通过。审核时可在详情中查看关联产物。"
     />
     <a-space style="margin-bottom: 12px">
       <a-select

@@ -29,7 +29,7 @@ export const DEFAULT_TRIGGERS: TriggerChannel[] = ['hook:stop', 'cli', 'task-she
 export const TRIGGER_CHANNELS_HELP = {
   title: '触发通道说明',
   body: [
-    '可多选。Sensor 仍绑定 Task，在勾选的通道上执行。',
+    '可多选。Check 仍绑定 Task，在勾选的通道上执行。',
     'triggers / scope 只在上方表单配置，不要写入「配置内容」。',
     'human：任一通道触发时只提醒「尚未批准」（或已批准），不做文件/脚本检查；beforeSubmit 不阻断提交。',
     'hook:afterFileEdit 需配置 Scope（glob）；与编辑路径匹配才跑。',
@@ -42,7 +42,7 @@ export type InlineFn = {
   desc: string
 }
 
-/** Built-in predicates supported by nhx sensor check (inline). */
+/** Built-in predicates supported by nhx check (inline). */
 export const INLINE_FUNCTIONS: InlineFn[] = [
   {
     expr: 'file.exists(path=docs/prd/PRD.md)',

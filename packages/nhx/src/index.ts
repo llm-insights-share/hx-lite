@@ -210,7 +210,7 @@ function buildProgram(): Command {
         );
         const adapter = syncAdapters(targets, cwd);
         console.log(
-          `✓ init done — tasks=${payload.counts.tasks} guides=${payload.counts.guides} sensors=${payload.counts.sensors}`,
+          `✓ init done — tasks=${payload.counts.tasks} guides=${payload.counts.guides} checks=${payload.counts.sensors}`,
         );
         console.log("✓ adapter", adapter);
       },
@@ -304,50 +304,67 @@ function buildProgram(): Command {
       },
     );
 
-  const sensor = program.command("sensor").description("Sensor 检查（任务直接绑定）");
-  sensor
-    .command("check")
-    .description("对当前会话或指定 stage/task 运行绑定的 sensor")
-    .option("--stage <stage>")
-    .option("--task <task>")
-    .option(
-      "--channel <channel>",
-      "触发通道过滤：cli | hook:stop | hook:beforeSubmit | hook:afterFileEdit | task-shell",
-      "cli",
-    )
-    .option("--paths <paths>", "afterFileEdit 编辑路径，逗号分隔")
-    .option("--json", "JSON 输出", false)
-    .action(
-      async (opts: {
-        stage?: string;
-        task?: string;
-        channel?: string;
-        paths?: string;
-        json?: boolean;
-      }) => {
-        const paths = opts.paths
-          ? opts.paths.split(",").map((s) => s.trim()).filter(Boolean)
-          : undefined;
-        const result = await runSensorCheck({
-          stage: opts.stage,
-          task: opts.task,
-          channel: opts.channel || "cli",
-          paths,
-        });
-        if (opts.json) {
-          console.log(JSON.stringify(result));
-        } else {
-          console.log(
-            `stage=${result.stage} task=${result.task} channel=${result.channel} ok=${result.ok}`,
-          );
-          for (const f of result.findings) {
-            const tag = f.skipped ? "SKIP" : f.ok ? "PASS" : "FAIL";
-            console.log(`  [${tag}] ${f.sensor_id} (${f.check_type}): ${f.message}`);
-          }
-        }
-        if (!result.ok) process.exitCode = 1;
-      },
-    );
+  type CheckCliOpts = {
+    stage?: string;
+    task?: string;
+    channel?: string;
+    paths?: string;
+    json?: boolean;
+  };
+
+  async function runCheckCli(opts: CheckCliOpts) {
+    const paths = opts.paths
+      ? opts.paths.split(",").map((s) => s.trim()).filter(Boolean)
+      : undefined;
+    const result = await runSensorCheck({
+      stage: opts.stage,
+      task: opts.task,
+      channel: opts.channel || "cli",
+      paths,
+    });
+    if (opts.json) {
+      console.log(JSON.stringify(result));
+    } else {
+      console.log(
+        `stage=${result.stage} task=${result.task} channel=${result.channel} ok=${result.ok}`,
+      );
+      for (const f of result.findings) {
+        const tag = f.skipped ? "SKIP" : f.ok ? "PASS" : "FAIL";
+        console.log(`  [${tag}] ${f.sensor_id} (${f.check_type}): ${f.message}`);
+      }
+    }
+    if (!result.ok) process.exitCode = 1;
+  }
+
+  const checkOpts = (cmd: ReturnType<typeof program.command>) =>
+    cmd
+      .option("--stage <stage>")
+      .option("--task <task>")
+      .option(
+        "--channel <channel>",
+        "触发通道过滤：cli | hook:stop | hook:beforeSubmit | hook:afterFileEdit | task-shell",
+        "cli",
+      )
+      .option("--paths <paths>", "afterFileEdit 编辑路径，逗号分隔")
+      .option("--json", "JSON 输出", false);
+
+  checkOpts(
+    program
+      .command("check")
+      .description("Check 检查（任务直接绑定）"),
+  ).action(async (opts: CheckCliOpts) => {
+    await runCheckCli(opts);
+  });
+
+  // Deprecated alias — prefer `nhx check`
+  const sensor = program
+    .command("sensor")
+    .description("（兼容别名）同 nhx check；请改用 nhx check");
+  checkOpts(sensor.command("check").description("（兼容）同 nhx check")).action(
+    async (opts: CheckCliOpts) => {
+      await runCheckCli(opts);
+    },
+  );
 
   const session = program.command("session").description("IDE 会话上下文");
   session

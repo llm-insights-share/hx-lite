@@ -485,6 +485,7 @@ def _skip_org_guide(g: Guide) -> bool:
 
 
 def _norm_json_list(raw: str | None) -> str:
+    """Normalize JSON list for set-like equality (order ignored for string lists)."""
     try:
         data = json.loads(raw or "[]")
     except json.JSONDecodeError:
@@ -493,6 +494,17 @@ def _norm_json_list(raw: str | None) -> str:
         data = []
     if data and all(isinstance(x, str) for x in data):
         data = sorted(data)
+    return json.dumps(data, ensure_ascii=False)
+
+
+def _norm_json_list_ordered(raw: str | None) -> str:
+    """Normalize JSON list preserving order (guides/sensors binding order matters)."""
+    try:
+        data = json.loads(raw or "[]")
+    except json.JSONDecodeError:
+        data = []
+    if not isinstance(data, list):
+        data = []
     return json.dumps(data, ensure_ascii=False)
 
 
@@ -710,8 +722,8 @@ def sync_project_from_org(session: Session, project: Project, org_id: str = "def
             if (
                 (pt.title or "") != title
                 or bool(pt.required) != bool(t.required)
-                or _norm_json_list(pt.guides_json) != _norm_json_list(guides_json)
-                or _norm_json_list(pt.sensors_json) != _norm_json_list(sensors_json)
+                or _norm_json_list_ordered(pt.guides_json) != _norm_json_list_ordered(guides_json)
+                or _norm_json_list_ordered(pt.sensors_json) != _norm_json_list_ordered(sensors_json)
                 or (getattr(pt, "sort_order", 0) or 0) != sort_order
             ):
                 pt.title = title

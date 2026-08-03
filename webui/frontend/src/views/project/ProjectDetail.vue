@@ -117,7 +117,7 @@
                 </a-table>
               </a-col>
               <a-col :span="12">
-                <div class="sub-label">Sensors</div>
+                <div class="sub-label">Checks</div>
                 <a-table
                   :dataSource="task.sensors"
                   :columns="sensorCols"
@@ -144,7 +144,7 @@
 
     <a-card
       v-if="hx?.guides?.length || hx?.sensors?.length"
-      title="组织资产库（全部 Guide / Sensor）"
+      title="组织资产库（全部 Guide / Check）"
       style="margin-top: 16px"
       size="small"
     >
@@ -171,7 +171,7 @@
             </template>
           </a-table>
         </a-tab-pane>
-        <a-tab-pane key="sensors" :tab="`Sensors (${hx?.sensors?.length ?? 0})`">
+        <a-tab-pane key="sensors" :tab="`Checks (${hx?.sensors?.length ?? 0})`">
           <a-table
             :dataSource="hx?.sensors || []"
             :columns="assetSensorCols"
@@ -274,9 +274,9 @@ const ACTION_LABELS: Record<string, string> = {
   guide_create: '新建 Guide',
   guide_update: '更新 Guide',
   guide_delete: '删除 Guide',
-  sensor_create: '新建 Sensor',
-  sensor_update: '更新 Sensor',
-  sensor_delete: '删除 Sensor',
+  sensor_create: '新建 Check',
+  sensor_update: '更新 Check',
+  sensor_delete: '删除 Check',
   task_create: '新建 Task',
   task_update: '更新 Task',
   task_delete: '删除 Task',
@@ -296,7 +296,7 @@ const guideCols = [
 ]
 const sensorCols = [
   { title: 'ID', key: 'asset' },
-  { title: 'Check', dataIndex: 'check_type', width: 80 },
+  { title: 'Check Type', dataIndex: 'check_type', width: 80 },
   { title: '内容', key: 'content', width: 70 },
 ]
 const assetGuideCols = [
@@ -309,7 +309,7 @@ const assetGuideCols = [
 ]
 const assetSensorCols = [
   { title: 'ID', key: 'asset' },
-  { title: 'Check', dataIndex: 'check_type', width: 90 },
+  { title: 'Check Type', dataIndex: 'check_type', width: 90 },
   { title: 'Kind', dataIndex: 'kind', width: 140 },
   { title: 'Stage', dataIndex: 'stage', width: 90 },
   { title: 'Task', dataIndex: 'task', width: 160 },

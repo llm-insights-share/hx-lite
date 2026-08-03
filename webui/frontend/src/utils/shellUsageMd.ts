@@ -49,23 +49,23 @@ function inputPlaceholder(stage: string): string {
 
 function extractSensorsHint(appendix: string): string {
   const text = appendix || ''
-  if (!/特别约束 — 绑定 Sensors|绑定 Sensors/i.test(text)) return ''
+  if (!/特别约束 — 绑定 (?:Checks|Sensors)|绑定 (?:Checks|Sensors)/i.test(text)) return ''
   const lines = text.split(/\r?\n/)
   const ids: string[] = []
   let inTable = false
   for (const line of lines) {
-    if (/绑定 Sensors/i.test(line)) {
+    if (/绑定 (?:Checks|Sensors)/i.test(line)) {
       inTable = true
       continue
     }
     if (inTable) {
       if (/^###\s|^##\s/.test(line)) break
       const cell = line.match(/^\|\s*`([^`]+)`\s*\|/)
-      if (cell && cell[1] !== 'sensor' && cell[1] !== '—') ids.push(cell[1])
+      if (cell && cell[1] !== 'sensor' && cell[1] !== 'check' && cell[1] !== '—') ids.push(cell[1])
     }
   }
   if (!ids.length) return ''
-  return `完成前需通过绑定 Sensor 门禁：${ids.map((id) => `\`${id}\``).join('、')}。`
+  return `完成前需通过绑定 Check 门禁：${ids.map((id) => `\`${id}\``).join('、')}。`
 }
 
 function stepsHint(body: string): string {
@@ -114,7 +114,7 @@ export function buildShellUsageMarkdown(
     '   - 投影路径：`.cursor/commands/{ide_slash}.md`（以及 `.nhx/commands/`）',
     '3. **Skill Shell（Cursor / Trae 等）**：启用同名 Skill；无斜杠命令的 IDE 以 Skill 为主。',
     '   - 投影路径：`.cursor/skills/{ide_slash}/SKILL.md`（以及 `.nhx/skills/`）',
-    '4. 每个 Task **同时**具备 Command 与 Skill 两种壳，正文一致；Skill 含自动注入附录（绑定 Guide / Sensor）。',
+    '4. 每个 Task **同时**具备 Command 与 Skill 两种壳，正文一致；Skill 含自动注入附录（绑定 Guide / Check）。',
     '',
     '## 目录',
     '',

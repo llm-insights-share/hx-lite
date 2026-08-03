@@ -39,7 +39,7 @@ def summarize_sync_changes(changes: dict[str, Any] | None) -> str:
     if not changes:
         return "无变更"
     parts: list[str] = []
-    for key, label in (("guides", "Guide"), ("sensors", "Sensor"), ("tasks", "Task")):
+    for key, label in (("guides", "Guide"), ("sensors", "Check"), ("tasks", "Task")):
         bucket = changes.get(key) or {}
         a = len(bucket.get("added") or [])
         u = len(bucket.get("updated") or [])

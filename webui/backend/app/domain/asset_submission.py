@@ -144,10 +144,10 @@ def create_submission(
             )
         elif kind == "sensor":
             if aid in s_ids:
-                raise HTTPException(400, f"Sensor「{aid}」已在组织库，不可提交")
+                raise HTTPException(400, f"Check「{aid}」已在组织库，不可提交")
             src = proj_sensors.get(aid)
             if not src:
-                raise HTTPException(404, f"项目中不存在 Sensor「{aid}」")
+                raise HTTPException(404, f"项目中不存在 Check「{aid}」")
             session.add(
                 AssetSubmissionItem(
                     submission_id=sub.id or 0,
@@ -278,7 +278,7 @@ def decide_submission(
                     select(Sensor).where(Sensor.org_id == sub.org_id, Sensor.asset_id == it.asset_id)
                 ).first()
                 if exists:
-                    raise HTTPException(400, f"组织库已存在 Sensor「{it.asset_id}」，无法入库")
+                    raise HTTPException(400, f"组织库已存在 Check「{it.asset_id}」，无法入库")
                 session.add(
                     Sensor(
                         org_id=sub.org_id,

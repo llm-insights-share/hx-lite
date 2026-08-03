@@ -61,7 +61,7 @@ const stats = computed(() => [
   { label: 'Profiles', value: data.value?.profiles ?? 0 },
   { label: 'Tasks', value: data.value?.tasks ?? 0 },
   { label: 'Guides', value: data.value?.guides ?? 0 },
-  { label: 'Sensors', value: data.value?.sensors ?? 0 },
+  { label: 'Checks', value: data.value?.sensors ?? 0 },
   { label: 'Commands', value: data.value?.commands ?? 0 },
 ])
 
@@ -82,10 +82,10 @@ const ACTION_LABELS: Record<string, string> = {
   guide_from_github: 'GitHub 安装 Guide',
   guide_from_github_batch: '批量 GitHub 安装',
   guide_status: '更新 Guide 状态',
-  sensor_create: '新建 Sensor',
-  sensor_update: '更新 Sensor',
-  sensor_delete: '删除 Sensor',
-  sensor_status: '更新 Sensor 状态',
+  sensor_create: '新建 Check',
+  sensor_update: '更新 Check',
+  sensor_delete: '删除 Check',
+  sensor_status: '更新 Check 状态',
   command_create: '新建 Command',
   command_update: '更新 Command',
   command_delete: '删除 Command',

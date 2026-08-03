@@ -2,10 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { GENERATED_MARKER } from "../config.js";
 
-const NHX_HOOK_MARKER = "nhx sensor";
+/** Marker used in hooks.json / scripts; recognize both legacy and new names. */
+const NHX_HOOK_MARKER = "nhx check";
 
 const SESSION_AND_BEFORE_HOOK = `#!/usr/bin/env node
-// ${GENERATED_MARKER} nhx-session + beforeSubmit sensors
+// ${GENERATED_MARKER} nhx-session + beforeSubmit checks
 import { spawnSync } from "node:child_process";
 
 async function readStdin() {
@@ -34,7 +35,7 @@ try {
 
 runNhx(["session", "mark", "--from-prompt", prompt]);
 
-const check = runNhx(["sensor", "check", "--channel", "hook:beforeSubmit", "--json"]);
+const check = runNhx(["check", "--channel", "hook:beforeSubmit", "--json"]);
 let payload = {};
 try { payload = JSON.parse(check.stdout || "{}"); } catch { payload = {}; }
 
@@ -55,7 +56,7 @@ process.exit(0);
 `;
 
 const STOP_HOOK = `#!/usr/bin/env node
-// ${GENERATED_MARKER} nhx-sensor-stop
+// ${GENERATED_MARKER} nhx-check-stop
 import { spawnSync } from "node:child_process";
 
 function runNhx(args) {
@@ -69,7 +70,7 @@ function runNhx(args) {
   return r;
 }
 
-const r = runNhx(["sensor", "check", "--channel", "hook:stop", "--json"]);
+const r = runNhx(["check", "--channel", "hook:stop", "--json"]);
 let payload = {};
 try { payload = JSON.parse(r.stdout || "{}"); } catch { payload = { ok: r.status === 0, raw: r.stdout }; }
 
@@ -82,7 +83,7 @@ const rulesPrompts = findings
 const parts = [];
 if (fails.length) {
   parts.push(
-    "[nhx sensor] 检查未通过，请修复后继续：\\n" +
+    "[nhx check] 检查未通过，请修复后继续：\\n" +
       fails.map((f) => "- " + f.sensor_id + " (" + f.check_type + "): " + f.message).join("\\n"),
   );
 }
@@ -103,7 +104,7 @@ process.exit(0);
 `;
 
 const AFTER_EDIT_HOOK = `#!/usr/bin/env node
-// ${GENERATED_MARKER} nhx-sensor-afterFileEdit
+// ${GENERATED_MARKER} nhx-check-afterFileEdit
 import { spawnSync } from "node:child_process";
 
 async function readStdin() {
@@ -133,7 +134,7 @@ try {
   if (Array.isArray(j.files)) paths = j.files.map((f) => (typeof f === "string" ? f : f.path || f.file || "")).filter(Boolean);
 } catch { /* ignore */ }
 
-const args = ["sensor", "check", "--channel", "hook:afterFileEdit", "--json"];
+const args = ["check", "--channel", "hook:afterFileEdit", "--json"];
 if (paths.length) args.push("--paths", paths.join(","));
 const r = runNhx(args);
 let payload = {};
@@ -167,18 +168,36 @@ process.exit(0);
 `;
 
 function isNhxHookCommand(cmd: string): boolean {
-  return /nhx-sensor|nhx-session|nhx sensor/i.test(cmd) || cmd.includes("nhx-sensor") || cmd.includes("nhx-session");
+  return (
+    /nhx-check|nhx-sensor|nhx-session|nhx check|nhx sensor/i.test(cmd) ||
+    cmd.includes("nhx-check") ||
+    cmd.includes("nhx-sensor") ||
+    cmd.includes("nhx-session")
+  );
 }
+
+const LEGACY_HOOK_SCRIPTS = ["nhx-sensor-stop.mjs", "nhx-sensor-after-edit.mjs"];
 
 export function syncCursorHooks(cwd = process.cwd()): { hooksJson: boolean; scripts: string[] } {
   const hooksDir = path.join(cwd, ".cursor", "hooks");
   fs.mkdirSync(hooksDir, { recursive: true });
   const sessionRel = path.join(hooksDir, "nhx-session.mjs");
-  const stopRel = path.join(hooksDir, "nhx-sensor-stop.mjs");
-  const afterRel = path.join(hooksDir, "nhx-sensor-after-edit.mjs");
+  const stopRel = path.join(hooksDir, "nhx-check-stop.mjs");
+  const afterRel = path.join(hooksDir, "nhx-check-after-edit.mjs");
   fs.writeFileSync(sessionRel, SESSION_AND_BEFORE_HOOK, "utf8");
   fs.writeFileSync(stopRel, STOP_HOOK, "utf8");
   fs.writeFileSync(afterRel, AFTER_EDIT_HOOK, "utf8");
+
+  for (const name of LEGACY_HOOK_SCRIPTS) {
+    const legacy = path.join(hooksDir, name);
+    if (fs.existsSync(legacy)) {
+      try {
+        fs.unlinkSync(legacy);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
 
   const hooksPath = path.join(cwd, ".cursor", "hooks.json");
   let doc: any = { version: 1, hooks: {} };
@@ -204,21 +223,22 @@ export function syncCursorHooks(cwd = process.cwd()): { hooksJson: boolean; scri
     matcher: "UserPromptSubmit",
   });
   ensure("stop", {
-    command: "node .cursor/hooks/nhx-sensor-stop.mjs",
+    command: "node .cursor/hooks/nhx-check-stop.mjs",
     loop_limit: 3,
   });
   ensure("afterFileEdit", {
-    command: "node .cursor/hooks/nhx-sensor-after-edit.mjs",
+    command: "node .cursor/hooks/nhx-check-after-edit.mjs",
   });
 
   doc._nhx = {
     generated: GENERATED_MARKER,
-    note: "nhx merges sensor hooks (beforeSubmit/stop/afterFileEdit); hx hooks preserved",
+    marker: NHX_HOOK_MARKER,
+    note: "nhx merges check hooks (beforeSubmit/stop/afterFileEdit); hx hooks preserved",
   };
   fs.writeFileSync(hooksPath, JSON.stringify(doc, null, 2), "utf8");
 
   return {
     hooksJson: true,
-    scripts: ["nhx-session.mjs", "nhx-sensor-stop.mjs", "nhx-sensor-after-edit.mjs"],
+    scripts: ["nhx-session.mjs", "nhx-check-stop.mjs", "nhx-check-after-edit.mjs"],
   };
 }

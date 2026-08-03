@@ -7,7 +7,7 @@
       type="info"
       show-icon
       style="margin-bottom: 12px"
-      message="仅可提交「组织库中尚不存在」的项目 Guide / Sensor。提交后由组织管理员审批入库（试用或强制）。"
+      message="仅可提交「组织库中尚不存在」的项目 Guide / Check。提交后由组织管理员审批入库（试用或强制）。"
     />
     <a-form layout="inline" style="margin-bottom: 12px">
       <a-form-item label="项目">
@@ -31,7 +31,7 @@
             <a-empty v-if="!promotable.guides.length" description="无可提交 Guide" />
           </a-checkbox-group>
         </a-form-item>
-        <a-form-item label="Sensor">
+        <a-form-item label="Check">
           <a-checkbox-group v-model:value="selectedSensors" style="width: 100%">
             <div v-for="s in promotable.sensors" :key="s.asset_id" class="asset-row">
               <a-checkbox :value="s.asset_id">
@@ -39,7 +39,7 @@
                 <a-tag style="margin-left: 8px">{{ s.check_type || s.kind }}</a-tag>
               </a-checkbox>
             </div>
-            <a-empty v-if="!promotable.sensors.length" description="无可提交 Sensor" />
+            <a-empty v-if="!promotable.sensors.length" description="无可提交 Check" />
           </a-checkbox-group>
         </a-form-item>
         <a-button type="primary" :loading="submitting" @click="submit">提交入库申请</a-button>

@@ -8,7 +8,7 @@
       type="info"
       show-icon
       style="margin-bottom: 12px"
-      message="初始化配置会从组织 HX 全量拉取 Stage / Task 与全部 Guide、Sensor。「同步」仅增量对齐组织有变更的项（并移除组织已删除的组织资产）；重新初始化会全量重建，项目私有 Guide 会保留。"
+      message="初始化配置会从组织 HX 全量拉取 Stage / Task 与全部 Guide、Check。「同步」仅增量对齐组织有变更的项（并移除组织已删除的组织资产）；重新初始化会全量重建，项目私有 Guide 会保留。"
     />
     <a-table :dataSource="rows" :columns="columns" row-key="id">
       <template #bodyCell="{ column, record }">

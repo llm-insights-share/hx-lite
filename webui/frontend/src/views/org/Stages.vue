@@ -17,7 +17,7 @@
       type="info"
       show-icon
       style="margin-bottom: 12px"
-      message="任务直接绑定 Guide / Sensor。人工审查：把 check_type=human 的 Sensor（如 prd-approved）绑到目标 Task。"
+      message="任务直接绑定 Guide / Check。人工审查：把 check_type=human 的 Check（如 prd-approved）绑到目标 Task。"
     />
     <a-table :dataSource="rows" :columns="columns" row-key="id" :pagination="{ pageSize: 12 }">
       <template #bodyCell="{ column, record, text }">
@@ -26,19 +26,36 @@
           <MinusCircleOutlined v-else class="req-no" title="非必须" />
         </template>
         <template v-else-if="column.key === 'guides'">
-          <a-tag
-            v-for="g in record.guides"
-            :key="g"
-            class="guide-tag guide-tag-clickable"
-            @click.stop="openGuideDetail(g)"
+          <span
+            class="guides-cell"
+            @dragover.prevent="onGuideDragOver($event, record)"
+            @drop.prevent="onGuideDrop($event, record)"
           >
-            <component
-              :is="guideKindIcon(guideKindById(g))"
-              class="guide-tag-icon"
-              :class="guideKindCategory(guideKindById(g))"
-            />
-            {{ g }}
-          </a-tag>
+            <a-tag
+              v-for="(g, gIdx) in record.guides"
+              :key="g"
+              draggable="true"
+              class="guide-tag guide-tag-clickable"
+              :class="{
+                'guide-tag-dragging': isGuideDragging(record.id, gIdx),
+                'guide-tag-drop-target': isGuideDropTarget(record.id, gIdx),
+              }"
+              :title="'拖动排序 · 点击查看'"
+              @dragstart="onGuideDragStart($event, record, gIdx)"
+              @dragend="onGuideDragEnd"
+              @dragover.prevent="onGuideTagDragOver($event, record, gIdx)"
+              @dragleave="onGuideTagDragLeave($event, record, gIdx)"
+              @drop.prevent="onGuideDrop($event, record, gIdx)"
+              @click.stop="onGuideTagClick(g)"
+            >
+              <component
+                :is="guideKindIcon(guideKindById(g))"
+                class="guide-tag-icon"
+                :class="guideKindCategory(guideKindById(g))"
+              />
+              {{ g }}
+            </a-tag>
+          </span>
         </template>
         <template v-else-if="column.key === 'sensors'">
           <a-tag
@@ -98,13 +115,13 @@
             show-search
           />
         </a-form-item>
-        <a-form-item label="Sensor 资产">
+        <a-form-item label="Check 资产">
           <a-select
             v-model:value="form.sensors"
             mode="multiple"
             style="width: 100%"
             :options="sensorOpts"
-            placeholder="直接绑定 Sensor；人工审查选 human 类型"
+            placeholder="直接绑定 Check；人工审查选 human 类型"
             option-filter-prop="label"
             show-search
           />
@@ -202,10 +219,134 @@ function openGuideDetail(assetId: string) {
   guideViewOpen.value = true
 }
 
+/** In-cell Guides reorder via HTML5 DnD; click still opens detail. */
+const dragState = ref<{ rowId: number; fromIdx: number } | null>(null)
+/** Index of the tag currently overlapped (insert-before target). */
+const dropTarget = ref<{ rowId: number; toIdx: number } | null>(null)
+const didDrag = ref(false)
+const guidesSaving = ref(false)
+
+function isGuideDragging(rowId: number, idx: number) {
+  return !!dragState.value && dragState.value.rowId === rowId && dragState.value.fromIdx === idx
+}
+
+function isGuideDropTarget(rowId: number, idx: number) {
+  if (!dragState.value || !dropTarget.value) return false
+  if (dragState.value.rowId !== rowId || dropTarget.value.rowId !== rowId) return false
+  if (dragState.value.fromIdx === idx) return false
+  return dropTarget.value.toIdx === idx
+}
+
+function onGuideDragStart(e: DragEvent, record: any, fromIdx: number) {
+  didDrag.value = true
+  dragState.value = { rowId: record.id, fromIdx }
+  dropTarget.value = null
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', String(fromIdx))
+  }
+}
+
+function onGuideDragEnd() {
+  dragState.value = null
+  dropTarget.value = null
+}
+
+function onGuideDragOver(e: DragEvent, record: any) {
+  if (!dragState.value || dragState.value.rowId !== record.id) return
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+}
+
+function onGuideTagDragOver(e: DragEvent, record: any, toIdx: number) {
+  onGuideDragOver(e, record)
+  if (!dragState.value || dragState.value.rowId !== record.id) return
+  if (dragState.value.fromIdx === toIdx) {
+    dropTarget.value = null
+    return
+  }
+  dropTarget.value = { rowId: record.id, toIdx }
+}
+
+function onGuideTagDragLeave(e: DragEvent, record: any, toIdx: number) {
+  // Ignore leave into a child node of the same tag.
+  const related = e.relatedTarget as Node | null
+  const current = e.currentTarget as Node | null
+  if (related && current && current.contains(related)) return
+  if (dropTarget.value?.rowId === record.id && dropTarget.value?.toIdx === toIdx) {
+    dropTarget.value = null
+  }
+}
+
+function onGuideTagClick(assetId: string) {
+  if (didDrag.value) {
+    didDrag.value = false
+    return
+  }
+  openGuideDetail(assetId)
+}
+
+/** Move item so it sits immediately before the overlapped target. */
+function reorderGuidesBefore(list: string[], fromIdx: number, toIdx: number): string[] | null {
+  if (fromIdx === toIdx || fromIdx < 0 || fromIdx >= list.length) return null
+  if (toIdx < 0 || toIdx >= list.length) return null
+  const next = [...list]
+  const [moved] = next.splice(fromIdx, 1)
+  let insertAt = toIdx
+  if (fromIdx < toIdx) insertAt = toIdx - 1
+  next.splice(insertAt, 0, moved)
+  // No-op if order unchanged (e.g. already immediately before target).
+  if (next.every((id, i) => id === list[i])) return null
+  return next
+}
+
+async function onGuideDrop(_e: DragEvent, record: any, toIdx?: number) {
+  const state = dragState.value
+  const target = dropTarget.value
+  dragState.value = null
+  dropTarget.value = null
+  if (!state || state.rowId !== record.id) return
+
+  const list = [...(record.guides || [])] as string[]
+  const fromIdx = state.fromIdx
+  // Prefer the highlighted overlap target; fall back to drop tag index.
+  const overlapIdx = target && target.rowId === record.id ? target.toIdx : toIdx
+  if (typeof overlapIdx !== 'number') return
+
+  const reordered = reorderGuidesBefore(list, fromIdx, overlapIdx)
+  if (!reordered) return
+  if (guidesSaving.value) return
+
+  const prev = [...(record.guides || [])]
+  record.guides = reordered
+
+  guidesSaving.value = true
+  try {
+    await api.put(`/org/tasks/${record.id}`, {
+      profile_key: record.profile_key,
+      stage: record.stage,
+      task_id: record.task_id,
+      title_zh: record.title_zh || '',
+      title_en: record.title_en || '',
+      required: !!record.required,
+      guides: reordered,
+      sensors: [...(record.sensors || [])],
+      enabled: record.enabled !== false,
+    })
+    message.success('Guides 顺序已保存')
+  } catch (err: unknown) {
+    record.guides = prev
+    const msg = err instanceof Error ? err.message : String(err)
+    message.error(`保存失败：${msg}`)
+    await load()
+  } finally {
+    guidesSaving.value = false
+  }
+}
+
 function openSensorDetail(assetId: string) {
   const record = sensors.value.find((s) => s.asset_id === assetId)
   if (!record) {
-    message.warning(`未找到 Sensor：${assetId}`)
+    message.warning(`未找到 Check：${assetId}`)
     return
   }
   sensorViewRecord.value = record
@@ -218,7 +359,7 @@ const columns = [
   { title: '标题', dataIndex: 'title_zh' },
   { title: '必须', key: 'required', dataIndex: 'required', width: 72, align: 'center' },
   { title: 'Guides', key: 'guides' },
-  { title: 'Sensors', key: 'sensors' },
+  { title: 'Checks', key: 'sensors' },
   { title: '操作', key: 'action', width: 150 },
 ]
 
@@ -330,13 +471,32 @@ onMounted(async () => {
   color: #94a3b8;
   font-size: 12px;
 }
+.guides-cell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 0;
+  min-height: 22px;
+  vertical-align: middle;
+}
 .guide-tag {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   margin-bottom: 2px;
+  cursor: grab;
+  user-select: none;
 }
-.guide-tag-clickable,
+.guide-tag:active {
+  cursor: grabbing;
+}
+.guide-tag-dragging {
+  opacity: 0.45;
+}
+.guide-tag-drop-target {
+  background: #ffe4e6 !important;
+  border-color: #fda4af !important;
+  color: #9f1239 !important;
+}
 .sensor-tag-clickable {
   cursor: pointer;
 }

@@ -44,7 +44,7 @@ const menuItems = computed(() => {
       children: [
         { key: 'profiles', label: 'Profile 管理' },
         { key: 'stages', label: 'Stage & Task' },
-        { key: 'guides', label: 'Guide & Sensor' },
+        { key: 'guides', label: 'Guide & Check' },
         { key: 'commands', label: '壳编辑器' },
       ],
     },

@@ -14,7 +14,7 @@
         <a-alert
           type="info"
           show-icon
-          message="将生成 lite/standard/strict/enterprise 四档 Profile、全量 Stage/Task、Guide/Sensor，以及各 Task 的 Command/Skill 壳。"
+          message="将生成 lite/standard/strict/enterprise 四档 Profile、全量 Stage/Task、Guide/Check，以及各 Task 的 Command/Skill 壳。"
         />
         <div style="margin-top: 16px">
           <a-button @click="step = 0">上一步</a-button>

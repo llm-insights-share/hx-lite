@@ -19,7 +19,7 @@ function packLoadStep(stage: string, task: string): string {
 function gateReminder(stage: string, task: string): string {
   return [
     "### 特别约束 — 门禁",
-    `宣称完成前：执行 \`nhx sensor check --stage ${stage} --task ${task}\`，未通过不得结束（本地无独立 gate 命令）。`,
+    `宣称完成前：执行 \`nhx check --stage ${stage} --task ${task}\`，未通过不得结束（本地无独立 gate 命令）。`,
   ].join("\n");
 }
 
@@ -124,16 +124,16 @@ export function assembleAppendix(opts: {
     "",
     selection.join("\n"),
     "",
-    "### Bound Sensors（任务直接绑定）",
+    "### Bound Checks（任务直接绑定）",
     "",
-    "| sensor |",
+    "| check |",
     "|--------|",
     sensorRows,
     "",
     quality,
-    "### Sensor 检查（command/skill 壳）",
+    "### Check 检查（command/skill 壳）",
     "",
-    `完成本任务产物后运行：\`nhx sensor check --stage ${opts.stage} --task ${opts.task}\``,
+    `完成本任务产物后运行：\`nhx check --stage ${opts.stage} --task ${opts.task}\``,
     "",
     "- IDE hooks：`beforeSubmit`（提醒）/ `afterFileEdit`（按 scope）/ `stop`（回合结束）。",
     "- **rules**：文本规则注入本壳与 hook 提示，由对话模型评判；本地不跑 LLM。文件存在请用 **inline** `file.exists`。",

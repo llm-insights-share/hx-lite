@@ -210,7 +210,7 @@ function bodyAfterFrontmatter(content: string): string {
   return m ? (m[1] || "").trim() : content.trim();
 }
 
-/** Parse text-rules sensor: rules_text + optional input paths. */
+/** Parse text-rules Check: rules_text + optional input paths. */
 export function parseRulesContent(content: string): { rulesText: string; input: string[] } {
   const doc = parseFrontmatter(content);
   const inputRaw = doc.input ?? doc.inputs;
@@ -372,7 +372,7 @@ function checkRules(
   if (!rulesText.trim()) {
     return {
       ok: false,
-      message: "rules sensor 缺少 rules_text（或正文规则）",
+      message: "rules Check 缺少 rules_text（或正文规则）",
       agent_prompt,
     };
   }
@@ -399,14 +399,14 @@ function checkRules(
 
 function checkShell(content: string, cwd: string): { ok: boolean; message: string } {
   const m = content.match(/```(?:bash|sh)\n([\s\S]*?)```/);
-  if (!m) return { ok: true, message: "shell sensor：无脚本块，跳过" };
+  if (!m) return { ok: true, message: "shell Check：无脚本块，跳过" };
   const script = m[1].trim();
-  if (!script) return { ok: true, message: "shell sensor：空脚本，跳过" };
+  if (!script) return { ok: true, message: "shell Check：空脚本，跳过" };
   const r = spawnSync("bash", ["-lc", script], { cwd, encoding: "utf8", timeout: 15000 });
-  if (r.status === 0) return { ok: true, message: "shell sensor 通过" };
+  if (r.status === 0) return { ok: true, message: "shell Check 通过" };
   return {
     ok: false,
-    message: `shell sensor 失败 (exit ${r.status}): ${(r.stderr || r.stdout || "").slice(0, 300)}`,
+    message: `shell Check 失败 (exit ${r.status}): ${(r.stderr || r.stdout || "").slice(0, 300)}`,
   };
 }
 
@@ -475,7 +475,7 @@ async function checkInline(
 ): Promise<{ ok: boolean; message: string }> {
   const exprRaw = parseInlineExpr(content);
   if (!exprRaw) {
-    return { ok: false, message: `inline sensor 缺少 expr。${INLINE_HELP}` };
+    return { ok: false, message: `inline Check 缺少 expr。${INLINE_HELP}` };
   }
   const expr = exprRaw.replace(/\s*==\s*true\s*$/i, "").trim();
 
@@ -560,7 +560,7 @@ export async function runSensorCheck(opts: {
           sensor_id: "-",
           check_type: "session",
           ok: true,
-          message: "无 stage/task 会话上下文，跳过 sensor 检查",
+          message: "无 stage/task 会话上下文，跳过 Check 检查",
         },
       ],
     };
@@ -623,7 +623,7 @@ export async function runSensorCheck(opts: {
       sensor_id: "-",
       check_type: "none",
       ok: true,
-      message: `任务 ${stage}/${task} 未绑定 sensor`,
+      message: `任务 ${stage}/${task} 未绑定 Check`,
     });
   }
 

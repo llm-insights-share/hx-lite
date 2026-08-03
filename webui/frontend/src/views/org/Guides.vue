@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="head">
-      <h2>Guide & Sensor</h2>
+      <h2>Guide & Check</h2>
       <div class="head-actions">
         <a-input-search
           v-model:value="listFilter"
@@ -10,7 +10,7 @@
           style="width: 280px"
         />
         <a-button type="primary" @click="openCreateGuide">+ Guide</a-button>
-        <a-button @click="openCreateSensor">+ Sensor</a-button>
+        <a-button @click="openCreateSensor">+ Check</a-button>
       </div>
     </div>
     <a-tabs v-model:activeKey="activeTab">
@@ -73,7 +73,7 @@
           </template>
         </a-table>
       </a-tab-pane>
-      <a-tab-pane key="s" tab="Sensors">
+      <a-tab-pane key="s" tab="Checks">
         <a-table :dataSource="filteredSensors" :columns="sCols" row-key="id" :pagination="{ pageSize: 10 }">
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'asset'">
@@ -543,7 +543,7 @@ const githubSkillOpts = computed(() =>
 )
 
 const listFilterPlaceholder = computed(() =>
-  activeTab.value === 's' ? '按 Sensor ID 或名称筛选' : '按 Guide ID 或名称筛选',
+  activeTab.value === 's' ? '按 Check ID 或名称筛选' : '按 Guide ID 或名称筛选',
 )
 
 function matchAssetFilter(record: any, q: string) {
@@ -638,7 +638,7 @@ const sensorForm = reactive({
 })
 
 const guideModalTitle = computed(() => (guideForm.id ? '编辑 Guide' : '新建 Guide'))
-const sensorModalTitle = computed(() => (sensorForm.id ? '编辑 Sensor' : '新建 Sensor'))
+const sensorModalTitle = computed(() => (sensorForm.id ? '编辑 Check' : '新建 Check'))
 
 const cardKindSet = computed(() => new Set(kindCards.value.map((k) => k.value)))
 const legacyKind = computed(() =>
@@ -675,7 +675,7 @@ const gCols = [
 const sCols = [
   { title: 'ID', key: 'asset' },
   { title: 'Kind', dataIndex: 'kind' },
-  { title: 'Check', key: 'check_type', dataIndex: 'check_type' },
+  { title: 'Check Type', key: 'check_type', dataIndex: 'check_type' },
   { title: 'Triggers', key: 'triggers', width: 140 },
   { title: 'Status', key: 'status', width: 90 },
   { title: '操作', key: 'action', width: 200 },
