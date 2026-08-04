@@ -27,10 +27,13 @@ from app.core.models import (
 )
 from app.domain.asset_submission import decide_submission, set_asset_status, submission_payload
 from app.domain.bootstrap import bootstrap_org
-from app.domain.defaults import default_workflow_body, slash_name as make_slash_name
 from app.domain.hub_exporter import export_hub
 from app.domain.org_oplog import write_org_log
-from app.domain.shell_assembler import assemble_shell
+from app.domain.org_task_shell import (
+    assemble_from_bindings,
+    delete_command_shell_if_orphan,
+    refresh_command_shell,
+)
 from app.services import github as github_svc
 
 router = APIRouter(prefix="/api/org", tags=["org"])
@@ -647,6 +650,15 @@ def create_task(body: StageTaskIn, session: SessionDep, user: CurrentUser, org_i
         enabled=body.enabled,
     )
     session.add(row)
+    refresh_command_shell(
+        session,
+        org_id,
+        body.stage,
+        body.task_id,
+        title=body.title_zh or body.title_en or body.task_id,
+        guides=list(body.guides or []),
+        sensors=list(body.sensors or []),
+    )
     session.commit()
     session.refresh(row)
     write_org_log(
@@ -665,6 +677,8 @@ def update_task(task_row_id: int, body: StageTaskIn, session: SessionDep, user: 
     row = session.get(StageTask, task_row_id)
     if not row:
         raise HTTPException(404)
+    old_stage = row.stage
+    old_task = row.task_id
     row.profile_key = body.profile_key
     row.stage = body.stage
     row.task_id = body.task_id
@@ -676,6 +690,21 @@ def update_task(task_row_id: int, body: StageTaskIn, session: SessionDep, user: 
     row.sensors_json = json.dumps(body.sensors)
     row.enabled = body.enabled
     session.add(row)
+    refresh_command_shell(
+        session,
+        row.org_id,
+        body.stage,
+        body.task_id,
+        title=body.title_zh or body.title_en or body.task_id,
+        guides=list(body.guides or []),
+        sensors=list(body.sensors or []),
+        old_stage=old_stage,
+        old_task=old_task,
+    )
+    # If stage/task_id renamed and another StageTask still uses the old key, keep its shell;
+    # otherwise remove orphan shell left at the old key when keys changed.
+    if (old_stage, old_task) != (body.stage, body.task_id):
+        delete_command_shell_if_orphan(session, row.org_id, old_stage, old_task)
     session.commit()
     session.refresh(row)
     write_org_log(
@@ -712,8 +741,12 @@ def delete_task(task_row_id: int, session: SessionDep, user: CurrentUser):
         "task_id": row.task_id,
     }
     org_id = row.org_id
+    stage = row.stage
+    task_id = row.task_id
     summary = f"删除 Task {row.stage}/{row.task_id}"
     session.delete(row)
+    session.flush()
+    delete_command_shell_if_orphan(session, org_id, stage, task_id)
     session.commit()
     write_org_log(session, user, "task_delete", summary, detail=detail, org_id=org_id)
     return {"ok": True}
@@ -1252,41 +1285,18 @@ def preview_command(
         )
     ).first()
 
-    title = row.title_zh if row else task
+    title = (row.title_zh if row else "") or task
     guide_ids: list[str] = json.loads(row.guides_json) if row else []
     sensor_ids: list[str] = json.loads(row.sensors_json) if row else []
-
-    # Split guides into skills / templates / other by Guide.kind
-    from app.domain.guide_samples import split_guides_by_kind
-
-    skills: list[str] = []
-    templates: list[str] = []
-    other_guides: list[tuple[str, str]] = []
-    if guide_ids:
-        guide_rows = session.exec(
-            select(Guide).where(Guide.org_id == org_id, Guide.asset_id.in_(guide_ids))  # type: ignore[attr-defined]
-        ).all()
-        kind_map = {g.asset_id: g.kind for g in guide_rows}
-        guide_content_map = {g.asset_id: g.content or "" for g in guide_rows}
-        skills, templates, other_guides = split_guides_by_kind(guide_ids, kind_map)
-    else:
-        guide_content_map = {}
-
-    body = default_workflow_body(stage, task, title)
-    description = f"{title} — {stage}/{task}"
-
-    result = assemble_shell(
+    return assemble_from_bindings(
+        session,
+        org_id,
         stage,
         task,
-        description,
-        body,
-        skills,
-        templates,
-        sensor_ids,
-        guide_contents=guide_content_map,
-        other_guides=other_guides,
+        title=title,
+        guides=guide_ids,
+        sensors=sensor_ids,
     )
-    return result
 
 
 @router.post("/commands")
