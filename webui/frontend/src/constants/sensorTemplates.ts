@@ -50,7 +50,7 @@ export const INLINE_FUNCTIONS: InlineFn[] = [
     desc: '检查相对仓库根的文件是否存在；path 支持 * /**，多匹配须全部存在',
   },
   {
-    expr: 'file.min_bytes(path=docs/req/bizmodel*.md, n=200)',
+    expr: 'file.min_bytes(path=docs/requirements/bizmodel*.md, n=200)',
     label: 'file.min_bytes',
     desc: '检查文件存在且至少 n 字节；通配时每个匹配文件都须 ≥ n',
   },
@@ -100,7 +100,7 @@ npx --yes tsc --noEmit
     body: '仅写 check_type + expr。触发通道 / Scope 在上方表单。支持 file.exists / file.min_bytes / doc.sections_complete / approval.*。path 支持 * 与 **；若匹配多个文件，须全部满足条件才通过。',
     example: `---
 check_type: inline
-expr: "file.min_bytes(path=docs/req/bizmodel*.md, n=200)"
+expr: "file.min_bytes(path=docs/requirements/bizmodel*.md, n=200)"
 ---`,
   },
   human: {

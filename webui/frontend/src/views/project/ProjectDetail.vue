@@ -14,8 +14,34 @@
     <a-descriptions bordered size="small" :column="2">
       <a-descriptions-item label="Slug">{{ project.slug }}</a-descriptions-item>
       <a-descriptions-item label="Profile">{{ project.profile_key }}</a-descriptions-item>
-      <a-descriptions-item label="当前阶段">{{ project.current_stage }}</a-descriptions-item>
-      <a-descriptions-item label="GitHub">{{ project.github_repo || '—' }}</a-descriptions-item>
+      <a-descriptions-item label="当前阶段">{{ project.current_stage || '—' }}</a-descriptions-item>
+      <a-descriptions-item label="当前任务">
+        {{
+          project.current_task
+            ? `${project.current_stage || ''}${project.current_stage ? '/' : ''}${project.current_task}${
+                project.current_task_title ? `（${project.current_task_title}）` : ''
+              }`
+            : '—'
+        }}
+      </a-descriptions-item>
+      <a-descriptions-item label="完成阶段">
+        <template v-if="(project.completed_stages || []).length">
+          <a-tag v-for="s in project.completed_stages" :key="`cs-${s}`" color="success">{{ s }}</a-tag>
+        </template>
+        <span v-else>—</span>
+      </a-descriptions-item>
+      <a-descriptions-item label="完成任务">
+        <template v-if="(project.completed_tasks || []).length">
+          <a-tooltip
+            v-for="t in project.completed_tasks"
+            :key="`ct-${t.stage}/${t.task_id}`"
+            :title="t.title || t.task_id"
+          >
+            <a-tag color="success">{{ t.stage }}/{{ t.task_id }}</a-tag>
+          </a-tooltip>
+        </template>
+        <span v-else>—</span>
+      </a-descriptions-item>
     </a-descriptions>
 
     <a-card title="GitHub 配置" style="margin-top: 16px" size="small">

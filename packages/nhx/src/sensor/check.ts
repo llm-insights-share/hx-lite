@@ -4,6 +4,12 @@ import { spawnSync } from "node:child_process";
 import yaml from "yaml";
 import { createTicket, listArtifacts, submitTicket } from "../api/client.js";
 import { loadConfig, loadCredentials, lockPath, nhxRoot, resolveApiBase } from "../config.js";
+import {
+  DEFAULT_PATH_LAYOUT,
+  parsePathLayout,
+  resolveDeliverablePath,
+  type PathLayout,
+} from "../path_layout.js";
 
 export type SensorFinding = {
   sensor_id: string;
@@ -49,6 +55,16 @@ function loadLockTasks(cwd: string): TaskMeta[] {
     return JSON.parse(fs.readFileSync(tasksFile, "utf8")) as TaskMeta[];
   }
   return [];
+}
+
+function loadPathLayout(cwd: string): PathLayout {
+  const p = path.join(nhxRoot(cwd), "path_layout.json");
+  if (!fs.existsSync(p)) return DEFAULT_PATH_LAYOUT;
+  try {
+    return parsePathLayout(JSON.parse(fs.readFileSync(p, "utf8")));
+  } catch {
+    return DEFAULT_PATH_LAYOUT;
+  }
 }
 
 function normalizeTriggers(raw: unknown): string[] {
@@ -189,10 +205,31 @@ export function resolveInlinePaths(cwd: string, pattern: string): string[] {
   return listFilesMatching(cwd, rel);
 }
 
-function scopeMatches(scope: string[], paths: string[] | undefined): boolean {
+function scopeMatches(
+  scope: string[],
+  paths: string[] | undefined,
+  stage: string,
+  layout: PathLayout,
+): boolean {
   if (!paths?.length) return true; // no path context → run
   if (!scope.length) return true; // empty scope → all paths
-  return paths.some((p) => scope.some((g) => matchGlob(g, p)));
+  const expanded = new Set<string>();
+  for (const p of paths) {
+    expanded.add(p);
+    expanded.add(resolveDeliverablePath(p, stage, layout));
+  }
+  const root = layout.stages[stage]?.root || "";
+  const aliases = layout.stages[stage]?.aliases || [];
+  const scopeExpanded = scope.flatMap((g) => {
+    const out = [g];
+    for (const alias of aliases) {
+      if (root && (g === alias || g.startsWith(alias + "/"))) {
+        out.push(g.replace(alias, root));
+      }
+    }
+    return out;
+  });
+  return [...expanded].some((p) => scopeExpanded.some((g) => matchGlob(g, p)));
 }
 
 function parseFrontmatter(content: string): Record<string, unknown> {
@@ -365,6 +402,8 @@ function checkRules(
   cwd: string,
   sensorId: string,
   content: string,
+  stage: string,
+  layout: PathLayout,
 ): { ok: boolean; message: string; agent_prompt: string } {
   const { rulesText, input } = parseRulesContent(content);
   const agent_prompt = buildRulesAgentPrompt(sensorId, content);
@@ -379,11 +418,12 @@ function checkRules(
 
   // Deterministic precheck: if input paths declared, at least one must exist
   if (input.length) {
-    const existing = input.filter((f) => fs.existsSync(path.join(cwd, f)));
+    const resolved = input.map((f) => resolveDeliverablePath(f, stage, layout));
+    const existing = resolved.filter((f) => fs.existsSync(path.join(cwd, f)));
     if (!existing.length) {
       return {
         ok: false,
-        message: `rules 审阅对象均不存在: ${input.join(", ")}（质量由 Agent 评判；请先产出文件）`,
+        message: `rules 审阅对象均不存在: ${resolved.join(", ")}（质量由 Agent 评判；请先产出文件）`,
         agent_prompt,
       };
     }
@@ -472,6 +512,7 @@ async function checkInline(
   content: string,
   stage: string,
   task: string,
+  layout: PathLayout,
 ): Promise<{ ok: boolean; message: string }> {
   const exprRaw = parseInlineExpr(content);
   if (!exprRaw) {
@@ -489,7 +530,7 @@ async function checkInline(
     const { named, list } = parseCallArgs(fileExists[1]!);
     const p = named.path ?? list[0];
     if (!p) return { ok: false, message: "file.exists 需要 path" };
-    return checkFileExists(cwd, p);
+    return checkFileExists(cwd, resolveDeliverablePath(p, stage, layout, task));
   }
 
   const fileMin = expr.match(/^file\.min_bytes\((.+)\)$/i);
@@ -498,7 +539,11 @@ async function checkInline(
     const p = named.path ?? list[0];
     const n = Number(named.n ?? named.min ?? list[1] ?? 0);
     if (!p) return { ok: false, message: "file.min_bytes 需要 path" };
-    return checkFileMinBytes(cwd, p, Number.isFinite(n) ? n : 0);
+    return checkFileMinBytes(
+      cwd,
+      resolveDeliverablePath(p, stage, layout, task),
+      Number.isFinite(n) ? n : 0,
+    );
   }
 
   const docSec = expr.match(/^doc\.sections_complete\((.*)\)$/i);
@@ -517,7 +562,11 @@ async function checkInline(
     const sections = parseRequireList(requireRaw);
     if (!pathArg) return { ok: false, message: "doc.sections_complete 需要 path=" };
     if (!sections.length) return { ok: false, message: "doc.sections_complete 需要 require=[...]" };
-    return checkDocSections(cwd, pathArg, sections);
+    return checkDocSections(
+      cwd,
+      resolveDeliverablePath(pathArg, stage, layout, task),
+      sections,
+    );
   }
 
   return {
@@ -570,6 +619,7 @@ export async function runSensorCheck(opts: {
   const hit = tasks.find((t) => t.stage === stage && t.id === task);
   const sensorIds = hit?.sensors || [];
   const findings: SensorFinding[] = [];
+  const layout = loadPathLayout(cwd);
 
   for (const sid of sensorIds) {
     const meta = loadSensorMeta(cwd, sid);
@@ -583,7 +633,7 @@ export async function runSensorCheck(opts: {
       });
       continue;
     }
-    if (channel === "hook:afterFileEdit" && !scopeMatches(meta.scope, opts.paths)) {
+    if (channel === "hook:afterFileEdit" && !scopeMatches(meta.scope, opts.paths, stage, layout)) {
       findings.push({
         sensor_id: sid,
         check_type: meta.check_type,
@@ -602,12 +652,12 @@ export async function runSensorCheck(opts: {
     } else if (ct === "shell") {
       result = checkShell(meta.content, cwd);
     } else if (ct === "inline") {
-      result = await checkInline(cwd, meta.content, stage, task);
+      result = await checkInline(cwd, meta.content, stage, task, layout);
     } else if (ct === "rules") {
-      result = checkRules(cwd, sid, meta.content);
+      result = checkRules(cwd, sid, meta.content, stage, layout);
     } else {
       // Unknown → treat as inline if expr present, else soft pass
-      result = await checkInline(cwd, meta.content, stage, task);
+      result = await checkInline(cwd, meta.content, stage, task, layout);
     }
     findings.push({
       sensor_id: sid,

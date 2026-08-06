@@ -10,6 +10,7 @@ export type ExportPayload = {
     github_repo?: string;
     github_branch?: string;
     current_stage?: string;
+    current_task?: string;
   };
   profile: string;
   stages_filter: string[];
@@ -17,6 +18,12 @@ export type ExportPayload = {
   tasks: TaskExport[];
   guides: GuideExport[];
   sensors: SensorExport[];
+  path_layout?: {
+    stages: Record<
+      string,
+      { root: string; aliases: string[]; named: Record<string, string> }
+    >;
+  };
   counts: Record<string, number>;
 };
 

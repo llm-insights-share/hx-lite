@@ -59,6 +59,7 @@ class OrgTaskShellTest(unittest.TestCase):
             self.assertIn("Templates（2）", shell.appendix)
             self.assertIn("`prd-approved`", shell.appendix)
             self.assertIn("proposal-template", shell.appendix)
+            self.assertIn("docs/requirements", shell.appendix)
 
     def test_preserves_custom_body_and_refreshes_appendix(self) -> None:
         with Session(self.engine) as session:

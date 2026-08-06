@@ -43,11 +43,14 @@ from app.domain.custom_task import (
     list_project_stage_options,
 )
 from app.domain.project_materializer import (
+    advance_project_cursor,
     build_project_hx_view,
     export_project_for_cli,
+    heal_current_stage_from_shell_logs,
     materialize_project_config,
     sync_project_from_org,
 )
+from app.domain.project_progress import build_project_progress
 from app.domain.project_oplog import summarize_sync_changes, sync_change_count, write_project_log
 from app.domain.shell_assembler import assemble_shell
 from app.domain import defaults
@@ -358,8 +361,14 @@ def report_task_shell_run(
         source="nhx",
     )
     session.add(row)
+    advance_project_cursor(session, project, stage, task_id)
     session.commit()
-    return {"ok": True, "id": row.id}
+    return {
+        "ok": True,
+        "id": row.id,
+        "current_stage": project.current_stage,
+        "current_task": getattr(project, "current_task", None) or "",
+    }
 
 
 # ---- Projects ----
@@ -374,10 +383,14 @@ def list_projects(session: SessionDep, user: CurrentUser):
         pids = {m.project_id for m in memberships}
         projects = [p for p in session.exec(select(Project)).all() if p.id in pids]
     out = []
+    healed = False
     for p in projects:
+        if heal_current_stage_from_shell_logs(session, p):
+            healed = True
         members = session.exec(select(ProjectMember).where(ProjectMember.project_id == p.id)).all()
         arts = session.exec(select(Artifact).where(Artifact.project_id == p.id)).all()
         hx = build_project_hx_view(session, p)
+        progress = build_project_progress(session, p)
         out.append(
             {
                 **_project_public_dict(p),
@@ -387,8 +400,15 @@ def list_projects(session: SessionDep, user: CurrentUser):
                 "hx_counts": hx.get("counts") or {},
                 "initialized": (hx.get("counts") or {}).get("tasks", 0) > 0,
                 "can_delete": _can_delete_project(user, p),
+                "progress": progress,
+                "completed_stages": progress["completed_stages"],
+                "completed_tasks": progress["completed_tasks"],
+                "current_task": progress["current_task"],
+                "current_task_title": progress["current_task_title"],
             }
         )
+    if healed:
+        session.commit()
     return out
 
 
@@ -432,6 +452,9 @@ def get_project(project_id: int, session: SessionDep, user: CurrentUser):
     if not row:
         raise HTTPException(404)
     _require_project_member(session, user, project_id)
+    if heal_current_stage_from_shell_logs(session, row):
+        session.commit()
+        session.refresh(row)
     members = session.exec(select(ProjectMember).where(ProjectMember.project_id == project_id)).all()
     member_view = []
     for m in members:
@@ -446,11 +469,17 @@ def get_project(project_id: int, session: SessionDep, user: CurrentUser):
             }
         )
     hx_config = build_project_hx_view(session, row)
+    progress = build_project_progress(session, row)
     return {
         **_project_public_dict(row),
         "config": json.loads(row.config_json or "{}"),
         "hx_config": hx_config,
         "members": member_view,
+        "progress": progress,
+        "completed_stages": progress["completed_stages"],
+        "completed_tasks": progress["completed_tasks"],
+        "current_task": progress["current_task"],
+        "current_task_title": progress["current_task_title"],
     }
 
 

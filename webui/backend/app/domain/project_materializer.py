@@ -16,7 +16,64 @@ from app.core.models import (
     ProjectTask,
     Sensor,
     StageTask,
+    TaskShellRunLog,
 )
+
+
+def _project_stage_ids(project: Project) -> list[str]:
+    try:
+        cfg = json.loads(project.config_json or "{}")
+    except json.JSONDecodeError:
+        cfg = {}
+    stages = cfg.get("stages") or []
+    return [str(s).strip() for s in stages if str(s).strip()]
+
+
+def advance_project_cursor(
+    session: Session,
+    project: Project,
+    stage: str,
+    task_id: str = "",
+) -> bool:
+    """Update Project.current_stage / current_task when a known stage is entered.
+
+    Returns True if either stored value changed.
+    """
+    stage = (stage or "").strip()
+    task_id = (task_id or "").strip()
+    if not stage:
+        return False
+    known = _project_stage_ids(project)
+    if known and stage not in known:
+        return False
+    changed = False
+    if (project.current_stage or "").strip() != stage:
+        project.current_stage = stage
+        changed = True
+    if task_id and (getattr(project, "current_task", None) or "").strip() != task_id:
+        project.current_task = task_id
+        changed = True
+    if changed:
+        session.add(project)
+    return changed
+
+
+def advance_project_current_stage(session: Session, project: Project, stage: str) -> bool:
+    """Backward-compatible alias: advance stage only."""
+    return advance_project_cursor(session, project, stage, "")
+
+
+def heal_current_stage_from_shell_logs(session: Session, project: Project) -> bool:
+    """Align current_stage / current_task with the latest TaskShellRunLog."""
+    if project.id is None:
+        return False
+    rows = list(
+        session.exec(select(TaskShellRunLog).where(TaskShellRunLog.project_id == project.id)).all()
+    )
+    if not rows:
+        return False
+    top = max(rows, key=lambda r: str(r.run_at or ""))
+    return advance_project_cursor(session, project, top.stage or "", top.task_id or "")
 
 
 def _load_profile_tasks(session: Session, org_id: str, profile_key: str) -> list[StageTask]:
@@ -319,6 +376,12 @@ def export_project_for_cli(
     # Filter out any leftover workflow guides from export payload
     guides_out = [g for g in guides_out if (g.get("kind") or "") not in ("guide.workflow", "guide.command") and not str(g.get("asset_id") or "").startswith("wf-")]
 
+    from app.core.models import OrgSettings
+    from app.domain.path_layout import parse_path_layout
+
+    settings = session.exec(select(OrgSettings).where(OrgSettings.org_id == org_id)).first()
+    path_layout = parse_path_layout(getattr(settings, "path_layout_json", None) if settings else None)
+
     return {
         "project": {
             "id": project.id,
@@ -328,6 +391,7 @@ def export_project_for_cli(
             "github_repo": project.github_repo,
             "github_branch": project.github_branch,
             "current_stage": project.current_stage,
+            "current_task": getattr(project, "current_task", None) or "",
         },
         "profile": project.profile_key,
         "stages_filter": sorted(wanted) if wanted else [s["id"] for s in stages_out],
@@ -335,6 +399,7 @@ def export_project_for_cli(
         "tasks": tasks_flat,
         "guides": guides_out,
         "sensors": sensors_out,
+        "path_layout": path_layout,
         "counts": {
             "stages": len(stages_out),
             "tasks": len(tasks_flat),
@@ -719,11 +784,15 @@ def sync_project_from_org(session: Session, project: Project, org_id: str = "def
             )
             changes["tasks"]["added"].append(label)
         else:
+            guides_changed = _norm_json_list_ordered(pt.guides_json) != _norm_json_list_ordered(guides_json)
+            sensors_changed = _norm_json_list_ordered(pt.sensors_json) != _norm_json_list_ordered(
+                sensors_json
+            )
             if (
                 (pt.title or "") != title
                 or bool(pt.required) != bool(t.required)
-                or _norm_json_list_ordered(pt.guides_json) != _norm_json_list_ordered(guides_json)
-                or _norm_json_list_ordered(pt.sensors_json) != _norm_json_list_ordered(sensors_json)
+                or guides_changed
+                or sensors_changed
                 or (getattr(pt, "sort_order", 0) or 0) != sort_order
             ):
                 pt.title = title

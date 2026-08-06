@@ -6,10 +6,17 @@ from datetime import datetime, timezone
 
 from sqlmodel import Session, select
 
-from app.core.models import CommandShell, Guide, StageTask
+from app.core.models import CommandShell, Guide, OrgSettings, StageTask
 from app.domain import defaults
 from app.domain.guide_samples import split_guides_by_kind
+from app.domain.path_layout import parse_path_layout
 from app.domain.shell_assembler import assemble_shell
+
+
+def load_org_path_layout(session: Session, org_id: str) -> dict:
+    row = session.exec(select(OrgSettings).where(OrgSettings.org_id == org_id)).first()
+    raw = getattr(row, "path_layout_json", None) if row else None
+    return parse_path_layout(raw)
 
 
 def assemble_from_bindings(
@@ -41,6 +48,7 @@ def assemble_from_bindings(
     skills, templates, other_guides = split_guides_by_kind(guide_ids, kind_map)
     shell_body = body if body is not None else defaults.default_workflow_body(stage, task_id, title)
     desc = description if description is not None else f"{title} — {stage}/{task_id}"
+    path_layout = load_org_path_layout(session, org_id)
 
     return assemble_shell(
         stage=stage,
@@ -52,6 +60,7 @@ def assemble_from_bindings(
         sensors=sensor_ids,
         guide_contents=guide_contents,
         other_guides=other_guides,
+        path_layout=path_layout,
     )
 
 

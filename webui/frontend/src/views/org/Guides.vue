@@ -3,6 +3,16 @@
     <div class="head">
       <h2>Guide & Check</h2>
       <div class="head-actions">
+        <a-select
+          v-if="activeTab === 'g'"
+          v-model:value="kindFilter"
+          allow-clear
+          placeholder="全部 Kind"
+          style="width: 200px"
+          :options="kindFilterOpts"
+          show-search
+          option-filter-prop="label"
+        />
         <a-input-search
           v-model:value="listFilter"
           allow-clear
@@ -504,6 +514,7 @@ const guides = ref<any[]>([])
 const sensors = ref<any[]>([])
 const activeTab = ref('g')
 const listFilter = ref('')
+const kindFilter = ref<string | undefined>(undefined)
 const openGuide = ref(false)
 const openSensor = ref(false)
 const guideViewOpen = ref(false)
@@ -546,6 +557,10 @@ const listFilterPlaceholder = computed(() =>
   activeTab.value === 's' ? '按 Check ID 或名称筛选' : '按 Guide ID 或名称筛选',
 )
 
+const kindFilterOpts = computed(() =>
+  kindCards.value.map((k) => ({ value: k.value, label: k.title })),
+)
+
 function matchAssetFilter(record: any, q: string) {
   if (!q) return true
   const id = String(record?.asset_id || '').toLowerCase()
@@ -555,8 +570,11 @@ function matchAssetFilter(record: any, q: string) {
 
 const filteredGuides = computed(() => {
   const q = listFilter.value.trim().toLowerCase()
-  if (!q) return guides.value
-  return guides.value.filter((g) => matchAssetFilter(g, q))
+  const kind = kindFilter.value
+  return guides.value.filter((g) => {
+    if (kind && g.kind !== kind) return false
+    return matchAssetFilter(g, q)
+  })
 })
 
 const filteredSensors = computed(() => {

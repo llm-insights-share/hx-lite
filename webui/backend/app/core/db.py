@@ -243,6 +243,9 @@ def _migrate_sqlite() -> None:
             if "github_token" not in pnames:
                 conn.execute(text("ALTER TABLE project ADD COLUMN github_token VARCHAR DEFAULT ''"))
                 conn.commit()
+            if "current_task" not in pnames:
+                conn.execute(text("ALTER TABLE project ADD COLUMN current_task VARCHAR DEFAULT ''"))
+                conn.commit()
 
         # artifact version package metadata
         avrows = conn.execute(text("PRAGMA table_info(artifactversion)")).fetchall()
@@ -292,6 +295,9 @@ def _migrate_sqlite() -> None:
                 conn.execute(
                     text("ALTER TABLE orgsettings ADD COLUMN guide_kinds_json TEXT DEFAULT '[]'")
                 )
+                conn.commit()
+            if "path_layout_json" not in osnames:
+                conn.execute(text("ALTER TABLE orgsettings ADD COLUMN path_layout_json TEXT DEFAULT ''"))
                 conn.commit()
 
 

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ExportPayload, GuideExport } from "../api/client.js";
 import { ensureNhxDir, lockPath, nhxRoot } from "../config.js";
+import { DEFAULT_PATH_LAYOUT, parsePathLayout } from "../path_layout.js";
 import { assembleShell } from "../shell/assemble.js";
 
 function splitGuides(gids: string[], guidesById: Map<string, GuideExport>): {
@@ -95,6 +96,9 @@ export function materializeExport(
   }));
   fs.writeFileSync(path.join(root, "tasks.json"), JSON.stringify(tasksIndex, null, 2), "utf8");
 
+  const pathLayout = parsePathLayout(payload.path_layout || DEFAULT_PATH_LAYOUT);
+  fs.writeFileSync(path.join(root, "path_layout.json"), JSON.stringify(pathLayout, null, 2), "utf8");
+
   // domain skills from guides (not task shells)
   const skillsDir = path.join(root, "skills");
   if (opts.prune && fs.existsSync(skillsDir)) {
@@ -150,6 +154,7 @@ export function materializeExport(
       templates,
       sensors: t.sensors || [],
       sensorDetails,
+      pathLayout,
     });
     // Prefer org appendix when provided and body already stored without appendix
     const full =

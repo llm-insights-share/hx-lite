@@ -134,7 +134,21 @@ class DashboardUsageMetricsTest(unittest.TestCase):
             )
             self.assertTrue(res["ok"])
             self.assertIsNotNone(res["id"])
+            session.refresh(project)
+            self.assertEqual(project.current_stage, "req")
+            self.assertEqual(project.current_task, "prd-writing")
 
-
+            res2 = report_task_shell_run(
+                project.id,  # type: ignore[arg-type]
+                TaskShellRunIn(stage="dev", task_id="apply", trigger_mode="skill", ide="cursor"),
+                session,
+                user,
+            )
+            self.assertTrue(res2["ok"])
+            session.refresh(project)
+            self.assertEqual(project.current_stage, "dev")
+            self.assertEqual(project.current_task, "apply")
+            self.assertEqual(res2.get("current_stage"), "dev")
+            self.assertEqual(res2.get("current_task"), "apply")
 if __name__ == "__main__":
     unittest.main()

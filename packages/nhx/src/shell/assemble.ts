@@ -1,6 +1,7 @@
 /** Lightweight TaskShell assembler for nhx (independent of hx core). */
 
 import { buildRulesAgentPrompt, parseRulesContent } from "../sensor/check.js";
+import { formatPathLayoutSection, type PathLayout } from "../path_layout.js";
 
 const BOUND_MARKER = "<!-- nhx:bound-guides -->";
 
@@ -57,6 +58,7 @@ export function assembleAppendix(opts: {
   sensors: string[];
   sensorDetails?: SensorShellInfo[];
   otherGuides?: Array<{ id: string; kind: string }>;
+  pathLayout?: PathLayout | null;
 }): string {
   const otherGuides = opts.otherGuides || [];
   const skillRows =
@@ -96,6 +98,7 @@ export function assembleAppendix(opts: {
     opts.sensorDetails ||
     opts.sensors.map((id) => ({ id, check_type: "", content: "", triggers: [] as string[] }));
   const quality = qualityRulesSection(details);
+  const pathSection = formatPathLayoutSection(opts.stage, opts.task, opts.pathLayout);
 
   return [
     BOUND_MARKER,
@@ -104,6 +107,7 @@ export function assembleAppendix(opts: {
     "",
     packLoadStep(opts.stage, opts.task),
     "",
+    pathSection,
     "### Bound Skills",
     "",
     "| id | kind | source |",
@@ -177,6 +181,7 @@ export function assembleShell(opts: {
   sensors: string[];
   sensorDetails?: SensorShellInfo[];
   otherGuides?: Array<{ id: string; kind: string }>;
+  pathLayout?: PathLayout | null;
 }): { slash_name: string; body: string; appendix: string; full: string } {
   const slash_name = slashName(opts.stage, opts.task);
   const body = (opts.body || defaultWorkflowBody(opts.stage, opts.task, opts.title)).trim();

@@ -129,7 +129,7 @@ nhx --help
 
 | 阶段 | 典型路径 |
 |------|----------|
-| req / arch | `docs/requirements/*`、`docs/prd/PRD.md`、`docs/architecture/*`、`docs/prototype/*` |
+| req / arch | `docs/requirements/*`、`docs/prd/PRD.md`、`docs/architecture/*`、`docs/prototype/*`（组织设置「产物路径布局」为真相源；`docs/req` 为已废弃别名） |
 | dev | `harnessX/changes/<id>/` 或 `openspec/changes/<id>/`（shell Check会解析 `HX_CHANGE` / 最新目录） |
 | test | `docs/test/*` |
 

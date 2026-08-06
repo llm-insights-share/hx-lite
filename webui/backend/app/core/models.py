@@ -35,6 +35,8 @@ class OrgSettings(SQLModel, table=True):
     github_token: str = ""  # prefer env; field for UI override
     # JSON list: [{id, title, desc, category}] — org-defined guide.* kinds
     guide_kinds_json: str = Field(default="[]", sa_column=Column(Text))
+    # JSON: {stages: {req: {root, aliases, named}, ...}} — deliverable path layout
+    path_layout_json: str = Field(default="", sa_column=Column(Text))
     updated_at: datetime = Field(default_factory=utcnow)
 
 
@@ -162,6 +164,7 @@ class Project(SQLModel, table=True):
     github_branch: str = "main"
     github_token: str = ""  # project-scoped PAT; prefer over org token for project sync
     current_stage: str = "req"
+    current_task: str = ""
     description: str = ""
     config_json: str = "{}"
     created_by_user_id: Optional[int] = Field(default=None, index=True)

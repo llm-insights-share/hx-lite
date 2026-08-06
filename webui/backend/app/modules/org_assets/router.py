@@ -51,6 +51,8 @@ class OrgSettingsIn(BaseModel):
     github_token: Optional[str] = None
     # Custom guide kinds: [{id, title, desc, category}]
     guide_kinds: Optional[list[dict]] = None
+    # Deliverable path layout: {stages: {req: {root, aliases, named}, ...}}
+    path_layout: Optional[dict] = None
 
 
 class ProfileIn(BaseModel):
@@ -327,7 +329,9 @@ def bootstrap(body: BootstrapIn, session: SessionDep, user: CurrentUser) -> dict
 def get_settings_api(session: SessionDep, _user: CurrentUser, org_id: str = "default"):
     row = _settings_or_404(session, org_id)
     from app.domain.guide_kinds import parse_custom_guide_kinds
+    from app.domain.path_layout import path_layout_payload
 
+    pl = path_layout_payload(getattr(row, "path_layout_json", None))
     return {
         "id": row.id,
         "org_id": row.org_id,
@@ -337,6 +341,9 @@ def get_settings_api(session: SessionDep, _user: CurrentUser, org_id: str = "def
         "github_token": row.github_token,
         "guide_kinds": parse_custom_guide_kinds(getattr(row, "guide_kinds_json", None)),
         "guide_kinds_json": getattr(row, "guide_kinds_json", None) or "[]",
+        "path_layout": pl["path_layout"],
+        "path_layout_customized": pl["path_layout_customized"],
+        "path_layout_default": pl["path_layout_default"],
         "updated_at": row.updated_at,
     }
 
@@ -353,7 +360,9 @@ def list_guide_kinds(session: SessionDep, _user: CurrentUser, org_id: str = "def
 def put_settings(body: OrgSettingsIn, session: SessionDep, user: CurrentUser, org_id: str = "default"):
     import json
 
-    from app.domain.guide_kinds import normalize_custom_guide_kinds
+    from app.domain.guide_kinds import normalize_custom_guide_kinds, parse_custom_guide_kinds
+    from app.domain.org_task_shell import refresh_command_shell
+    from app.domain.path_layout import normalize_path_layout, path_layout_payload
 
     row = _settings_or_404(session, org_id)
     changes = body.model_dump(exclude_unset=True)
@@ -361,6 +370,7 @@ def put_settings(body: OrgSettingsIn, session: SessionDep, user: CurrentUser, or
     if safe_detail.get("github_token"):
         safe_detail["github_token"] = "***"
     guide_kinds = changes.pop("guide_kinds", None)
+    path_layout = changes.pop("path_layout", None)
     for k, v in changes.items():
         setattr(row, k, v)
     if guide_kinds is not None:
@@ -370,8 +380,42 @@ def put_settings(body: OrgSettingsIn, session: SessionDep, user: CurrentUser, or
             raise HTTPException(400, str(e)) from e
         row.guide_kinds_json = json.dumps(normalized, ensure_ascii=False)
         safe_detail["guide_kinds"] = normalized
+    layout_changed = False
+    if path_layout is not None:
+        try:
+            normalized_layout = normalize_path_layout(path_layout)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        row.path_layout_json = json.dumps(normalized_layout, ensure_ascii=False)
+        safe_detail["path_layout"] = normalized_layout
+        layout_changed = True
     row.updated_at = datetime.now(timezone.utc)
     session.add(row)
+
+    # Path layout feeds shell appendix — refresh catalog task shells.
+    if layout_changed:
+        catalog = session.exec(
+            select(StageTask).where(StageTask.org_id == org_id, StageTask.profile_key == "*")
+        ).all()
+        for st in catalog:
+            try:
+                guides = json.loads(st.guides_json or "[]")
+            except json.JSONDecodeError:
+                guides = []
+            try:
+                sensors = json.loads(st.sensors_json or "[]")
+            except json.JSONDecodeError:
+                sensors = []
+            refresh_command_shell(
+                session,
+                org_id,
+                st.stage,
+                st.task_id,
+                title=st.title_zh or st.title_en or st.task_id,
+                guides=list(guides),
+                sensors=list(sensors),
+            )
+
     session.commit()
     session.refresh(row)
     write_org_log(
@@ -382,8 +426,7 @@ def put_settings(body: OrgSettingsIn, session: SessionDep, user: CurrentUser, or
         detail=safe_detail,
         org_id=org_id,
     )
-    from app.domain.guide_kinds import parse_custom_guide_kinds
-
+    pl = path_layout_payload(getattr(row, "path_layout_json", None))
     return {
         "id": row.id,
         "org_id": row.org_id,
@@ -393,6 +436,9 @@ def put_settings(body: OrgSettingsIn, session: SessionDep, user: CurrentUser, or
         "github_token": row.github_token,
         "guide_kinds": parse_custom_guide_kinds(getattr(row, "guide_kinds_json", None)),
         "guide_kinds_json": getattr(row, "guide_kinds_json", None) or "[]",
+        "path_layout": pl["path_layout"],
+        "path_layout_customized": pl["path_layout_customized"],
+        "path_layout_default": pl["path_layout_default"],
         "updated_at": row.updated_at,
     }
 
@@ -679,6 +725,7 @@ def update_task(task_row_id: int, body: StageTaskIn, session: SessionDep, user: 
         raise HTTPException(404)
     old_stage = row.stage
     old_task = row.task_id
+    old_profile = row.profile_key or "*"
     row.profile_key = body.profile_key
     row.stage = body.stage
     row.task_id = body.task_id
@@ -690,6 +737,33 @@ def update_task(task_row_id: int, body: StageTaskIn, session: SessionDep, user: 
     row.sensors_json = json.dumps(body.sensors)
     row.enabled = body.enabled
     session.add(row)
+
+    cascaded_profiles: list[str] = []
+    # Catalog update must cascade bindings to profile copies (project sync reads profile rows).
+    if (old_profile == "*" or (body.profile_key or "*") == "*") and (body.profile_key or "*") == "*":
+        siblings = session.exec(
+            select(StageTask).where(
+                StageTask.org_id == row.org_id,
+                StageTask.stage == old_stage,
+                StageTask.task_id == old_task,
+                StageTask.id != row.id,  # type: ignore[arg-type]
+            )
+        ).all()
+        for sib in siblings:
+            if (sib.profile_key or "*") == "*":
+                continue
+            cascaded_profiles.append(sib.profile_key or "")
+            sib.stage = body.stage
+            sib.task_id = body.task_id
+            sib.title_zh = body.title_zh
+            sib.title_en = body.title_en
+            sib.required = body.required
+            sib.suite = ""
+            sib.guides_json = json.dumps(body.guides)
+            sib.sensors_json = json.dumps(body.sensors)
+            sib.enabled = body.enabled
+            session.add(sib)
+
     refresh_command_shell(
         session,
         row.org_id,
@@ -711,8 +785,9 @@ def update_task(task_row_id: int, body: StageTaskIn, session: SessionDep, user: 
         session,
         user,
         "task_update",
-        f"更新 Task {body.stage}/{body.task_id}",
-        detail={"id": task_row_id, **body.model_dump()},
+        f"更新 Task {body.stage}/{body.task_id}"
+        + (f"（级联绑定 {len(cascaded_profiles)} 个 profile）" if cascaded_profiles else ""),
+        detail={"id": task_row_id, **body.model_dump(), "cascaded_profiles": cascaded_profiles},
         org_id=row.org_id,
     )
     return {
@@ -726,6 +801,7 @@ def update_task(task_row_id: int, body: StageTaskIn, session: SessionDep, user: 
         "guides": json.loads(row.guides_json or "[]"),
         "sensors": json.loads(row.sensors_json or "[]"),
         "enabled": row.enabled,
+        "cascaded_profiles": cascaded_profiles,
     }
 
 
@@ -743,13 +819,38 @@ def delete_task(task_row_id: int, session: SessionDep, user: CurrentUser):
     org_id = row.org_id
     stage = row.stage
     task_id = row.task_id
+    profile_key = row.profile_key
     summary = f"删除 Task {row.stage}/{row.task_id}"
+
+    cascaded_profiles: list[str] = []
+    # Catalog delete must cascade: profile StageTask copies keep shells / project sync alive.
+    if (profile_key or "*") == "*":
+        siblings = session.exec(
+            select(StageTask).where(
+                StageTask.org_id == org_id,
+                StageTask.stage == stage,
+                StageTask.task_id == task_id,
+                StageTask.id != row.id,  # type: ignore[arg-type]
+            )
+        ).all()
+        for sib in siblings:
+            cascaded_profiles.append(sib.profile_key or "")
+            session.delete(sib)
+        detail["cascaded_profiles"] = cascaded_profiles
+
     session.delete(row)
     session.flush()
-    delete_command_shell_if_orphan(session, org_id, stage, task_id)
+    deleted_shell = delete_command_shell_if_orphan(session, org_id, stage, task_id)
     session.commit()
-    write_org_log(session, user, "task_delete", summary, detail=detail, org_id=org_id)
-    return {"ok": True}
+    write_org_log(
+        session,
+        user,
+        "task_delete",
+        summary + (f"（级联 {len(cascaded_profiles)} 个 profile）" if cascaded_profiles else ""),
+        detail=detail,
+        org_id=org_id,
+    )
+    return {"ok": True, "deleted_shell": deleted_shell, "cascaded_profiles": cascaded_profiles}
 
 
 # ---- Guides / Sensors / Commands ----

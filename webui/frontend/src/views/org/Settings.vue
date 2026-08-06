@@ -38,6 +38,47 @@
     </section>
 
     <section class="settings-section">
+      <h3 class="section-title">产物路径布局</h3>
+      <a-card class="config-card" size="small">
+        <template #title>
+          <button type="button" class="card-toggle" @click="layoutOpen = !layoutOpen">
+            <span>{{ layoutOpen ? '收起配置' : '展开配置' }}</span>
+            <span class="chevron" :class="{ open: layoutOpen }">▾</span>
+          </button>
+        </template>
+        <div v-show="layoutOpen" class="card-body">
+          <p class="muted">
+            按 Stage 约定交付物根目录。Task 壳会自动注入该约定；Check 中的相对路径与
+            <code>docs/req</code> 等别名会解析到根目录。保存后会刷新组织 Task 壳附录。
+          </p>
+          <div v-for="row in layoutRows" :key="row.stage" class="layout-item">
+            <div class="layout-stage">{{ row.stage }}</div>
+            <a-form layout="vertical">
+              <a-form-item label="根目录 root">
+                <a-input v-model:value="row.root" placeholder="docs/requirements" />
+              </a-form-item>
+              <a-form-item label="已废弃别名 aliases（逗号分隔）">
+                <a-input v-model:value="row.aliasesText" placeholder="docs/req" />
+              </a-form-item>
+              <a-form-item label="命名路径 named（JSON 对象）">
+                <a-textarea
+                  v-model:value="row.namedText"
+                  :rows="2"
+                  placeholder='{"prd":"docs/prd/PRD.md"}'
+                  class="mono"
+                />
+              </a-form-item>
+            </a-form>
+          </div>
+          <div class="kinds-actions">
+            <a-button @click="resetLayoutDefault">恢复默认</a-button>
+            <a-button type="primary" :loading="layoutSaving" @click="savePathLayout">保存设置</a-button>
+          </div>
+        </div>
+      </a-card>
+    </section>
+
+    <section class="settings-section">
       <h3 class="section-title">自定义 Guide 类型</h3>
       <a-card class="config-card" size="small">
         <template #title>
@@ -123,8 +164,20 @@ type CustomKind = {
 
 const githubSaving = ref(false)
 const kindsSaving = ref(false)
+const layoutSaving = ref(false)
 const githubOpen = ref(true)
 const kindsOpen = ref(true)
+const layoutOpen = ref(true)
+
+type LayoutRow = {
+  stage: string
+  root: string
+  aliasesText: string
+  namedText: string
+}
+
+const layoutRows = ref<LayoutRow[]>([])
+const pathLayoutDefault = ref<Record<string, any>>({})
 
 const form = reactive({
   org_name: '',
@@ -133,6 +186,47 @@ const form = reactive({
   github_token: '',
   guide_kinds: [] as CustomKind[],
 })
+
+function layoutToRows(layout: any): LayoutRow[] {
+  const stages = layout?.stages || {}
+  const keys = Object.keys(stages).length
+    ? Object.keys(stages)
+    : ['req', 'arch', 'dev', 'test']
+  return keys.map((stage) => {
+    const cfg = stages[stage] || {}
+    return {
+      stage,
+      root: cfg.root || '',
+      aliasesText: Array.isArray(cfg.aliases) ? cfg.aliases.join(', ') : '',
+      namedText: JSON.stringify(cfg.named || {}, null, 0),
+    }
+  })
+}
+
+function rowsToLayout(rows: LayoutRow[]) {
+  const stages: Record<string, any> = {}
+  for (const row of rows) {
+    let named: Record<string, string> = {}
+    try {
+      named = JSON.parse(row.namedText || '{}')
+    } catch {
+      throw new Error(`stage ${row.stage} 的 named JSON 无效`)
+    }
+    stages[row.stage] = {
+      root: (row.root || '').trim(),
+      aliases: (row.aliasesText || '')
+        .split(/[,，]/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+      named,
+    }
+  }
+  return { stages }
+}
+
+function resetLayoutDefault() {
+  layoutRows.value = layoutToRows(pathLayoutDefault.value || {})
+}
 
 function addKind() {
   form.guide_kinds.push({
@@ -163,6 +257,8 @@ onMounted(async () => {
       _locked: true,
     })),
   })
+  pathLayoutDefault.value = data.path_layout_default || {}
+  layoutRows.value = layoutToRows(data.path_layout || data.path_layout_default || {})
 })
 
 async function saveGithub() {
@@ -179,6 +275,20 @@ async function saveGithub() {
     message.error(e?.response?.data?.detail || '保存失败')
   } finally {
     githubSaving.value = false
+  }
+}
+
+async function savePathLayout() {
+  layoutSaving.value = true
+  try {
+    const path_layout = rowsToLayout(layoutRows.value)
+    const { data } = await api.put('/org/settings', { path_layout })
+    layoutRows.value = layoutToRows(data.path_layout || path_layout)
+    message.success('产物路径布局已保存（Task 壳附录已刷新）')
+  } catch (e: any) {
+    message.error(e?.message || e?.response?.data?.detail || '保存失败')
+  } finally {
+    layoutSaving.value = false
   }
 }
 
@@ -299,5 +409,21 @@ async function saveGuideKinds() {
   align-items: center;
   gap: 12px;
   margin-top: 4px;
+}
+.layout-item {
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  padding: 12px 14px 4px;
+  margin-bottom: 12px;
+  background: #fafafa;
+}
+.layout-stage {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #1f2937;
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
 }
 </style>

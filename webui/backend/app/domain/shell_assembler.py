@@ -78,7 +78,10 @@ def assemble_appendix(
     templates: list[str],
     sensors: list[str],
     other_guides: list[tuple[str, str]] | None = None,
+    path_layout: dict | None = None,
 ) -> str:
+    from app.domain.path_layout import format_path_layout_section
+
     other_guides = other_guides or []
     skill_rows = "\n".join(f"| `{g}` | guide.skill | |" for g in guides) or "| — | — | — |"
     tpl_rows = "\n".join(f"| `{t}` | guide.template | |" for t in templates) or "| — | — | — |"
@@ -110,6 +113,8 @@ def assemble_appendix(
             f"- **其它 Guides（{len(other_guides)}）：** 按 kind 适用约束/范例/脚手架等；不明确时询问用户。"
         )
 
+    path_section = format_path_layout_section(stage, task, path_layout)
+
     sections = [
         BOUND_GUIDES_MARKER,
         "",
@@ -117,6 +122,7 @@ def assemble_appendix(
         "",
         pack_load_step(stage, task),
         "",
+        path_section,
         "### 绑定 Skills",
         "",
         "| id | kind | source |",
@@ -263,6 +269,7 @@ def assemble_shell(
     sensors: list[str],
     guide_contents: dict[str, str] | None = None,
     other_guides: list[tuple[str, str]] | None = None,
+    path_layout: dict | None = None,
 ) -> dict[str, str]:
     guide_contents = guide_contents or {}
     other_guides = other_guides or []
@@ -287,7 +294,15 @@ def assemble_shell(
     ordered = [(gid, guide_contents.get(gid, "")) for gid in inject_ids if gid in guide_contents]
     block = build_guide_inputs_block(ordered)
     body_with_inputs = inject_guide_inputs(body, block)
-    appendix = assemble_appendix(stage, task, guides, templates, sensors, other_guides=other_guides)
+    appendix = assemble_appendix(
+        stage,
+        task,
+        guides,
+        templates,
+        sensors,
+        other_guides=other_guides,
+        path_layout=path_layout,
+    )
     return {
         "slash_name": slash_name(stage, task),
         "description": description,

@@ -15,6 +15,10 @@
         <template v-if="column.key === 'id'">
           <span class="mono-id">{{ record.id }}</span>
         </template>
+        <template v-else-if="column.key === 'progress'">
+          <a-tag v-if="record.current_stage" color="processing">{{ record.current_stage }}</a-tag>
+          <span v-else class="muted-inline">—</span>
+        </template>
         <template v-else-if="column.key === 'hx'">
           <a-tag :color="record.initialized ? 'success' : 'default'">
             {{ record.initialized ? '已初始化' : '未初始化' }}
@@ -108,13 +112,12 @@ const form = reactive({
 })
 const columns = [
   { title: '项目 ID', dataIndex: 'id', key: 'id', width: 90 },
-  { title: '名称', dataIndex: 'name' },
+  { title: '名称', dataIndex: 'name', width: 140 },
   { title: 'Profile', dataIndex: 'profile_key', width: 110 },
-  { title: '当前阶段', dataIndex: 'current_stage', width: 100 },
-  { title: 'HX 配置', key: 'hx', width: 220 },
+  { title: '当前阶段', key: 'progress', width: 100 },
+  { title: 'HX 配置', key: 'hx', width: 200 },
   { title: '成员', dataIndex: 'member_count', width: 70 },
   { title: '产物', dataIndex: 'artifact_count', width: 70 },
-  { title: 'GitHub', dataIndex: 'github_repo' },
   { title: '操作', key: 'action', width: 340 },
 ]
 
@@ -218,5 +221,9 @@ onMounted(async () => {
   color: #64748b;
   font-size: 12px;
   line-height: 1.4;
+}
+.muted-inline {
+  color: #94a3b8;
+  font-size: 12px;
 }
 </style>
