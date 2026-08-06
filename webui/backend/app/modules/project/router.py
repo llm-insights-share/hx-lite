@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from sqlmodel import select
 
@@ -42,6 +42,7 @@ from app.domain.custom_task import (
     ensure_task_shells,
     list_project_stage_options,
 )
+from app.domain.guide_package import pick_primary_content, resolve_package_root, write_guide_package
 from app.domain.project_materializer import (
     advance_project_cursor,
     build_project_hx_view,
@@ -52,6 +53,12 @@ from app.domain.project_materializer import (
 )
 from app.domain.project_progress import build_project_progress
 from app.domain.project_oplog import summarize_sync_changes, sync_change_count, write_project_log
+from app.domain.ref_skills import (
+    normalize_ref_skills,
+    parse_ref_skills_json,
+    parse_ref_skills_raw,
+    ref_skills_to_json,
+)
 from app.domain.shell_assembler import assemble_shell
 from app.domain import defaults
 from app.services import github as github_svc
@@ -183,6 +190,7 @@ class ProjectAssetIn(BaseModel):
     status: str = "draft"
     content_mode: str = "markdown"
     version: str = "1.0.0"
+    ref_skills: list[str] = Field(default_factory=list)
     check_type: str = "rules"
     triggers: list[str] = Field(default_factory=lambda: ["hook:stop", "cli", "task-shell"])
     scope: list[str] = Field(default_factory=list)
@@ -196,6 +204,30 @@ class ProjectGuideUpdateIn(BaseModel):
     status: Optional[str] = None
     content_mode: Optional[str] = None
     version: Optional[str] = None
+    ref_skills: Optional[list[str]] = None
+
+
+class ProjectGuideFromGithubIn(BaseModel):
+    repo: str
+    skill_path: str
+    asset_id: Optional[str] = None
+    version: str = "1.0.0"
+    status: str = "draft"
+    guide_id: Optional[int] = None
+    ref: Optional[str] = None
+
+
+class ProjectGuideFromGithubSkillItem(BaseModel):
+    skill_path: str
+    asset_id: Optional[str] = None
+
+
+class ProjectGuideFromGithubBatchIn(BaseModel):
+    repo: str
+    skills: list[ProjectGuideFromGithubSkillItem]
+    version: str = "1.0.0"
+    status: str = "draft"
+    ref: Optional[str] = None
 
 
 ASSET_NAME_MAX = 20
@@ -208,6 +240,73 @@ def _normalize_asset_name(name: str | None, asset_id: str) -> str:
     if cleaned:
         return cleaned
     return (asset_id or "").strip()[:ASSET_NAME_MAX]
+
+
+def _normalize_content_mode(mode: str | None, *, fallback: str = "markdown") -> str:
+    m = (mode or "").strip()
+    if m in ("text", "markdown", "package"):
+        return m
+    return fallback
+
+
+def _project_github_token(session: SessionDep, project_id: int) -> str:
+    """Prefer project token, then org Settings, then env (same as project GitHub sync)."""
+    project = session.get(Project, project_id)
+    project_token = ((project.github_token if project else None) or "").strip()
+    if project_token:
+        return project_token
+    org = session.exec(select(OrgSettings).where(OrgSettings.org_id == "default")).first()
+    org_token = ((org.github_token if org else None) or "").strip()
+    if org_token:
+        return org_token
+    return (get_settings().github_token or "").strip()
+
+
+def _parse_repo_or_400(repo: str) -> tuple[str, str]:
+    parsed = github_svc.parse_github_owner_repo(repo)
+    if not parsed:
+        raise HTTPException(400, "无效的仓库名，请使用 owner/repo 或 https://github.com/owner/repo")
+    return parsed
+
+
+def _require_editable_project_guide(session: SessionDep, project_id: int, guide_id: int) -> ProjectGuide:
+    row = session.get(ProjectGuide, guide_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404)
+    data = _enrich_project_guide(session, row)
+    if not data.get("editable"):
+        raise HTTPException(400, "来自组织 HX 的 Guide 不可编辑，请在组织侧维护")
+    return row
+
+
+def _project_package_scope(project_id: int) -> str:
+    return f"project/{project_id}"
+
+
+def _project_skill_asset_ids(session: SessionDep, project_id: int) -> set[str]:
+    rows = session.exec(
+        select(ProjectGuide).where(
+            ProjectGuide.project_id == project_id,
+            ProjectGuide.kind == "guide.skill",
+        )
+    ).all()
+    return {g.asset_id for g in rows if g.asset_id}
+
+
+def _resolve_project_ref_skills(
+    session: SessionDep,
+    project_id: int,
+    *,
+    kind: str,
+    asset_id: str,
+    refs: list[str] | None,
+) -> list[str]:
+    return normalize_ref_skills(
+        refs or [],
+        kind=kind,
+        self_asset_id=asset_id,
+        allowed_skill_ids=_project_skill_asset_ids(session, project_id),
+    )
 
 
 class CustomTaskIn(BaseModel):
@@ -787,13 +886,15 @@ def _enrich_project_guide(
         d["package_files_json"] = og.package_files_json or "[]"
         d["org_guide_id"] = og.id
         d["content"] = og.content if og.content else row.content
+        d["ref_skills"] = parse_ref_skills_json(getattr(og, "ref_skills_json", None))
     else:
         d["status"] = status or "draft"
         d["version"] = getattr(row, "version", None) or "1.0.0"
         d["content_mode"] = getattr(row, "content_mode", None) or "markdown"
-        d["package_path"] = ""
-        d["package_files_json"] = "[]"
+        d["package_path"] = getattr(row, "package_path", None) or ""
+        d["package_files_json"] = getattr(row, "package_files_json", None) or "[]"
         d["org_guide_id"] = None
+        d["ref_skills"] = parse_ref_skills_json(getattr(row, "ref_skills_json", None))
     binds = (guide_bindings or {}).get(row.asset_id, []) if guide_bindings is not None else []
     if guide_bindings is None:
         gmap, _ = _project_asset_bindings(session, row.project_id)
@@ -837,6 +938,10 @@ def get_project_guide(project_id: int, guide_id: int, session: SessionDep, user:
 @router.post("/projects/{project_id}/guides")
 def create_project_guide(project_id: int, body: ProjectAssetIn, session: SessionDep, user: CurrentUser):
     _require_project_member(session, user, project_id)
+    mode = _normalize_content_mode(body.content_mode)
+    refs = _resolve_project_ref_skills(
+        session, project_id, kind=body.kind, asset_id=body.asset_id, refs=body.ref_skills
+    )
     row = ProjectGuide(
         project_id=project_id,
         asset_id=body.asset_id,
@@ -848,7 +953,10 @@ def create_project_guide(project_id: int, body: ProjectAssetIn, session: Session
         status=body.status or "draft",
         source="project",
         version=body.version or "1.0.0",
-        content_mode=body.content_mode or "markdown",
+        content_mode=mode,
+        package_path="",
+        package_files_json="[]",
+        ref_skills_json=ref_skills_to_json(refs),
     )
     session.add(row)
     session.commit()
@@ -859,7 +967,7 @@ def create_project_guide(project_id: int, body: ProjectAssetIn, session: Session
         user,
         "guide_create",
         f"新建项目 Guide {row.asset_id}",
-        {"asset_id": row.asset_id, "kind": row.kind},
+        {"asset_id": row.asset_id, "kind": row.kind, "content_mode": mode, "ref_skills": refs},
     )
     return _enrich_project_guide(session, row)
 
@@ -869,12 +977,7 @@ def update_project_guide(
     project_id: int, guide_id: int, body: ProjectGuideUpdateIn, session: SessionDep, user: CurrentUser
 ):
     _require_project_member(session, user, project_id)
-    row = session.get(ProjectGuide, guide_id)
-    if not row or row.project_id != project_id:
-        raise HTTPException(404)
-    data = _enrich_project_guide(session, row)
-    if not data.get("editable"):
-        raise HTTPException(400, "来自组织 HX 的 Guide 不可编辑，请在组织侧维护")
+    row = _require_editable_project_guide(session, project_id, guide_id)
     if body.asset_id is not None:
         row.asset_id = body.asset_id
     if body.name is not None or body.asset_id is not None:
@@ -889,9 +992,24 @@ def update_project_guide(
     if body.status is not None:
         row.status = body.status
     if body.content_mode is not None:
-        row.content_mode = body.content_mode
+        mode = _normalize_content_mode(body.content_mode, fallback=row.content_mode or "markdown")
+        row.content_mode = mode
+        if mode != "package":
+            row.package_path = ""
+            row.package_files_json = "[]"
     if body.version is not None:
         row.version = body.version
+    if body.ref_skills is not None or body.kind is not None:
+        refs = _resolve_project_ref_skills(
+            session,
+            project_id,
+            kind=row.kind,
+            asset_id=row.asset_id,
+            refs=body.ref_skills
+            if body.ref_skills is not None
+            else parse_ref_skills_json(getattr(row, "ref_skills_json", None)),
+        )
+        row.ref_skills_json = ref_skills_to_json(refs)
     row.source = "project"
     session.add(row)
     session.commit()
@@ -902,7 +1020,13 @@ def update_project_guide(
         user,
         "guide_update",
         f"更新项目 Guide {row.asset_id}",
-        {"asset_id": row.asset_id, "kind": row.kind, "status": row.status},
+        {
+            "asset_id": row.asset_id,
+            "kind": row.kind,
+            "status": row.status,
+            "content_mode": row.content_mode,
+            "ref_skills": parse_ref_skills_json(getattr(row, "ref_skills_json", None)),
+        },
     )
     return _enrich_project_guide(session, row)
 
@@ -928,6 +1052,389 @@ def delete_project_guide(project_id: int, guide_id: int, session: SessionDep, us
         {"asset_id": aid},
     )
     return {"ok": True}
+
+
+@router.post("/projects/{project_id}/guides/upload")
+async def upload_project_guide(
+    project_id: int,
+    session: SessionDep,
+    user: CurrentUser,
+    asset_id: str = Form(...),
+    name: str = Form(""),
+    kind: str = Form("guide.skill"),
+    stage: str = Form(""),
+    task: str = Form(""),
+    version: str = Form("1.0.0"),
+    status: str = Form("draft"),
+    guide_id: Optional[int] = Form(None),
+    ref_skills: str = Form("[]"),
+    files: list[UploadFile] = File(default_factory=list),
+    relative_paths: list[str] = Form(default_factory=list),
+):
+    """Create/update a project Guide from uploaded file(s) or folder (multipart)."""
+    _require_project_member(session, user, project_id)
+    if not asset_id.strip():
+        raise HTTPException(400, "asset_id required")
+    if not files:
+        raise HTTPException(400, "at least one file required")
+
+    file_map: dict[str, bytes] = {}
+    for i, uf in enumerate(files):
+        data = await uf.read()
+        rel = (
+            relative_paths[i]
+            if i < len(relative_paths) and relative_paths[i]
+            else (uf.filename or f"file-{i}")
+        )
+        file_map[rel] = data
+
+    aid = asset_id.strip()
+    ver = (version or "1.0.0").strip() or "1.0.0"
+    if guide_id:
+        row = _require_editable_project_guide(session, project_id, guide_id)
+        action = "guide_upload_update"
+        summary = f"上传更新项目 Guide {aid}"
+    else:
+        existing = session.exec(
+            select(ProjectGuide).where(
+                ProjectGuide.project_id == project_id,
+                ProjectGuide.asset_id == aid,
+            )
+        ).first()
+        if existing:
+            data = _enrich_project_guide(session, existing)
+            if not data.get("editable"):
+                raise HTTPException(400, f"asset_id 已存在且来自组织 HX，不可覆盖: {aid}")
+            row = existing
+            action = "guide_upload_update"
+            summary = f"上传更新项目 Guide {aid}"
+        else:
+            row = ProjectGuide(project_id=project_id, source="project")
+            action = "guide_upload_create"
+            summary = f"上传新建项目 Guide {aid}"
+
+    pkg_rel, saved = write_guide_package(_project_package_scope(project_id), aid, ver, file_map)
+    content = pick_primary_content(file_map, kind)
+    refs = _resolve_project_ref_skills(
+        session,
+        project_id,
+        kind=kind,
+        asset_id=aid,
+        refs=parse_ref_skills_raw(ref_skills),
+    )
+
+    row.asset_id = aid
+    row.name = _normalize_asset_name(name or getattr(row, "name", None) or "", aid)
+    row.kind = kind
+    row.stage = stage or ""
+    row.task = task or ""
+    row.version = ver
+    row.status = status or "draft"
+    row.source = "project"
+    row.content = content
+    row.content_mode = "package"
+    row.package_path = pkg_rel
+    row.package_files_json = json.dumps(saved, ensure_ascii=False)
+    row.ref_skills_json = ref_skills_to_json(refs)
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    write_project_log(
+        session,
+        project_id,
+        user,
+        action,
+        summary,
+        {
+            "id": row.id,
+            "asset_id": row.asset_id,
+            "kind": kind,
+            "files": saved,
+            "package_path": pkg_rel,
+            "ref_skills": refs,
+        },
+    )
+    return _enrich_project_guide(session, row)
+
+
+@router.get("/projects/{project_id}/guides/github-skills")
+def list_project_github_skills(
+    project_id: int,
+    session: SessionDep,
+    user: CurrentUser,
+    repo: str,
+    ref: str = "",
+):
+    """List skill directories (containing SKILL.md) in a GitHub repository."""
+    _require_project_member(session, user, project_id)
+    owner, name = _parse_repo_or_400(repo)
+    token = _project_github_token(session, project_id)
+    try:
+        skills = github_svc.list_repo_skills(owner, name, token=token or None, ref=ref or None)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, str(exc)) from exc
+    return {
+        "repo": f"{owner}/{name}",
+        "ref": (ref or "").strip() or None,
+        "skills": [{"id": s.id, "path": s.path, "skill_md_path": s.skill_md_path} for s in skills],
+    }
+
+
+def _install_project_guide_from_github(
+    session: SessionDep,
+    project_id: int,
+    *,
+    repo: str,
+    skill_path: str,
+    asset_id: Optional[str] = None,
+    version: str = "1.0.0",
+    status: str = "draft",
+    guide_id: Optional[int] = None,
+    ref: Optional[str] = None,
+    skip_if_exists: bool = False,
+) -> ProjectGuide | dict[str, Any]:
+    owner, name = _parse_repo_or_400(repo)
+    skill_path = (skill_path or "").replace("\\", "/").strip("/")
+    if not skill_path:
+        raise HTTPException(400, "skill_path required")
+    token = _project_github_token(session, project_id)
+    try:
+        file_map = github_svc.fetch_repo_subtree_files(
+            owner, name, skill_path, token=token or None, ref=ref or None
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, str(exc)) from exc
+
+    if not any(p.replace("\\", "/").rsplit("/", 1)[-1].lower() == "skill.md" for p in file_map):
+        raise HTTPException(400, "所选目录中未找到 SKILL.md")
+
+    default_id = "skill" if skill_path in (".",) else skill_path.rsplit("/", 1)[-1]
+    aid = (asset_id or "").strip() or default_id
+    ver = (version or "1.0.0").strip() or "1.0.0"
+    kind = "guide.skill"
+
+    if guide_id:
+        row = _require_editable_project_guide(session, project_id, guide_id)
+    else:
+        existing = session.exec(
+            select(ProjectGuide).where(
+                ProjectGuide.project_id == project_id,
+                ProjectGuide.asset_id == aid,
+            )
+        ).first()
+        if existing:
+            data = _enrich_project_guide(session, existing)
+            if not data.get("editable"):
+                if skip_if_exists:
+                    return {"skipped": True, "asset_id": aid, "reason": "asset_id 来自组织，不可覆盖"}
+                raise HTTPException(400, f"asset_id 已存在且来自组织 HX: {aid}")
+            if skip_if_exists:
+                return {"skipped": True, "asset_id": aid, "reason": "asset_id 已存在"}
+            raise HTTPException(400, f"asset_id 已存在: {aid}，请更换或传入 guide_id 覆盖")
+        row = ProjectGuide(project_id=project_id, source="project")
+
+    pkg_rel, saved = write_guide_package(_project_package_scope(project_id), aid, ver, file_map)
+    content = pick_primary_content(file_map, kind)
+
+    row.asset_id = aid
+    row.name = _normalize_asset_name(getattr(row, "name", None) or "", aid)
+    row.kind = kind
+    row.stage = ""
+    row.task = ""
+    row.version = ver
+    row.status = status or "draft"
+    row.source = "project"
+    row.content = content
+    row.content_mode = "package"
+    row.package_path = pkg_rel
+    row.package_files_json = json.dumps(saved, ensure_ascii=False)
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+@router.post("/projects/{project_id}/guides/from-github")
+def create_project_guide_from_github(
+    project_id: int, body: ProjectGuideFromGithubIn, session: SessionDep, user: CurrentUser
+):
+    """Download a skill directory from GitHub and install as project guide.skill package."""
+    _require_project_member(session, user, project_id)
+    try:
+        result = _install_project_guide_from_github(
+            session,
+            project_id,
+            repo=body.repo,
+            skill_path=body.skill_path,
+            asset_id=body.asset_id,
+            version=body.version,
+            status=body.status,
+            guide_id=body.guide_id,
+            ref=body.ref,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, str(exc)) from exc
+    if isinstance(result, dict):
+        return result
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "guide_from_github",
+        f"从 GitHub 安装项目 Guide {result.asset_id}",
+        {"repo": body.repo, "skill_path": body.skill_path, "asset_id": result.asset_id, "ref": body.ref},
+    )
+    return _enrich_project_guide(session, result)
+
+
+@router.post("/projects/{project_id}/guides/from-github-batch")
+def create_project_guides_from_github_batch(
+    project_id: int, body: ProjectGuideFromGithubBatchIn, session: SessionDep, user: CurrentUser
+):
+    """Install multiple GitHub skills as project guide.skill packages."""
+    _require_project_member(session, user, project_id)
+    if not body.skills:
+        raise HTTPException(400, "skills required")
+    created: list[Any] = []
+    skipped: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for item in body.skills:
+        sp = (item.skill_path or "").strip()
+        try:
+            result = _install_project_guide_from_github(
+                session,
+                project_id,
+                repo=body.repo,
+                skill_path=sp,
+                asset_id=item.asset_id,
+                version=body.version,
+                status=body.status,
+                ref=body.ref,
+                skip_if_exists=True,
+            )
+            if isinstance(result, dict) and result.get("skipped"):
+                skipped.append(result)
+            else:
+                created.append(_enrich_project_guide(session, result))  # type: ignore[arg-type]
+        except HTTPException as exc:
+            errors.append({"skill_path": sp, "detail": exc.detail})
+        except Exception as exc:  # noqa: BLE001
+            errors.append({"skill_path": sp, "detail": str(exc)})
+    created_ids = [c.get("asset_id") for c in created if isinstance(c, dict)]
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "guide_from_github_batch",
+        f"批量从 GitHub 安装项目 Guide：+{len(created_ids)}/skip{len(skipped)}/err{len(errors)}",
+        {
+            "repo": body.repo,
+            "ref": body.ref,
+            "created": created_ids,
+            "skipped": skipped,
+            "errors": errors,
+        },
+    )
+    return {"created": created, "skipped": skipped, "errors": errors}
+
+
+@router.get("/projects/{project_id}/guides/{guide_id}/package")
+def get_project_guide_package(
+    project_id: int, guide_id: int, session: SessionDep, user: CurrentUser
+):
+    _require_project_member(session, user, project_id)
+    row = session.get(ProjectGuide, guide_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404)
+    enriched = _enrich_project_guide(session, row)
+    package_path = (enriched.get("package_path") or "").strip()
+    package_files_json = enriched.get("package_files_json") or "[]"
+    content = enriched.get("content") or ""
+
+    meta_files: list[str] = []
+    try:
+        meta_files = [
+            str(f).replace("\\", "/").lstrip("./")
+            for f in json.loads(package_files_json or "[]")
+            if str(f).strip()
+        ]
+    except json.JSONDecodeError:
+        meta_files = []
+
+    disk_files: list[str] = []
+    if package_path:
+        try:
+            root = resolve_package_root(package_path)
+            disk_files = sorted(
+                str(p.relative_to(root)).replace("\\", "/")
+                for p in root.rglob("*")
+                if p.is_file()
+            )
+        except ValueError:
+            disk_files = []
+
+    files = sorted({*meta_files, *disk_files})
+    if (content or "").strip() and not any(f.rsplit("/", 1)[-1].lower() == "skill.md" for f in files):
+        files = sorted({*files, "SKILL.md"})
+    return {
+        "id": row.id,
+        "asset_id": row.asset_id,
+        "package_path": package_path,
+        "content_mode": enriched.get("content_mode") or row.content_mode,
+        "files": files,
+        "content": content,
+        "org_guide_id": enriched.get("org_guide_id"),
+    }
+
+
+@router.get("/projects/{project_id}/guides/{guide_id}/package-file")
+def get_project_guide_package_file(
+    project_id: int,
+    guide_id: int,
+    path: str,
+    session: SessionDep,
+    user: CurrentUser,
+):
+    _require_project_member(session, user, project_id)
+    row = session.get(ProjectGuide, guide_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404)
+    enriched = _enrich_project_guide(session, row)
+    package_path = (enriched.get("package_path") or "").strip()
+    content = enriched.get("content") or ""
+
+    rel = (path or "").replace("\\", "/").lstrip("./")
+    if not rel or ".." in rel.split("/"):
+        raise HTTPException(400, "invalid path")
+
+    root = None
+    if package_path:
+        try:
+            root = resolve_package_root(package_path)
+        except ValueError:
+            root = None
+    if root is not None:
+        target = (root / rel).resolve()
+        if str(target).startswith(str(root)) and target.is_file():
+            data = target.read_bytes()
+            ctype, _ = mimetypes.guess_type(str(target))
+            return Response(
+                content=data,
+                media_type=ctype or "application/octet-stream",
+                headers={"Content-Disposition": f'inline; filename="{target.name}"'},
+            )
+
+    basename = Path(rel).name.lower()
+    if basename == "skill.md" and (content or "").strip():
+        data = content.encode("utf-8")
+        return Response(
+            content=data,
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": 'inline; filename="SKILL.md"'},
+        )
+    raise HTTPException(404, "file not found")
 
 
 @router.get("/projects/{project_id}/sensors")

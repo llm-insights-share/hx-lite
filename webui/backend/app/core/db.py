@@ -93,6 +93,8 @@ def _migrate_sqlite() -> None:
                 galters.append("ALTER TABLE guide ADD COLUMN package_files_json VARCHAR DEFAULT '[]'")
             if "source" not in gnames:
                 galters.append("ALTER TABLE guide ADD COLUMN source VARCHAR DEFAULT ''")
+            if "ref_skills_json" not in gnames:
+                galters.append("ALTER TABLE guide ADD COLUMN ref_skills_json VARCHAR DEFAULT '[]'")
             for sql in galters:
                 conn.execute(text(sql))
             if galters:
@@ -112,6 +114,16 @@ def _migrate_sqlite() -> None:
             if "content_mode" not in pgnames:
                 pgalters.append(
                     "ALTER TABLE projectguide ADD COLUMN content_mode VARCHAR DEFAULT 'markdown'"
+                )
+            if "package_path" not in pgnames:
+                pgalters.append("ALTER TABLE projectguide ADD COLUMN package_path VARCHAR DEFAULT ''")
+            if "package_files_json" not in pgnames:
+                pgalters.append(
+                    "ALTER TABLE projectguide ADD COLUMN package_files_json VARCHAR DEFAULT '[]'"
+                )
+            if "ref_skills_json" not in pgnames:
+                pgalters.append(
+                    "ALTER TABLE projectguide ADD COLUMN ref_skills_json VARCHAR DEFAULT '[]'"
                 )
             for sql in pgalters:
                 conn.execute(text(sql))

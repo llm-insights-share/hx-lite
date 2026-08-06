@@ -18,6 +18,7 @@ from app.core.models import (
     StageTask,
     TaskShellRunLog,
 )
+from app.domain.ref_skills import parse_ref_skills_json
 
 
 def _project_stage_ids(project: Project) -> list[str]:
@@ -121,6 +122,7 @@ def build_project_hx_view(session: Session, project: Project) -> dict[str, Any]:
             "stage": g.stage,
             "task": g.task,
             "content": g.content or "",
+            "ref_skills": parse_ref_skills_json(getattr(g, "ref_skills_json", None)),
         }
         guides_flat.append(item)
         guides_by_key.setdefault((g.stage, g.task, g.asset_id), []).append(item)
@@ -475,6 +477,7 @@ def materialize_project_config(session: Session, project: Project, org_id: str =
                 source="org",
                 version=getattr(g, "version", None) or "1.0.0",
                 content_mode=getattr(g, "content_mode", None) or "markdown",
+                ref_skills_json=getattr(g, "ref_skills_json", None) or "[]",
             )
         )
     for s in all_sensors.values():
@@ -583,6 +586,8 @@ def _guide_fields_equal(pg: ProjectGuide, g: Guide) -> bool:
         and (pg.content_mode or "markdown") == (getattr(g, "content_mode", None) or "markdown")
         and (pg.stage or "") == (g.stage or "")
         and (pg.task or "") == (g.task or "")
+        and _norm_json_list_ordered(getattr(pg, "ref_skills_json", None))
+        == _norm_json_list_ordered(getattr(g, "ref_skills_json", None))
     )
 
 
@@ -611,6 +616,7 @@ def _apply_guide_from_org(pg: ProjectGuide, g: Guide) -> None:
     pg.source = "org"
     pg.version = getattr(g, "version", None) or "1.0.0"
     pg.content_mode = getattr(g, "content_mode", None) or "markdown"
+    pg.ref_skills_json = getattr(g, "ref_skills_json", None) or "[]"
 
 
 def _apply_sensor_from_org(ps: ProjectSensor, s: Sensor) -> None:
@@ -688,6 +694,7 @@ def sync_project_from_org(session: Session, project: Project, org_id: str = "def
                     source="org",
                     version=getattr(og, "version", None) or "1.0.0",
                     content_mode=getattr(og, "content_mode", None) or "markdown",
+                    ref_skills_json=getattr(og, "ref_skills_json", None) or "[]",
                 )
             )
             changes["guides"]["added"].append(aid)

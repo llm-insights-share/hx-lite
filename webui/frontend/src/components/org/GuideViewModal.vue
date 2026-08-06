@@ -52,6 +52,10 @@
           </div>
         </div>
       </a-form-item>
+      <a-form-item v-if="(record.kind || 'guide.skill') === 'guide.skill'" label="引用 Skill">
+        <a-tag v-for="id in record.ref_skills || []" :key="id">{{ id }}</a-tag>
+        <span v-if="!(record.ref_skills || []).length" class="muted">无</span>
+      </a-form-item>
       <a-form-item label="资产内容">
         <div v-if="pkgLoading" class="muted">加载包文件…</div>
         <div v-else-if="isMultiFilePackage" class="pkg-browse">

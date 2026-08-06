@@ -28,6 +28,12 @@ from app.core.models import (
 from app.domain.asset_submission import decide_submission, set_asset_status, submission_payload
 from app.domain.bootstrap import bootstrap_org
 from app.domain.hub_exporter import export_hub
+from app.domain.ref_skills import (
+    normalize_ref_skills,
+    parse_ref_skills_json,
+    parse_ref_skills_raw,
+    ref_skills_to_json,
+)
 from app.domain.org_oplog import write_org_log
 from app.domain.org_task_shell import (
     assemble_from_bindings,
@@ -87,6 +93,7 @@ class GuideIn(BaseModel):
     source: str = ""
     content: str = ""
     content_mode: str = "markdown"  # text|markdown|package
+    ref_skills: list[str] = Field(default_factory=list)
 
 
 ASSET_NAME_MAX = 20
@@ -107,6 +114,35 @@ def _normalize_guide_source(source: str | None) -> str:
     if len(cleaned) > GUIDE_SOURCE_MAX:
         raise HTTPException(400, f"来源不能超过 {GUIDE_SOURCE_MAX} 个字")
     return cleaned
+
+
+def _org_skill_asset_ids(session: SessionDep, org_id: str) -> set[str]:
+    rows = session.exec(
+        select(Guide).where(Guide.org_id == org_id, Guide.kind == "guide.skill")
+    ).all()
+    return {g.asset_id for g in rows if g.asset_id}
+
+
+def _resolve_org_ref_skills(
+    session: SessionDep,
+    org_id: str,
+    *,
+    kind: str,
+    asset_id: str,
+    refs: list[str] | None,
+) -> list[str]:
+    return normalize_ref_skills(
+        refs or [],
+        kind=kind,
+        self_asset_id=asset_id,
+        allowed_skill_ids=_org_skill_asset_ids(session, org_id),
+    )
+
+
+def _enrich_org_guide(row: Guide) -> dict[str, Any]:
+    d = row.model_dump()
+    d["ref_skills"] = parse_ref_skills_json(getattr(row, "ref_skills_json", None))
+    return d
 
 
 class GuideFromGithubIn(BaseModel):
@@ -858,13 +894,17 @@ def delete_task(task_row_id: int, session: SessionDep, user: CurrentUser):
 
 @router.get("/guides")
 def list_guides(session: SessionDep, _user: CurrentUser, org_id: str = "default"):
-    return session.exec(select(Guide).where(Guide.org_id == org_id)).all()
+    rows = session.exec(select(Guide).where(Guide.org_id == org_id)).all()
+    return [_enrich_org_guide(r) for r in rows]
 
 
 @router.post("/guides")
 def create_guide(body: GuideIn, session: SessionDep, user: CurrentUser, org_id: str = "default"):
     _assert_guide_kind_allowed(session, org_id, body.kind)
     mode = body.content_mode if body.content_mode in ("text", "markdown", "package") else "markdown"
+    refs = _resolve_org_ref_skills(
+        session, org_id, kind=body.kind, asset_id=body.asset_id, refs=body.ref_skills
+    )
     row = Guide(
         org_id=org_id,
         asset_id=body.asset_id,
@@ -879,6 +919,7 @@ def create_guide(body: GuideIn, session: SessionDep, user: CurrentUser, org_id: 
         content_mode=mode,
         package_path="",
         package_files_json="[]",
+        ref_skills_json=ref_skills_to_json(refs),
     )
     session.add(row)
     session.commit()
@@ -888,10 +929,16 @@ def create_guide(body: GuideIn, session: SessionDep, user: CurrentUser, org_id: 
         user,
         "guide_create",
         f"新建 Guide {body.asset_id}",
-        detail={"id": row.id, "asset_id": body.asset_id, "kind": body.kind, "content_mode": mode},
+        detail={
+            "id": row.id,
+            "asset_id": body.asset_id,
+            "kind": body.kind,
+            "content_mode": mode,
+            "ref_skills": refs,
+        },
         org_id=org_id,
     )
-    return row
+    return _enrich_org_guide(row)
 
 
 @router.put("/guides/{guide_id}")
@@ -903,6 +950,13 @@ def update_guide(guide_id: int, body: GuideIn, session: SessionDep, user: Curren
         session, row.org_id or "default", body.kind, previous_kind=row.kind
     )
     mode = body.content_mode if body.content_mode in ("text", "markdown", "package") else "markdown"
+    refs = _resolve_org_ref_skills(
+        session,
+        row.org_id or "default",
+        kind=body.kind,
+        asset_id=body.asset_id,
+        refs=body.ref_skills,
+    )
     row.asset_id = body.asset_id
     row.name = _normalize_asset_name(body.name, body.asset_id)
     row.kind = body.kind
@@ -913,6 +967,7 @@ def update_guide(guide_id: int, body: GuideIn, session: SessionDep, user: Curren
     row.source = _normalize_guide_source(body.source)
     row.content = body.content
     row.content_mode = mode
+    row.ref_skills_json = ref_skills_to_json(refs)
     if mode != "package":
         # keep package on disk but clear pointer when switching to inline
         row.package_path = ""
@@ -926,10 +981,17 @@ def update_guide(guide_id: int, body: GuideIn, session: SessionDep, user: Curren
         user,
         "guide_update",
         f"更新 Guide {body.asset_id}",
-        detail={"id": guide_id, "asset_id": body.asset_id, "kind": body.kind, "content_mode": mode, "status": body.status},
+        detail={
+            "id": guide_id,
+            "asset_id": body.asset_id,
+            "kind": body.kind,
+            "content_mode": mode,
+            "status": body.status,
+            "ref_skills": refs,
+        },
         org_id=row.org_id,
     )
-    return row
+    return _enrich_org_guide(row)
 
 
 @router.post("/guides/upload")
@@ -946,6 +1008,7 @@ async def upload_guide(
     source: str = Form(""),
     org_id: str = Form("default"),
     guide_id: Optional[int] = Form(None),
+    ref_skills: str = Form("[]"),
     files: list[UploadFile] = File(default_factory=list),
     relative_paths: list[str] = Form(default_factory=list),
 ):
@@ -982,6 +1045,13 @@ async def upload_guide(
         action = "guide_upload_create"
         summary = f"上传新建 Guide {asset_id.strip()}"
 
+    refs = _resolve_org_ref_skills(
+        session,
+        org_id,
+        kind=kind,
+        asset_id=asset_id.strip(),
+        refs=parse_ref_skills_raw(ref_skills),
+    )
     row.asset_id = asset_id.strip()
     row.name = _normalize_asset_name(name, row.asset_id)
     row.kind = kind
@@ -994,6 +1064,7 @@ async def upload_guide(
     row.content_mode = "package"
     row.package_path = pkg_rel
     row.package_files_json = json.dumps(saved, ensure_ascii=False)
+    row.ref_skills_json = ref_skills_to_json(refs)
     row.updated_at = datetime.now(timezone.utc)
     session.add(row)
     session.commit()
@@ -1003,11 +1074,17 @@ async def upload_guide(
         user,
         action,
         summary,
-        detail={"id": row.id, "asset_id": row.asset_id, "kind": kind, "files": saved, "package_path": pkg_rel},
+        detail={
+            "id": row.id,
+            "asset_id": row.asset_id,
+            "kind": kind,
+            "files": saved,
+            "package_path": pkg_rel,
+            "ref_skills": refs,
+        },
         org_id=org_id,
     )
-    return row
-
+    return _enrich_org_guide(row)
 
 @router.get("/guides/github-skills")
 def list_github_skills(

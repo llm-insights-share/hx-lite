@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="head">
-      <h2>自定义 Task</h2>
+      <h2>Task 管理</h2>
       <a-button type="primary" :disabled="!projectId" @click="openCreate">+ 新建 Task</a-button>
     </div>
     <a-alert

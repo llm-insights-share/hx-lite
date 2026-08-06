@@ -84,6 +84,7 @@ class Guide(SQLModel, table=True):
     content_mode: str = "markdown"  # text|markdown|package
     package_path: str = ""  # relative to data_dir, e.g. guide-packages/default/id/1.0.0
     package_files_json: str = "[]"
+    ref_skills_json: str = "[]"  # asset_id list of referenced guide.skill (not task-shell bound)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
 
@@ -193,6 +194,9 @@ class ProjectGuide(SQLModel, table=True):
     source: str = ""  # org|project — empty until set; org-copied vs project-private
     version: str = "1.0.0"
     content_mode: str = "markdown"
+    package_path: str = ""  # relative to data_dir, e.g. guide-packages/project/{id}/asset/1.0.0
+    package_files_json: str = "[]"
+    ref_skills_json: str = "[]"  # asset_id list of referenced guide.skill (not task-shell bound)
     created_at: datetime = Field(default_factory=utcnow)
 
 

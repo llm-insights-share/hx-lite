@@ -90,7 +90,7 @@
     <a-modal
       v-model:open="modalOpen"
       :title="modalTitle"
-      :width="920"
+      :width="1000"
       :confirmLoading="saving"
       :ok-button-props="modalMode === 'view' ? { style: { display: 'none' } } : undefined"
       :cancel-text="modalMode === 'view' ? '关闭' : '取消'"
@@ -109,26 +109,87 @@
             :disabled="readonly"
           />
         </a-form-item>
-        <a-form-item label="Version">
-          <a-input v-model:value="form.version" style="width: 160px" :disabled="readonly" />
-        </a-form-item>
-        <a-form-item label="Status">
-          <a-select
-            v-model:value="form.status"
-            style="width: 160px"
-            :disabled="readonly"
-            :options="statusOpts"
-          />
-        </a-form-item>
+        <a-row :gutter="12">
+          <a-col :span="12">
+            <a-form-item label="Version">
+              <a-input v-model:value="form.version" :disabled="readonly" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="Status">
+              <a-select
+                v-model:value="form.status"
+                style="width: 100%"
+                :disabled="readonly"
+                :options="statusOpts"
+              />
+            </a-form-item>
+          </a-col>
+        </a-row>
         <a-form-item label="来源">
           <a-tag :color="form.source === 'org' ? 'blue' : 'green'">
             {{ form.source === 'org' ? '组织 HX（只读）' : '项目私有' }}
           </a-tag>
         </a-form-item>
+
         <a-form-item label="Kind">
-          <a-input v-model:value="form.kind" :disabled="readonly" />
+          <a-alert
+            v-if="legacyKind"
+            type="warning"
+            show-icon
+            style="margin-bottom: 8px"
+            :message="`当前为遗留类型 ${legacyKind}，可改选下方类型之一`"
+          />
+          <div class="kind-grid">
+            <button
+              v-for="k in kindCards"
+              :key="k.value"
+              type="button"
+              class="kind-card"
+              :class="{ active: form.kind === k.value, disabled: readonly }"
+              :disabled="readonly"
+              @click="!readonly && selectKind(k.value)"
+            >
+              <span class="kind-badge" :class="k.category">{{ k.category }}</span>
+              <div class="kind-title">
+                <component :is="k.icon" class="kind-card-icon" :class="k.category" />
+                <span>{{ k.title }}</span>
+              </div>
+              <div class="kind-id">{{ k.value }}</div>
+              <div class="kind-desc">{{ k.desc }}</div>
+            </button>
+          </div>
         </a-form-item>
-        <a-form-item v-if="readonly || form.content_mode === 'package'" label="内容预览">
+
+        <a-form-item v-if="form.kind === 'guide.skill'" label="引用 Skill">
+          <a-select
+            v-if="!readonly"
+            v-model:value="form.ref_skills"
+            mode="multiple"
+            style="width: 100%"
+            placeholder="可选，引用其它 guide.skill（不进入任务壳）"
+            :options="refSkillOpts"
+            show-search
+            option-filter-prop="label"
+            allow-clear
+          />
+          <template v-else>
+            <a-tag v-for="id in form.ref_skills || []" :key="id">{{ id }}</a-tag>
+            <span v-if="!(form.ref_skills || []).length" class="muted">无</span>
+          </template>
+        </a-form-item>
+
+        <a-form-item v-if="!readonly" label="内容来源">
+          <a-radio-group v-model:value="contentSource" button-style="solid">
+            <a-radio-button v-if="form.id && form.content_mode === 'package'" value="view">预览</a-radio-button>
+            <a-radio-button value="text">纯文本</a-radio-button>
+            <a-radio-button value="markdown">Markdown</a-radio-button>
+            <a-radio-button value="upload">上传</a-radio-button>
+            <a-radio-button v-if="form.kind === 'guide.skill'" value="github">GitHub</a-radio-button>
+          </a-radio-group>
+        </a-form-item>
+
+        <a-form-item v-if="readonly || contentSource === 'view'" label="资产内容">
           <div v-if="pkgLoading" class="muted">加载中…</div>
           <div v-else-if="isMultiFile" class="pkg-browse">
             <div class="pkg-tree">
@@ -147,13 +208,88 @@
               <div v-else class="muted">无内容</div>
             </div>
           </div>
-          <div v-else class="md-preview" v-html="mdHtml" />
+          <div v-else-if="form.content" class="md-preview" v-html="mdHtml" />
+          <div v-else class="muted">无内容</div>
         </a-form-item>
-        <a-form-item v-else label="Content">
+
+        <a-form-item v-else-if="contentSource === 'text'" label="Content">
+          <a-textarea v-model:value="form.content" :rows="14" placeholder="纯文本内容" />
+        </a-form-item>
+
+        <a-form-item v-else-if="contentSource === 'markdown'" label="Markdown">
           <div class="md-split">
-            <a-textarea v-model:value="form.content" :rows="14" class="md-editor" :disabled="readonly" />
+            <a-textarea
+              v-model:value="form.content"
+              :rows="16"
+              placeholder="# 标题&#10;正文…"
+              class="md-editor"
+            />
             <div class="md-preview" v-html="mdHtml" />
           </div>
+        </a-form-item>
+
+        <template v-else-if="contentSource === 'github'">
+          <a-form-item label="GitHub 仓库" required>
+            <a-input
+              v-model:value="githubRepo"
+              placeholder="owner/repo 或 https://github.com/owner/repo"
+              allow-clear
+            />
+          </a-form-item>
+          <a-form-item label="分支 / Tag（可选）">
+            <a-input v-model:value="githubRef" placeholder="默认分支" style="width: 240px" allow-clear />
+          </a-form-item>
+          <a-form-item label="Skills（可多选）">
+            <div style="margin-bottom: 8px">
+              <a-button type="primary" ghost :loading="listingSkills" @click="listGithubSkills">列出 Skills</a-button>
+              <span v-if="githubSkills.length" class="muted" style="margin-left: 10px">
+                共 {{ githubSkills.length }} 个
+              </span>
+            </div>
+            <a-select
+              v-model:value="selectedSkillPaths"
+              mode="multiple"
+              style="width: 100%"
+              placeholder="选择要安装的 Skill（可多选）"
+              :options="githubSkillOpts"
+              show-search
+              option-filter-prop="label"
+              allow-clear
+              @change="onSkillsSelect"
+            />
+          </a-form-item>
+        </template>
+
+        <a-form-item v-else-if="contentSource === 'upload'" label="上传文件 / 文件夹">
+          <a-alert
+            v-if="form.package_path"
+            type="info"
+            show-icon
+            style="margin-bottom: 8px"
+            :message="`已有包：${form.package_path}（重新上传将覆盖）`"
+          />
+          <a-radio-group v-model:value="uploadMode" style="margin-bottom: 8px">
+            <a-radio value="file">单文件</a-radio>
+            <a-radio value="folder">文件夹</a-radio>
+          </a-radio-group>
+          <div>
+            <input
+              v-if="uploadMode === 'file'"
+              type="file"
+              @change="onFilePick"
+            />
+            <input
+              v-else
+              type="file"
+              webkitdirectory
+              multiple
+              @change="onFolderPick"
+            />
+          </div>
+          <ul v-if="uploadFileList.length" class="file-list">
+            <li v-for="f in uploadFileList.slice(0, 40)" :key="f.rel">{{ f.rel }} <span class="muted">({{ f.size }} B)</span></li>
+            <li v-if="uploadFileList.length > 40" class="muted">…共 {{ uploadFileList.length }} 个文件</li>
+          </ul>
         </a-form-item>
       </a-form>
     </a-modal>
@@ -166,7 +302,13 @@ import { message } from 'ant-design-vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { api } from '../../api'
-import { guideKindCategory, guideKindIcon } from '../../utils/guideKind'
+import {
+  GUIDE_KIND_CARDS,
+  guideKindCategory,
+  guideKindIcon,
+  toGuideKindCards,
+  type GuideKindCard,
+} from '../../utils/guideKind'
 
 const projects = ref<any[]>([])
 const projectId = ref<number>()
@@ -177,6 +319,15 @@ const filterTask = ref<string | undefined>()
 const modalOpen = ref(false)
 const modalMode = ref<'create' | 'edit' | 'view'>('create')
 const saving = ref(false)
+const contentSource = ref<'view' | 'text' | 'markdown' | 'upload' | 'github'>('markdown')
+const uploadMode = ref<'file' | 'folder'>('file')
+const uploadFileList = ref<{ file: File; rel: string; size: number }[]>([])
+const githubRepo = ref('')
+const githubRef = ref('')
+const listingSkills = ref(false)
+const githubSkills = ref<{ id: string; path: string; skill_md_path: string }[]>([])
+const selectedSkillPaths = ref<string[]>([])
+const kindCards = ref<GuideKindCard[]>([...GUIDE_KIND_CARDS])
 const form = reactive<any>({
   id: null,
   asset_id: '',
@@ -190,6 +341,7 @@ const form = reactive<any>({
   org_guide_id: null,
   package_path: '',
   package_files_json: '[]',
+  ref_skills: [] as string[],
   editable: true,
 })
 
@@ -208,6 +360,29 @@ const modalTitle = computed(() => {
   if (modalMode.value === 'edit') return '编辑项目 Guide'
   return '新建项目 Guide'
 })
+const cardKindSet = computed(() => new Set(kindCards.value.map((k) => k.value)))
+const legacyKind = computed(() =>
+  form.kind && !cardKindSet.value.has(form.kind) ? form.kind : '',
+)
+const githubSkillOpts = computed(() =>
+  githubSkills.value.map((s) => ({
+    value: s.path,
+    label: `${s.id}  (${s.path})`,
+  })),
+)
+const refSkillOpts = computed(() =>
+  allRows.value
+    .filter(
+      (g) =>
+        g.kind === 'guide.skill' &&
+        g.asset_id &&
+        g.asset_id !== (form.asset_id || '').trim(),
+    )
+    .map((g) => ({
+      value: g.asset_id,
+      label: g.name ? `${g.asset_id} — ${g.name}` : g.asset_id,
+    })),
+)
 const statusOpts = [
   { value: 'draft', label: '草稿' },
   { value: 'trial', label: '试用' },
@@ -284,6 +459,30 @@ function statusLabel(s: string) {
 }
 function statusColor(s: string) {
   return ({ draft: 'default', trial: 'processing', enforced: 'success' } as any)[s] || 'default'
+}
+
+function selectKind(kind: string) {
+  form.kind = kind
+  if (kind !== 'guide.skill') {
+    form.ref_skills = []
+    if (contentSource.value === 'github') {
+      contentSource.value = 'markdown'
+    }
+  }
+}
+
+async function loadKindCards() {
+  try {
+    const { data } = await api.get('/org/guide-kinds')
+    const all = data?.all || []
+    if (Array.isArray(all) && all.length) {
+      kindCards.value = toGuideKindCards(all)
+      return
+    }
+  } catch {
+    /* fallback */
+  }
+  kindCards.value = [...GUIDE_KIND_CARDS]
 }
 
 function escapeHtml(s: string) {
@@ -391,8 +590,16 @@ function resetForm() {
     org_guide_id: null,
     package_path: '',
     package_files_json: '[]',
+    ref_skills: [],
     editable: true,
   })
+  contentSource.value = 'markdown'
+  uploadMode.value = 'file'
+  uploadFileList.value = []
+  githubRepo.value = ''
+  githubRef.value = ''
+  githubSkills.value = []
+  selectedSkillPaths.value = []
   pkgFiles.value = []
   pkgSelectedKeys.value = []
   pkgPreviewHtml.value = ''
@@ -441,10 +648,14 @@ async function fillFromRecord(record: any) {
     org_guide_id: data.org_guide_id || null,
     package_path: data.package_path || '',
     package_files_json: data.package_files_json || '[]',
+    ref_skills: Array.isArray(data.ref_skills) ? [...data.ref_skills] : [],
     editable: !!data.editable,
   })
-  if (data.org_guide_id && (data.package_path || data.content_mode === 'package')) {
-    await loadOrgPackage(data.org_guide_id)
+  uploadFileList.value = []
+  contentSource.value =
+    data.content_mode === 'package' ? 'view' : data.content_mode === 'text' ? 'text' : 'markdown'
+  if (data.package_path || data.content_mode === 'package') {
+    await loadPackage(data.id)
   }
 }
 
@@ -472,13 +683,14 @@ async function openEdit(record: any) {
   }
 }
 
-async function loadOrgPackage(orgGuideId: number) {
+async function loadPackage(guideId: number) {
+  if (!projectId.value) return
   pkgLoading.value = true
   try {
-    const { data } = await api.get(`/org/guides/${orgGuideId}/package`)
+    const { data } = await api.get(`/projects/${projectId.value}/guides/${guideId}/package`)
     pkgFiles.value = data.files || []
     if (data.content) form.content = data.content
-    if (pkgFiles.value.length === 1) await previewOrgFile(orgGuideId, pkgFiles.value[0])
+    if (pkgFiles.value.length === 1) await previewPackageFile(guideId, pkgFiles.value[0])
   } catch {
     pkgFiles.value = []
   } finally {
@@ -488,15 +700,16 @@ async function loadOrgPackage(orgGuideId: number) {
 
 function onPkgSelect(keys: (string | number)[]) {
   const key = String(keys[0] || '')
-  if (!key || key.startsWith('dir:') || !form.org_guide_id) return
+  if (!key || key.startsWith('dir:') || !form.id) return
   pkgSelectedKeys.value = [key]
-  void previewOrgFile(form.org_guide_id, key)
+  void previewPackageFile(form.id, key)
 }
 
-async function previewOrgFile(orgGuideId: number, relPath: string) {
+async function previewPackageFile(guideId: number, relPath: string) {
+  if (!projectId.value) return
   pkgPreviewLoading.value = true
   try {
-    const res = await api.get(`/org/guides/${orgGuideId}/package-file`, {
+    const res = await api.get(`/projects/${projectId.value}/guides/${guideId}/package-file`, {
       params: { path: relPath },
       responseType: 'arraybuffer',
     })
@@ -516,43 +729,194 @@ async function previewOrgFile(orgGuideId: number, relPath: string) {
   }
 }
 
+function onFilePick(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  const f = input.files?.[0]
+  uploadFileList.value = f ? [{ file: f, rel: f.name, size: f.size }] : []
+}
+
+function onFolderPick(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  const files = Array.from(input.files || [])
+  uploadFileList.value = files.map((f) => ({
+    file: f,
+    rel: (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name,
+    size: f.size,
+  }))
+}
+
+async function listGithubSkills() {
+  if (!projectId.value) return
+  if (!githubRepo.value.trim()) {
+    message.warning('请填写 GitHub 仓库')
+    return
+  }
+  listingSkills.value = true
+  githubSkills.value = []
+  selectedSkillPaths.value = []
+  try {
+    const { data } = await api.get(`/projects/${projectId.value}/guides/github-skills`, {
+      params: {
+        repo: githubRepo.value.trim(),
+        ref: githubRef.value.trim() || undefined,
+      },
+    })
+    githubSkills.value = data.skills || []
+    if (!githubSkills.value.length) {
+      message.info('未找到含 SKILL.md 的目录')
+    }
+  } catch (e: any) {
+    message.error(e?.response?.data?.detail || '列出 Skills 失败')
+  } finally {
+    listingSkills.value = false
+  }
+}
+
+function onSkillsSelect(paths: string[]) {
+  if (paths.length === 1) {
+    const skill = githubSkills.value.find((s) => s.path === paths[0])
+    if (skill && !form.asset_id?.trim()) {
+      form.asset_id = skill.id
+      if (!form.name?.trim()) form.name = skill.id.slice(0, 20)
+    }
+  }
+}
+
 async function save() {
   if (modalMode.value === 'view') {
     modalOpen.value = false
     return
   }
-  if (!projectId.value || !form.asset_id?.trim()) {
+  if (!projectId.value) return Promise.reject()
+
+  if (contentSource.value === 'github') {
+    if (!githubRepo.value.trim()) {
+      message.warning('请填写 GitHub 仓库')
+      return Promise.reject()
+    }
+    if (!selectedSkillPaths.value.length) {
+      message.warning('请先列出并选择要安装的 Skill')
+      return Promise.reject()
+    }
+  } else if (!form.asset_id?.trim()) {
     message.warning('请填写 Asset ID')
     return Promise.reject()
   }
-  const name = (form.name || '').trim() || form.asset_id.trim().slice(0, 20)
+
+  const name = (form.name || '').trim() || (form.asset_id || '').trim().slice(0, 20)
   if (name.length > 20) {
     message.warning('名称不能超过 20 个字')
     return Promise.reject()
   }
+  if (contentSource.value !== 'github' && !form.kind?.trim()) {
+    message.warning('请选择 Kind')
+    return Promise.reject()
+  }
+
   saving.value = true
   try {
-    const payload = {
-      asset_id: form.asset_id.trim(),
-      name,
-      kind: form.kind,
-      content: form.content,
-      status: form.status,
-      version: form.version,
-      content_mode: form.content_mode || 'markdown',
-      stage: '',
-      task: '',
-    }
-    if (modalMode.value === 'edit' && form.id) {
-      await api.put(`/projects/${projectId.value}/guides/${form.id}`, payload)
+    if (contentSource.value === 'github') {
+      const skills = selectedSkillPaths.value.map((path) => {
+        const sk = githubSkills.value.find((s) => s.path === path)
+        return {
+          skill_path: path,
+          asset_id:
+            selectedSkillPaths.value.length === 1 && form.asset_id?.trim()
+              ? form.asset_id.trim()
+              : sk?.id,
+        }
+      })
+      const { data } = await api.post(`/projects/${projectId.value}/guides/from-github-batch`, {
+        repo: githubRepo.value.trim(),
+        skills,
+        version: form.version || '1.0.0',
+        status: form.status || 'draft',
+        ref: githubRef.value.trim() || undefined,
+      })
+      const nOk = data.created?.length || 0
+      const nSkip = data.skipped?.length || 0
+      const nErr = data.errors?.length || 0
+      message.success(`安装完成：成功 ${nOk} / 跳过 ${nSkip} / 失败 ${nErr}`)
+      if (nErr && data.errors?.[0]?.detail) {
+        message.warning(String(data.errors[0].detail))
+      }
+    } else if (contentSource.value === 'upload') {
+      if (!uploadFileList.value.length && !form.package_path) {
+        message.warning('请选择要上传的文件或文件夹')
+        return Promise.reject()
+      }
+      if (uploadFileList.value.length) {
+        const fd = new FormData()
+        fd.append('asset_id', form.asset_id.trim())
+        fd.append('name', name)
+        fd.append('kind', form.kind)
+        fd.append('stage', '')
+        fd.append('task', '')
+        fd.append('version', form.version || '1.0.0')
+        fd.append('status', form.status || 'draft')
+        fd.append('ref_skills', JSON.stringify(form.kind === 'guide.skill' ? form.ref_skills || [] : []))
+        if (form.id) fd.append('guide_id', String(form.id))
+        for (const item of uploadFileList.value) {
+          fd.append('files', item.file)
+          fd.append('relative_paths', item.rel)
+        }
+        await api.post(`/projects/${projectId.value}/guides/upload`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+      } else if (form.id) {
+        await api.put(`/projects/${projectId.value}/guides/${form.id}`, {
+          asset_id: form.asset_id.trim(),
+          name,
+          kind: form.kind,
+          version: form.version,
+          status: form.status,
+          content: form.content,
+          content_mode: form.content_mode || 'package',
+          ref_skills: form.kind === 'guide.skill' ? form.ref_skills || [] : [],
+        })
+      } else {
+        message.info('未选择新文件，保留原有包')
+        modalOpen.value = false
+        return
+      }
+    } else if (contentSource.value === 'view') {
+      if (form.id) {
+        await api.put(`/projects/${projectId.value}/guides/${form.id}`, {
+          asset_id: form.asset_id.trim(),
+          name,
+          kind: form.kind,
+          version: form.version,
+          status: form.status,
+          content: form.content,
+          content_mode: 'package',
+          ref_skills: form.kind === 'guide.skill' ? form.ref_skills || [] : [],
+        })
+      }
     } else {
-      await api.post(`/projects/${projectId.value}/guides`, payload)
+      const contentMode = contentSource.value === 'text' ? 'text' : 'markdown'
+      const payload = {
+        asset_id: form.asset_id.trim(),
+        name,
+        kind: form.kind,
+        content: form.content,
+        status: form.status,
+        version: form.version,
+        content_mode: contentMode,
+        stage: '',
+        task: '',
+        ref_skills: form.kind === 'guide.skill' ? form.ref_skills || [] : [],
+      }
+      if (modalMode.value === 'edit' && form.id) {
+        await api.put(`/projects/${projectId.value}/guides/${form.id}`, payload)
+      } else {
+        await api.post(`/projects/${projectId.value}/guides`, payload)
+      }
     }
-    message.success('已保存')
+    if (contentSource.value !== 'github') message.success('已保存')
     modalOpen.value = false
     await load()
   } catch (e: any) {
-    message.error(e?.response?.data?.detail || '保存失败')
+    if (e) message.error(e?.response?.data?.detail || '保存失败')
     return Promise.reject(e)
   } finally {
     saving.value = false
@@ -569,6 +933,7 @@ async function remove(id: number) {
 }
 
 onMounted(async () => {
+  await loadKindCards()
   const { data } = await api.get('/projects')
   projects.value = data
   if (data[0]) {
@@ -602,6 +967,81 @@ onMounted(async () => {
 }
 .muted {
   color: #94a3b8;
+}
+.kind-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.kind-card {
+  text-align: left;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+  cursor: pointer;
+  min-height: 118px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.kind-card.disabled,
+.kind-card:disabled {
+  cursor: default;
+  opacity: 0.9;
+  pointer-events: none;
+}
+.kind-card:hover {
+  border-color: #91caff;
+}
+.kind-card.active {
+  border-color: #1677ff;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.15);
+}
+.kind-badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  color: #334155;
+  background: #f1f5f9;
+}
+.kind-badge.computational {
+  background: #ecfeff;
+  color: #0e7490;
+}
+.kind-badge.inferential {
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+.kind-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+.kind-card-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.kind-card-icon.computational {
+  color: #0e7490;
+}
+.kind-card-icon.inferential {
+  color: #6d28d9;
+}
+.kind-id {
+  font-size: 11px;
+  color: #64748b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin-bottom: 4px;
+}
+.kind-desc {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.35;
 }
 .kind-cell {
   display: inline-flex;
@@ -682,5 +1122,20 @@ onMounted(async () => {
   white-space: pre-wrap;
   font-family: ui-monospace, monospace;
   font-size: 12px;
+}
+.file-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  max-height: 160px;
+  overflow: auto;
+  font-size: 12px;
+}
+@media (max-width: 900px) {
+  .kind-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .md-split {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

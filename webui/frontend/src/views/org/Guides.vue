@@ -216,6 +216,24 @@
           </div>
         </a-form-item>
 
+        <a-form-item v-if="guideForm.kind === 'guide.skill'" label="引用 Skill">
+          <a-select
+            v-if="!guideReadonly"
+            v-model:value="guideForm.ref_skills"
+            mode="multiple"
+            style="width: 100%"
+            placeholder="可选，引用其它 guide.skill（不进入任务壳）"
+            :options="refSkillOpts"
+            show-search
+            option-filter-prop="label"
+            allow-clear
+          />
+          <template v-else>
+            <a-tag v-for="id in guideForm.ref_skills || []" :key="id">{{ id }}</a-tag>
+            <span v-if="!(guideForm.ref_skills || []).length" class="muted">无</span>
+          </template>
+        </a-form-item>
+
         <a-form-item v-if="!guideReadonly" label="内容来源">
           <a-radio-group v-model:value="contentSource" button-style="solid">
             <a-radio-button v-if="guideForm.id" value="view">预览</a-radio-button>
@@ -639,6 +657,7 @@ const guideForm = reactive<any>({
   content_mode: 'markdown',
   package_path: '',
   package_files_json: '[]',
+  ref_skills: [] as string[],
 })
 
 const sensorForm = reactive({
@@ -661,6 +680,19 @@ const sensorModalTitle = computed(() => (sensorForm.id ? '编辑 Check' : '新�
 const cardKindSet = computed(() => new Set(kindCards.value.map((k) => k.value)))
 const legacyKind = computed(() =>
   guideForm.kind && !cardKindSet.value.has(guideForm.kind) ? guideForm.kind : '',
+)
+const refSkillOpts = computed(() =>
+  guides.value
+    .filter(
+      (g) =>
+        g.kind === 'guide.skill' &&
+        g.asset_id &&
+        g.asset_id !== (guideForm.asset_id || '').trim(),
+    )
+    .map((g) => ({
+      value: g.asset_id,
+      label: g.name ? `${g.asset_id} — ${g.name}` : g.asset_id,
+    })),
 )
 
 async function loadGuideKinds() {
@@ -895,18 +927,24 @@ async function extractPptxText(buf: ArrayBuffer): Promise<string> {
 
 function selectKind(kind: string) {
   guideForm.kind = kind
-  if (kind !== 'guide.skill' && contentSource.value === 'github') {
-    contentSource.value = 'markdown'
-    resetGithubState()
+  if (kind !== 'guide.skill') {
+    guideForm.ref_skills = []
+    if (contentSource.value === 'github') {
+      contentSource.value = 'markdown'
+      resetGithubState()
+    }
   }
 }
 
 watch(
   () => guideForm.kind,
   (kind) => {
-    if (kind !== 'guide.skill' && contentSource.value === 'github') {
-      contentSource.value = 'markdown'
-      resetGithubState()
+    if (kind !== 'guide.skill') {
+      guideForm.ref_skills = []
+      if (contentSource.value === 'github') {
+        contentSource.value = 'markdown'
+        resetGithubState()
+      }
     }
   },
 )
@@ -924,6 +962,7 @@ function resetGuideForm() {
     content_mode: 'markdown',
     package_path: '',
     package_files_json: '[]',
+    ref_skills: [],
   })
   contentSource.value = 'markdown'
   uploadMode.value = 'file'
@@ -952,6 +991,7 @@ function fillGuideForm(record: any) {
     content_mode: record.content_mode || 'markdown',
     package_path: record.package_path || '',
     package_files_json: record.package_files_json || '[]',
+    ref_skills: Array.isArray(record.ref_skills) ? [...record.ref_skills] : [],
   })
   uploadFileList.value = []
   resetGithubState()
@@ -1258,6 +1298,7 @@ async function saveGuide() {
         fd.append('version', guideForm.version || '1.0.0')
         fd.append('status', guideForm.status || 'draft')
         fd.append('source', guideSource)
+        fd.append('ref_skills', JSON.stringify(guideForm.kind === 'guide.skill' ? guideForm.ref_skills || [] : []))
         if (guideForm.id) fd.append('guide_id', String(guideForm.id))
         for (const item of uploadFileList.value) {
           fd.append('files', item.file)
@@ -1279,6 +1320,7 @@ async function saveGuide() {
           source: guideSource,
           content: guideForm.content,
           content_mode: guideForm.content_mode || 'package',
+          ref_skills: guideForm.kind === 'guide.skill' ? guideForm.ref_skills || [] : [],
         }
         await api.put(`/org/guides/${guideForm.id}`, payload)
       } else {
@@ -1304,6 +1346,7 @@ async function saveGuide() {
         source: guideSource,
         content: guideForm.content,
         content_mode: contentMode,
+        ref_skills: guideForm.kind === 'guide.skill' ? guideForm.ref_skills || [] : [],
       }
       if (guideForm.id) await api.put(`/org/guides/${guideForm.id}`, payload)
       else await api.post('/org/guides', payload)

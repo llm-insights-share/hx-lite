@@ -12,6 +12,7 @@ import yaml
 from sqlmodel import Session, select
 
 from app.core.models import CommandShell, Guide, OrgSettings, Profile, Sensor, StageTask
+from app.domain.ref_skills import parse_ref_skills_json
 
 
 def _clear_dir(dest: Path) -> None:
@@ -178,6 +179,7 @@ def export_hub(session: Session, org_id: str, dest: Path) -> dict[str, Any]:
             "status": g.status,
             "stage": g.stage or None,
             "task": g.task or None,
+            "ref_skills": parse_ref_skills_json(getattr(g, "ref_skills_json", None)),
         }
         (root / "asset.yaml").write_text(
             yaml.safe_dump(asset, allow_unicode=True, sort_keys=False), encoding="utf-8"
