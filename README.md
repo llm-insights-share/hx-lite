@@ -15,15 +15,15 @@ HX-lite is an enterprise Harness control framework for AI-assisted software deli
 - Untraceable decisions and changes during AI-assisted development
 - Disconnected roles (PM / architect / dev / QA) with no shared control plane
 
-**Architecture**: a central **WebUI** governs organization-level assets (Stage/Task definitions, Guides, Sensors), while the **`nhx` CLI** syncs those assets into individual projects and executes them locally. Both share the same rule and state model, forming a closed loop between governance and execution.
+**Architecture**: a central **WebUI** governs organization-level assets (Stage/Task definitions, Guides, Checks), while the **`nhx` CLI** syncs those assets into individual projects and executes them locally. Both share the same rule and state model, forming a closed loop between governance and execution.
 
 Core primitives:
 | Concept | Role |
 |---|---|
-| **Guide** | A reusable, organization-defined standard or template (feed-forward control) |
-| **Sensor** | A check/validation rule that observes execution and reports back (feedback control) |
-| **Stage / Task** | The unit of work that Guides and Sensors attach to |
-| **nhx** | The local CLI that projects use to pull org assets and execute them |
+| **Guide** | A reusable, organization-defined standard or template (feed-forward control); templates may be markdown or packages (`.docx` / `.xlsx`, …) |
+| **Check** | A validation rule that observes execution and reports back (feedback control); paths should match the deliverable extension hinted by the bound template |
+| **Stage / Task** | The unit of work that Guides and Checks attach to |
+| **nhx** | The local CLI that projects use to pull org assets (including template packages) and execute them |
 
 ---
 
@@ -38,7 +38,7 @@ AI 编程工具让"写代码"更快了，但团队交付仍常在这些地方断
 
 HX-lite 的做法不是继续堆命令，而是建立统一闭环：
 
-- WebUI 负责组织级资产治理（Stage/Task、Guide、Sensor）
+- WebUI 负责组织级资产治理（Stage/Task、Guide、Check）
 - `nhx` 负责项目级同步、投影与本地执行
 - 组织治理与开发执行共用同一套规则和状态
 
@@ -49,11 +49,11 @@ HX-lite 的做法不是继续堆命令，而是建立统一闭环：
 **Q: HX-lite 和普通的 AI coding 工具（Copilot / Cursor）有什么区别？**
 A: HX-lite 不替代具体的编码工具，而是在其之上提供组织级的治理层——统一的规范同步、执行留痕、审计能力，解决"多人多项目用 AI 编程后如何统一管控"的问题。
 
-**Q: 什么是 Guide 和 Sensor？**
-A: Guide 是组织预先定义的可复用标准/模板（前馈控制，告诉 AI "应该怎么做"）；Sensor 是执行过程中的检查规则（反馈控制，验证"是否做对了"）。两者共同构成闭环。
+**Q: 什么是 Guide 和 Check？**
+A: Guide 是组织预先定义的可复用标准/模板（前馈控制，告诉 AI "应该怎么做"），Template 可为 markdown 或 Word/Excel 等 package；Check 是执行过程中的检查规则（反馈控制，验证"是否做对了"）。产物扩展名跟随绑定 template 主文件，门禁路径需一致。两者共同构成闭环。（历史上曾称 Sensor，产品与文档统一为 Check；本地目录 `.nhx/sensors/` 与 `nhx sensor check` 仅为兼容。）
 
 **Q: 项目侧需要做什么？**
-A: 项目侧只需初始化并通过 `nhx` 增量同步组织资产，无需重复搭建规范体系。
+A: 项目侧只需初始化并通过 `nhx` 增量同步组织资产（含 package 模版文件），无需重复搭建规范体系。
 
 **Q: 适合什么规模的团队使用？**
 A: 面向已有一定规模、需要跨项目复用交付规范并要求过程可审计的企业研发团队，而非单人项目。
@@ -82,7 +82,7 @@ cd webui
 ## 设计理念
 
 - **组织中心化**：组织统一维护交付资产，项目侧只做初始化和增量同步
-- **资产优先**：先定义可复用的 Guide/Sensor，再由流程编排承载
+- **资产优先**：先定义可复用的 Guide/Check，再由流程编排承载
 - **执行可追踪**：关键操作留痕，支持审计、复盘与责任定位
 - **前后端闭环**：WebUI 治理与 `nhx` 执行通过 API 与项目配置联动
 - **渐进式演进**：主线保持精简，历史能力归档到 `archive/`
@@ -91,10 +91,12 @@ cd webui
 
 ## 推荐阅读顺序
 
-1. [WebUI + nhx 使用手册](./docs/webui-nhx-usage.zh-CN.md)
+1. [WebUI + nhx 使用手册](./docs/webui-nhx-usage.zh-CN.md)（含 Guide package / 产物扩展名）
 2. [nhx CLI 手册](./packages/nhx/README.md)
 3. [nhx 命令详解](./docs/nhx-command-manual.zh-CN.md)
-4. [交付系统设计说明（HTML）](./docs/harness-delivery-system-design.html)
+4. [Guide 类型与样例](./docs/guide-kinds-harness-samples.zh-CN.md)
+5. [交付系统设计说明（HTML）](./docs/harness-delivery-system-design.html)
+6. [WebUI 启停](./webui/README.md)
 
 ## 仓库边界说明
 

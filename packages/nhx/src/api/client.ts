@@ -52,6 +52,11 @@ export type GuideExport = {
   task: string;
   content: string;
   bound?: boolean;
+  content_mode?: string;
+  package_files?: string[];
+  primary_file?: string;
+  package_path?: string;
+  package_blobs?: Array<{ path: string; content_base64: string }>;
 };
 
 export type SensorExport = {

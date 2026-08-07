@@ -27,13 +27,15 @@ Skill / Template 解决「怎么写」与「产出长什么样」。交付系统
 | Glossary | — | — | 术语与命名映射 |
 | Capability | — | — | Agent 工具/命令白名单与红线 |
 
+**Template 内容形态：** 可为 markdown，也可为 **package**（主文件 `.docx` / `.xlsx` / `template.md` 等）。`nhx sync` 会把包文件同步到 `.nhx/guides/<asset_id>/`，任务壳「建议文件」扩展名跟随主文件；对应 Check 的 `file.exists` 路径应一致（例如数据库设计 → `docs/architecture/database-design.docx`）。
+
 ## 3. 各类设计口径
 
 ### 3.1 `guide.constraint`（硬约束）
 
 - **Harness 作用**：把非法解直接排除（依赖方向、兼容性禁令等）。  
-- **写法**：条目化 + 理由 + 违规示例；尽量可被结构测试/规则 sensor 复用。  
-- **成对 Check**：`sensor.arch` / `sensor.rule` / inline `file.exists` 等。  
+- **写法**：条目化 + 理由 + 违规示例；尽量可被结构测试/规则 Check 复用。  
+- **成对 Check**：`sensor.arch` / `sensor.rule`（kind 前缀为历史命名）/ inline `file.exists` 等。  
 - **建议阶段**：`arch`、`dev`。
 
 ### 3.2 `guide.exemplar`（范例）
@@ -90,13 +92,14 @@ Skill / Template 解决「怎么写」与「产出长什么样」。交付系统
 
 ## 5. 使用方式（简）
 
-1. 组织 HX → Guides：按 kind 筛选查看样例。  
-2. Stage & Task：将 Guide 绑到任务。  
-3. 项目侧「初始化/同步」或本地 `nhx sync` 后，任务壳附录可见绑定。  
-4. 宣称完成前：`nhx check --stage … --task …`。
+1. 组织 HX → Guides：按 kind 筛选查看样例；Template 可上传 package（docx 等）。  
+2. Stage & Task：将 Guide 绑到任务（绑定后壳附录会提示主文件扩展名）。  
+3. 项目侧「初始化/同步」或本地 `nhx sync` 后：任务壳可见绑定；package 文件在 `.nhx/guides/<id>/`。  
+4. 宣称完成前：`nhx check --stage … --task …`（门禁路径与建议文件扩展名对齐）。
 
 ## 6. 维护约定
 
 - 样例正文位于 `webui/backend/data/hubs/default/packages/guide/<kind>/<asset_id>/1.0.0/`。  
+- 运行时 package 存于 `webui/backend/data/guide-packages/<scope>/<asset_id>/<version>/`。  
 - 元数据见 `webui/backend/app/domain/guide_samples.py`。  
 - 启动时幂等插入，**不会**清空已有组织资产（不同于全量 bootstrap）。

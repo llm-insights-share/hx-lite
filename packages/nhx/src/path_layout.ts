@@ -132,16 +132,18 @@ export function formatPathLayoutSection(
   stage: string,
   task: string,
   layout?: PathLayout | null,
+  deliverableExt?: string | null,
 ): string {
   const cfg = stageLayout(layout, stage);
   const root = cfg.root;
   const aliases = cfg.aliases;
   const named = cfg.named;
+  const ext = (deliverableExt || "md").replace(/^\./, "").trim().toLowerCase() || "md";
   const lines = ["### 产物目录（系统约定，优先于 Guide 正文路径）", ""];
   if (root) {
     lines.push(`- **本阶段根目录：** \`${root}/\``);
     if (task) {
-      lines.push(`- **本任务建议文件：** \`${root}/${task}.md\`（或根目录下任务约定文件名）`);
+      lines.push(`- **本任务建议文件：** \`${root}/${task}.${ext}\`（或根目录下任务约定文件名）`);
     }
     lines.push("- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。");
   } else {

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ExportPayload, GuideExport } from "../api/client.js";
 import { ensureNhxDir, lockPath, nhxRoot } from "../config.js";
+import { pickPrimaryPackageFilename } from "../guide_package.js";
 import { DEFAULT_PATH_LAYOUT, parsePathLayout } from "../path_layout.js";
 import { assembleShell } from "../shell/assemble.js";
 
@@ -37,6 +38,36 @@ function writeSkillShell(skillsDir: string, id: string, description: string, ful
   fs.writeFileSync(path.join(dir, "SKILL.md"), front + full, "utf8");
 }
 
+function writeGuidePackageBlobs(guidesDir: string, g: GuideExport): void {
+  const blobs = g.package_blobs || [];
+  if (!blobs.length) return;
+  const pkgDir = path.join(guidesDir, g.asset_id);
+  fs.mkdirSync(pkgDir, { recursive: true });
+  for (const blob of blobs) {
+    const rel = (blob.path || "").replace(/\\/g, "/").replace(/^\.\//, "");
+    if (!rel || rel.split("/").includes("..")) continue;
+    const dest = path.join(pkgDir, rel);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, Buffer.from(blob.content_base64 || "", "base64"));
+  }
+}
+
+function templatePrimaryFilesForTask(
+  templates: string[],
+  guidesById: Map<string, GuideExport>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const tid of templates) {
+    const g = guidesById.get(tid);
+    if (!g) continue;
+    const primary =
+      (g.primary_file || "").trim() ||
+      pickPrimaryPackageFilename(g.package_files || [], g.kind || "");
+    if (primary) out[tid] = primary;
+  }
+  return out;
+}
+
 export function materializeExport(
   payload: ExportPayload,
   opts: { prune?: boolean; cwd?: string } = {},
@@ -54,11 +85,15 @@ export function materializeExport(
   // write guides (skip leftover workflow)
   const guidesDir = path.join(root, "guides");
   if (opts.prune) {
-    for (const f of fs.readdirSync(guidesDir)) fs.unlinkSync(path.join(guidesDir, f));
+    for (const f of fs.readdirSync(guidesDir)) {
+      const full = path.join(guidesDir, f);
+      fs.rmSync(full, { recursive: true, force: true });
+    }
   }
   for (const g of payload.guides) {
     if ((g.kind || "") === "guide.workflow" || (g.asset_id || "").startsWith("wf-")) continue;
     fs.writeFileSync(path.join(guidesDir, `${g.asset_id}.md`), g.content || "", "utf8");
+    writeGuidePackageBlobs(guidesDir, g);
   }
 
   // write sensors + meta
@@ -145,6 +180,7 @@ export function materializeExport(
       };
     });
     const body = (t.shell_body || t.workflow_body || "").trim();
+    const templatePrimaryFiles = templatePrimaryFilesForTask(templates, guidesById);
     const shell = assembleShell({
       stage: t.stage,
       task: t.id,
@@ -155,11 +191,23 @@ export function materializeExport(
       sensors: t.sensors || [],
       sensorDetails,
       pathLayout,
+      templatePrimaryFiles,
     });
-    // Prefer org appendix when provided and body already stored without appendix
+    // Prefer org appendix when present and still aligned with template primary/extension;
+    // otherwise rebuild locally so extension hints stay current.
+    const orgAppendix = (t.shell_appendix || "").trim();
+    const primaryValues = Object.values(templatePrimaryFiles);
+    const orgAligned =
+      Boolean(orgAppendix) &&
+      (primaryValues.length === 0 ||
+        primaryValues.some((p) => orgAppendix.includes(p)) ||
+        primaryValues.some((p) => {
+          const ext = p.includes(".") ? p.split(".").pop() || "" : "";
+          return Boolean(ext) && orgAppendix.includes(`.${ext}`);
+        }));
     const full =
-      t.shell_appendix && body && !body.includes("<!-- nhx:bound-guides -->")
-        ? `${shell.body}\n\n${t.shell_appendix}`.trim() + "\n"
+      orgAligned && body && !body.includes("<!-- nhx:bound-guides -->")
+        ? `${shell.body}\n\n${orgAppendix}`.trim() + "\n"
         : shell.full;
     const name = t.slash_name || shell.slash_name;
 

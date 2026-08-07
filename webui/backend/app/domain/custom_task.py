@@ -52,6 +52,21 @@ def ensure_task_shells(
     body = defaults.default_workflow_body(stage, task_id, title)
     guide_rows = session.exec(select(ProjectGuide).where(ProjectGuide.project_id == project_id)).all()
     guide_content_map = {g.asset_id: g.content or "" for g in guide_rows}
+    from app.domain.guide_package import pick_primary_package_filename
+    import json as _json
+
+    template_primary_files: dict[str, str] = {}
+    for g in guide_rows:
+        try:
+            files = _json.loads(getattr(g, "package_files_json", None) or "[]")
+        except _json.JSONDecodeError:
+            files = []
+        if not isinstance(files, list):
+            files = []
+        primary = pick_primary_package_filename([str(x) for x in files], g.kind or "")
+        if primary and g.asset_id in templates:
+            template_primary_files[g.asset_id] = primary
+
     assembled = assemble_shell(
         stage=stage,
         task=task_id,
@@ -62,6 +77,7 @@ def ensure_task_shells(
         sensors=sensors,
         guide_contents=guide_content_map,
         other_guides=other_guides,
+        template_primary_files=template_primary_files,
     )
 
     # Remove leftover guide.workflow / auto skill-shell ProjectGuide for this task

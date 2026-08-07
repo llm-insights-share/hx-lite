@@ -56,7 +56,7 @@ class OrgTaskShellTest(unittest.TestCase):
             session.commit()
             self.assertIsNotNone(shell.id)
             self.assertIn("`prd-writing`", shell.appendix)
-            self.assertIn("Templates（2）", shell.appendix)
+            self.assertIn("Templates（2", shell.appendix)
             self.assertIn("`prd-approved`", shell.appendix)
             self.assertIn("proposal-template", shell.appendix)
             self.assertIn("docs/requirements", shell.appendix)
@@ -174,6 +174,43 @@ class OrgTaskShellTest(unittest.TestCase):
             self.assertTrue(delete_command_shell_if_orphan(session, "default", "req", "prd-writing"))
             session.commit()
             self.assertEqual(session.exec(select(CommandShell)).all(), [])
+
+    def test_template_package_primary_in_appendix(self) -> None:
+        with Session(self.engine) as session:
+            session.add(
+                Guide(
+                    org_id="default",
+                    asset_id="database-design",
+                    name="DB",
+                    kind="guide.skill",
+                    content="## 输入\n- `<inputs>`：输入。\n",
+                )
+            )
+            session.add(
+                Guide(
+                    org_id="default",
+                    asset_id="arch-db-design-template",
+                    name="DB Tpl",
+                    kind="guide.template",
+                    content_mode="package",
+                    package_files_json='["4-数据库设计文档示例.docx"]',
+                    content="# stub\n",
+                )
+            )
+            session.commit()
+            shell = refresh_command_shell(
+                session,
+                "default",
+                "arch",
+                "database-design",
+                title="数据库设计",
+                guides=["database-design", "arch-db-design-template"],
+                sensors=["arch-database-design-complete"],
+            )
+            session.commit()
+            self.assertIn("4-数据库设计文档示例.docx", shell.appendix)
+            self.assertIn("docs/architecture/database-design.docx", shell.appendix)
+            self.assertIn("扩展名 `.docx`", shell.appendix)
 
 
 if __name__ == "__main__":

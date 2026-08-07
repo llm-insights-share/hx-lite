@@ -33,7 +33,7 @@ nhx --help
 | `nhx status` | 查看本地状态（配置、登录、命令等） |
 | `nhx doctor` | 健康诊断（API、凭证、目录、投影） |
 | `nhx check [--stage --task --channel --paths --json]` | 执行 Check 检查 |
-| `nhx sensor check …` | （兼容别名）同 `nhx check` |
+| `nhx sensor check …` | （兼容旧名）同 `nhx check` |
 | `nhx session mark --stage <stage> --task <task>` | 记录当前会话任务上下文 |
 | `nhx approve request --stage --task [--title --body --project --submit]` | 创建并提交人工审批工单 |
 | `nhx approve status --stage --task [--project]` | 查询人工审批状态 |
@@ -79,6 +79,7 @@ nhx sync --prune
 - 无参数：按本地配置同步
 - `--stages`：与已有阶段做 merge（叠加关注）
 - `--prune`：删除本次导出之外的本地投影文件
+- 会落地 Guide **package** 文件到 `.nhx/guides/<asset_id>/`（如 docx 模版），并按 template 主文件扩展名刷新任务壳「建议文件」提示
 
 ### 4.4 `adapter sync`
 
@@ -176,9 +177,12 @@ nhx sync
   config.yaml
   credentials
   lock.json
+  path_layout.json
   tasks.json
   guides/
-  sensors/
+    <id>.md
+    <id>/…          # package 模版（docx/xlsx/…）
+  sensors/          # Check 资产落盘（历史目录名）
   commands/
   skills/
 
@@ -186,6 +190,8 @@ nhx sync
 .cursor/hooks/nhx-*.mjs
 .trae/skills/nhx-*/
 ```
+
+任务壳附录中的「本任务建议文件」扩展名跟随绑定 template 主文件（默认 `.md`）。门禁 `file.exists` 应与该路径一致。
 
 ## 7. 常见问题
 
@@ -195,6 +201,8 @@ nhx sync
 | `未登录` / token 失效 | 重新执行 `nhx login`，再 `nhx status` 确认 |
 | 初始化后无命令壳 | 执行 `nhx adapter sync`，检查 `.cursor/commands/nhx-*.md` |
 | 组织改了绑定但本地未生效 | 执行 `nhx sync`（必要时加 `--stages`） |
+| package 模版本地缺失 | 确认 WebUI 后端为最新后 `nhx sync`；查看 `.nhx/guides/<template-id>/` |
+| 壳要求 `.docx` 但 check 仍查 `.md` | 同步最新 Check，对齐建议文件路径 |
 | human Check 一直不通过 | 确认工单类型是 `human-check` 且状态已 `approved` |
 | 产物提交失败 | 校验文件路径存在、`--name` 有值、登录态有效 |
 

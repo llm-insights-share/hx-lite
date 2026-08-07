@@ -966,6 +966,93 @@ def _migrate_drop_codemod_samples() -> None:
         session.commit()
 
 
+def _migrate_database_design_docx() -> None:
+    """Align database-design gate/skill/shells with docx template primary."""
+    from app.core.models import Guide, ProjectGuide, ProjectSensor, Sensor, StageTask
+    from app.domain.org_task_shell import refresh_shells_binding_guide
+    from app.domain.sensor_specs import DEFAULT_SENSOR_SPECS
+
+    aid = "arch-database-design-complete"
+    spec = DEFAULT_SENSOR_SPECS.get(aid) or {}
+    want_content = str(spec.get("content") or "")
+    old_md = "docs/architecture/database-design.md"
+    new_docx = "docs/architecture/database-design.docx"
+    skill_old = "- database-design.md、必要时迁移脚本模板"
+    skill_new = (
+        "- 交付物文件名扩展名跟随绑定 template 主文件（本任务为 `.docx`，"
+        "如 `docs/architecture/database-design.docx`）；必要时附迁移脚本模板"
+    )
+
+    with Session(engine) as session:
+        changed = False
+        for row in session.exec(select(Sensor).where(Sensor.asset_id == aid)).all():
+            c = row.content or ""
+            if old_md in c and want_content:
+                row.content = want_content
+                session.add(row)
+                changed = True
+            elif old_md in c:
+                row.content = c.replace(old_md, new_docx)
+                session.add(row)
+                changed = True
+        for row in session.exec(select(ProjectSensor).where(ProjectSensor.asset_id == aid)).all():
+            c = row.content or ""
+            if old_md in c and want_content:
+                row.content = want_content
+                session.add(row)
+                changed = True
+            elif old_md in c:
+                row.content = c.replace(old_md, new_docx)
+                session.add(row)
+                changed = True
+
+        for row in session.exec(select(Guide).where(Guide.asset_id == "database-design")).all():
+            c = row.content or ""
+            if skill_old in c:
+                row.content = c.replace(skill_old, skill_new)
+                session.add(row)
+                changed = True
+        for row in session.exec(
+            select(ProjectGuide).where(ProjectGuide.asset_id == "database-design")
+        ).all():
+            c = row.content or ""
+            if skill_old in c:
+                row.content = c.replace(skill_old, skill_new)
+                session.add(row)
+                changed = True
+
+        # Ensure project guides inherit org package metadata for arch-db-design-template
+        org_tpl = session.exec(
+            select(Guide).where(
+                Guide.org_id == "default", Guide.asset_id == "arch-db-design-template"
+            )
+        ).first()
+        if org_tpl:
+            for pg in session.exec(
+                select(ProjectGuide).where(ProjectGuide.asset_id == "arch-db-design-template")
+            ).all():
+                if (getattr(pg, "source", None) or "") == "project":
+                    continue
+                pkg = getattr(pg, "package_path", None) or ""
+                files = getattr(pg, "package_files_json", None) or "[]"
+                if not pkg or files in ("", "[]"):
+                    pg.package_path = getattr(org_tpl, "package_path", None) or ""
+                    pg.package_files_json = getattr(org_tpl, "package_files_json", None) or "[]"
+                    pg.content_mode = getattr(org_tpl, "content_mode", None) or "package"
+                    session.add(pg)
+                    changed = True
+
+        if changed:
+            session.commit()
+
+        # Rebuild shells that bind the docx template (or database-design task)
+        org_ids = {r.org_id for r in session.exec(select(StageTask)).all() if r.org_id}
+        for org_id in org_ids:
+            refresh_shells_binding_guide(session, org_id, "arch-db-design-template")
+            refresh_shells_binding_guide(session, org_id, "database-design")
+        session.commit()
+
+
 def init_db() -> None:
     SQLModel.metadata.create_all(engine)
     _migrate_sqlite()
@@ -977,6 +1064,7 @@ def init_db() -> None:
     _migrate_shell_guide_inputs()
     _migrate_seed_sample_guides()
     _migrate_drop_codemod_samples()
+    _migrate_database_design_docx()
 
 
 def get_session() -> Generator[Session, None, None]:

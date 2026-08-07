@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 
 from sqlmodel import Session, select
@@ -38,12 +39,27 @@ def assemble_from_bindings(
 
     kind_map: dict[str, str] = {}
     guide_contents: dict[str, str] = {}
+    template_primary_files: dict[str, str] = {}
     if guide_ids:
         guide_rows = session.exec(
             select(Guide).where(Guide.org_id == org_id, Guide.asset_id.in_(guide_ids))  # type: ignore[attr-defined]
         ).all()
         kind_map = {g.asset_id: g.kind for g in guide_rows}
         guide_contents = {g.asset_id: g.content or "" for g in guide_rows}
+        from app.domain.guide_package import pick_primary_package_filename
+
+        for g in guide_rows:
+            try:
+                files = json.loads(getattr(g, "package_files_json", None) or "[]")
+            except json.JSONDecodeError:
+                files = []
+            if not isinstance(files, list):
+                files = []
+            primary = pick_primary_package_filename(
+                [str(x) for x in files], g.kind or ""
+            )
+            if primary:
+                template_primary_files[g.asset_id] = primary
 
     skills, templates, other_guides = split_guides_by_kind(guide_ids, kind_map)
     shell_body = body if body is not None else defaults.default_workflow_body(stage, task_id, title)
@@ -61,6 +77,11 @@ def assemble_from_bindings(
         guide_contents=guide_contents,
         other_guides=other_guides,
         path_layout=path_layout,
+        template_primary_files={
+            tid: template_primary_files[tid]
+            for tid in templates
+            if tid in template_primary_files
+        },
     )
 
 
@@ -179,3 +200,34 @@ def delete_command_shell_if_orphan(session: Session, org_id: str, stage: str, ta
         return False
     session.delete(shell)
     return True
+
+
+def refresh_shells_binding_guide(session: Session, org_id: str, asset_id: str) -> int:
+    """Rebuild CommandShell appendix for every StageTask that binds ``asset_id``."""
+    aid = (asset_id or "").strip()
+    if not aid:
+        return 0
+    tasks = session.exec(select(StageTask).where(StageTask.org_id == org_id)).all()
+    count = 0
+    for t in tasks:
+        try:
+            guides = json.loads(t.guides_json or "[]")
+        except json.JSONDecodeError:
+            guides = []
+        if not isinstance(guides, list) or aid not in guides:
+            continue
+        try:
+            sensors = json.loads(t.sensors_json or "[]")
+        except json.JSONDecodeError:
+            sensors = []
+        refresh_command_shell(
+            session,
+            org_id,
+            t.stage or "",
+            t.task_id or "",
+            title=(t.title_zh or t.title_en or t.task_id or ""),
+            guides=[str(g) for g in guides if g],
+            sensors=[str(s) for s in sensors if s],
+        )
+        count += 1
+    return count

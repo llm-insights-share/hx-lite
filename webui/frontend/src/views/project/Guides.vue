@@ -204,8 +204,10 @@
               <div v-if="pkgPreviewLoading" class="muted">加载中…</div>
               <div v-else-if="pkgPreviewKind === 'md'" class="md-preview" v-html="pkgPreviewHtml" />
               <pre v-else-if="pkgPreviewKind === 'text'" class="pkg-text">{{ pkgPreviewText }}</pre>
+              <div v-else-if="pkgPreviewKind === 'html'" class="md-preview" v-html="pkgPreviewHtml" />
+              <div v-else-if="pkgPreviewKind === 'table'" class="pkg-table-wrap" v-html="pkgPreviewHtml" />
               <div v-else-if="form.content" class="md-preview" v-html="mdHtml" />
-              <div v-else class="muted">无内容</div>
+              <div v-else class="muted">{{ pkgPreviewText || '无内容' }}</div>
             </div>
           </div>
           <div v-else-if="form.content" class="md-preview" v-html="mdHtml" />
@@ -309,6 +311,12 @@ import {
   toGuideKindCards,
   type GuideKindCard,
 } from '../../utils/guideKind'
+import {
+  arrayBufferToDocxHtml,
+  arrayBufferToSheetAoA,
+  filterPackageFilesForKind,
+  sheetAoAToHtml,
+} from '../../utils/guidePackagePreview'
 
 const projects = ref<any[]>([])
 const projectId = ref<number>()
@@ -349,7 +357,7 @@ const pkgFiles = ref<string[]>([])
 const pkgLoading = ref(false)
 const pkgSelectedKeys = ref<string[]>([])
 const pkgPreviewLoading = ref(false)
-const pkgPreviewKind = ref<'md' | 'text' | 'other'>('other')
+const pkgPreviewKind = ref<'md' | 'text' | 'html' | 'table' | 'other'>('other')
 const pkgPreviewHtml = ref('')
 const pkgPreviewText = ref('')
 
@@ -688,9 +696,20 @@ async function loadPackage(guideId: number) {
   pkgLoading.value = true
   try {
     const { data } = await api.get(`/projects/${projectId.value}/guides/${guideId}/package`)
-    pkgFiles.value = data.files || []
+    pkgFiles.value = filterPackageFilesForKind(data.files || [], form.kind || data.kind || '')
     if (data.content) form.content = data.content
-    if (pkgFiles.value.length === 1) await previewPackageFile(guideId, pkgFiles.value[0])
+    if (pkgFiles.value.length) {
+      const preferExt = (exts: string[]) =>
+        pkgFiles.value.find((f) => exts.includes((f.split('.').pop() || '').toLowerCase()))
+      const first =
+        preferExt(['docx', 'xlsx', 'xls']) ||
+        preferExt(['md', 'markdown']) ||
+        pkgFiles.value.find((f) => (f.split('/').pop() || '').toLowerCase() === 'template.md') ||
+        pkgFiles.value.find((f) => (f.split('/').pop() || '').toLowerCase() === 'skill.md') ||
+        pkgFiles.value[0]
+      pkgSelectedKeys.value = [first]
+      await previewPackageFile(guideId, first)
+    }
   } catch {
     pkgFiles.value = []
   } finally {
@@ -708,22 +727,49 @@ function onPkgSelect(keys: (string | number)[]) {
 async function previewPackageFile(guideId: number, relPath: string) {
   if (!projectId.value) return
   pkgPreviewLoading.value = true
+  pkgPreviewHtml.value = ''
+  pkgPreviewText.value = ''
   try {
+    const ext = (relPath.split('.').pop() || '').toLowerCase()
+    if (ext === 'doc') {
+      pkgPreviewKind.value = 'other'
+      pkgPreviewText.value = '旧版 .doc 不支持在线预览，请转换为 .docx。'
+      return
+    }
     const res = await api.get(`/projects/${projectId.value}/guides/${guideId}/package-file`, {
       params: { path: relPath },
       responseType: 'arraybuffer',
     })
-    const text = new TextDecoder('utf-8').decode(res.data as ArrayBuffer)
-    const ext = (relPath.split('.').pop() || '').toLowerCase()
+    const buf = res.data as ArrayBuffer
     if (ext === 'md' || ext === 'markdown') {
+      const text = new TextDecoder('utf-8').decode(buf)
       pkgPreviewKind.value = 'md'
       pkgPreviewHtml.value = renderMarkdownDocument(text)
+    } else if (ext === 'docx') {
+      try {
+        pkgPreviewKind.value = 'html'
+        pkgPreviewHtml.value = await arrayBufferToDocxHtml(buf)
+      } catch {
+        pkgPreviewKind.value = 'other'
+        pkgPreviewText.value = 'Word 解析失败'
+      }
+    } else if (ext === 'xlsx' || ext === 'xls') {
+      try {
+        const { rows } = arrayBufferToSheetAoA(buf)
+        pkgPreviewKind.value = 'table'
+        pkgPreviewHtml.value = sheetAoAToHtml(rows)
+      } catch {
+        pkgPreviewKind.value = 'other'
+        pkgPreviewText.value = '表格解析失败'
+      }
     } else {
+      const text = new TextDecoder('utf-8').decode(buf)
       pkgPreviewKind.value = 'text'
       pkgPreviewText.value = text
     }
-  } catch {
+  } catch (e: any) {
     pkgPreviewKind.value = 'other'
+    pkgPreviewText.value = e?.response?.status === 404 ? '文件不存在（404）' : '预览失败'
   } finally {
     pkgPreviewLoading.value = false
   }
@@ -1122,6 +1168,19 @@ onMounted(async () => {
   white-space: pre-wrap;
   font-family: ui-monospace, monospace;
   font-size: 12px;
+}
+.pkg-table-wrap {
+  overflow: auto;
+}
+.pkg-table-wrap :deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+.pkg-table-wrap :deep(td),
+.pkg-table-wrap :deep(th) {
+  border: 1px solid #e5e7eb;
+  padding: 4px 8px;
 }
 .file-list {
   margin: 10px 0 0;

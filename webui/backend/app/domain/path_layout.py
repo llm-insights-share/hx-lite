@@ -194,12 +194,14 @@ def format_path_layout_section(
     stage: str,
     task: str,
     layout: dict[str, Any] | None = None,
+    deliverable_ext: str | None = None,
 ) -> str:
     """Markdown block injected into Command/Skill shell appendix."""
     cfg = stage_layout(layout, stage)
     root = cfg["root"]
     aliases = cfg["aliases"]
     named = cfg["named"]
+    ext = (deliverable_ext or "md").strip().lstrip(".").lower() or "md"
     lines = [
         "### 产物目录（系统约定，优先于 Guide 正文路径）",
         "",
@@ -207,7 +209,9 @@ def format_path_layout_section(
     if root:
         lines.append(f"- **本阶段根目录：** `{root}/`")
         if task:
-            lines.append(f"- **本任务建议文件：** `{root}/{task}.md`（或根目录下任务约定文件名）")
+            lines.append(
+                f"- **本任务建议文件：** `{root}/{task}.{ext}`（或根目录下任务约定文件名）"
+            )
         lines.append(f"- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。")
     else:
         lines.append("- 本阶段未配置产物根目录。")

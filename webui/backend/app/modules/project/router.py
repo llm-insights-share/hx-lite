@@ -42,7 +42,16 @@ from app.domain.custom_task import (
     ensure_task_shells,
     list_project_stage_options,
 )
-from app.domain.guide_package import pick_primary_content, resolve_package_root, write_guide_package
+from app.domain.guide_package import (
+    content_disposition_inline,
+    content_fallback_for_path,
+    merge_package_file_list,
+    package_files_json_dumps,
+    pick_primary_content,
+    resolve_package_root,
+    write_guide_package,
+    write_single_package_file,
+)
 from app.domain.project_materializer import (
     advance_project_cursor,
     build_project_hx_view,
@@ -1375,14 +1384,17 @@ def get_project_guide_package(
         except ValueError:
             disk_files = []
 
-    files = sorted({*meta_files, *disk_files})
-    if (content or "").strip() and not any(f.rsplit("/", 1)[-1].lower() == "skill.md" for f in files):
-        files = sorted({*files, "SKILL.md"})
+    files = merge_package_file_list(
+        sorted({*meta_files, *disk_files}),
+        content=content,
+        kind=enriched.get("kind") or row.kind or "",
+    )
     return {
         "id": row.id,
         "asset_id": row.asset_id,
         "package_path": package_path,
         "content_mode": enriched.get("content_mode") or row.content_mode,
+        "kind": enriched.get("kind") or row.kind,
         "files": files,
         "content": content,
         "org_guide_id": enriched.get("org_guide_id"),
@@ -1404,10 +1416,13 @@ def get_project_guide_package_file(
     enriched = _enrich_project_guide(session, row)
     package_path = (enriched.get("package_path") or "").strip()
     content = enriched.get("content") or ""
+    kind = enriched.get("kind") or row.kind or ""
 
     rel = (path or "").replace("\\", "/").lstrip("./")
     if not rel or ".." in rel.split("/"):
         raise HTTPException(400, "invalid path")
+    if kind == "guide.template" and Path(rel).name.lower() == "skill.md":
+        raise HTTPException(404, "template 包不含 SKILL.md")
 
     root = None
     if package_path:
@@ -1423,19 +1438,68 @@ def get_project_guide_package_file(
             return Response(
                 content=data,
                 media_type=ctype or "application/octet-stream",
-                headers={"Content-Disposition": f'inline; filename="{target.name}"'},
+                headers={"Content-Disposition": content_disposition_inline(target.name)},
             )
 
-    basename = Path(rel).name.lower()
-    if basename == "skill.md" and (content or "").strip():
+    if content_fallback_for_path(rel, kind) and (content or "").strip():
         data = content.encode("utf-8")
         return Response(
             content=data,
             media_type="text/markdown; charset=utf-8",
-            headers={"Content-Disposition": 'inline; filename="SKILL.md"'},
+            headers={"Content-Disposition": content_disposition_inline(Path(rel).name)},
         )
     raise HTTPException(404, "file not found")
 
+
+@router.put("/projects/{project_id}/guides/{guide_id}/package-file")
+async def put_project_guide_package_file(
+    project_id: int,
+    guide_id: int,
+    path: str,
+    session: SessionDep,
+    user: CurrentUser,
+    file: UploadFile = File(...),
+):
+    """Overwrite a single file inside a project guide package."""
+    _require_project_member(session, user, project_id)
+    row = _require_editable_project_guide(session, project_id, guide_id)
+    pkg = (row.package_path or "").strip()
+    if not pkg or (row.content_mode or "") != "package":
+        raise HTTPException(400, "仅项目私有 package 模式且已有包路径时可写回文件")
+    rel = (path or "").replace("\\", "/").lstrip("./")
+    if not rel or ".." in rel.split("/"):
+        raise HTTPException(400, "invalid path")
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "empty file")
+    try:
+        saved = write_single_package_file(pkg, rel, data)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if Path(rel).suffix.lower() in (".md", ".markdown", ".txt"):
+        try:
+            row.content = data.decode("utf-8")
+        except UnicodeDecodeError:
+            pass
+    row.package_files_json = package_files_json_dumps(saved)
+    row.source = "project"
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "guide_package_file_put",
+        f"写回项目 Guide 包文件 {row.asset_id}:{rel}",
+        {"id": row.id, "path": rel, "bytes": len(data)},
+    )
+    return {
+        "ok": True,
+        "path": rel,
+        "files": merge_package_file_list(saved, content=row.content or "", kind=row.kind or ""),
+        "package_path": row.package_path,
+    }
 
 @router.get("/projects/{project_id}/sensors")
 def list_project_sensors(project_id: int, session: SessionDep, user: CurrentUser):
@@ -1613,6 +1677,9 @@ def list_project_shells(project_id: int, session: SessionDep, user: CurrentUser)
     tasks = session.exec(select(ProjectTask).where(ProjectTask.project_id == project_id)).all()
     project_guides = session.exec(select(ProjectGuide).where(ProjectGuide.project_id == project_id)).all()
     project_guide_map = {g.asset_id: g for g in project_guides}
+    org_by_aid = {
+        g.asset_id: g for g in session.exec(select(Guide).where(Guide.org_id == "default")).all()
+    }
     org_shells = session.exec(select(CommandShell).where(CommandShell.org_id == "default")).all()
     shell_map = {(s.stage or "", s.task or ""): s for s in org_shells}
     rows: list[dict[str, Any]] = []
@@ -1644,11 +1711,30 @@ def list_project_shells(project_id: int, session: SessionDep, user: CurrentUser)
                 for gid in guide_ids
             }
             skills, templates, other_guides = split_guides_by_kind(guide_ids, kind_map)
+            from app.domain.guide_package import pick_primary_package_filename
+
             guide_contents = {
                 gid: (project_guide_map[gid].content or "")
-                for gid in [*skills, *(g for g, _ in other_guides)]
+                for gid in [*skills, *templates, *(g for g, _ in other_guides)]
                 if gid in project_guide_map
             }
+            template_primary_files: dict[str, str] = {}
+            for tid in templates:
+                pg = project_guide_map.get(tid)
+                if not pg:
+                    continue
+                enriched = _enrich_project_guide(session, pg, org_by_aid=org_by_aid)
+                try:
+                    files = json.loads(enriched.get("package_files_json") or "[]")
+                except Exception:
+                    files = []
+                if not isinstance(files, list):
+                    files = []
+                primary = pick_primary_package_filename(
+                    [str(x) for x in files], enriched.get("kind") or pg.kind or ""
+                )
+                if primary:
+                    template_primary_files[tid] = primary
             body = defaults.default_workflow_body(stage, task_id, title)
             assembled = assemble_shell(
                 stage=stage,
@@ -1660,6 +1746,7 @@ def list_project_shells(project_id: int, session: SessionDep, user: CurrentUser)
                 sensors=sensor_ids,
                 guide_contents=guide_contents,
                 other_guides=other_guides,
+                template_primary_files=template_primary_files,
             )
             command_body = assembled["body"]
             skill_body = assembled["appendix"]

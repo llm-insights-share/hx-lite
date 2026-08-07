@@ -266,7 +266,7 @@ DEFAULT_SENSOR_SPECS: dict[str, dict[str, Any]] = {
     ),
     "arch-database-design-complete": _file_exists(
         "arch-database-design-complete",
-        "docs/architecture/database-design.md",
+        "docs/architecture/database-design.docx",
         "数据库设计完备",
         scope=["docs/architecture/**"],
     ),

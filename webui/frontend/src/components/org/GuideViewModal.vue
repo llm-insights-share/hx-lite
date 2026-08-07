@@ -77,7 +77,12 @@
             <div v-else-if="pkgPreviewKind === 'table'" class="pkg-table-wrap" v-html="pkgPreviewHtml" />
             <img v-else-if="pkgPreviewKind === 'image'" :src="pkgPreviewUrl" class="pkg-image" />
             <pre v-else-if="pkgPreviewKind === 'code'" class="pkg-code"><code :class="'lang-' + pkgPreviewLang">{{ pkgPreviewText }}</code></pre>
-            <div v-else class="muted">{{ pkgPreviewText || `无法预览此格式，可下载查看：${pkgPreviewPath}` }}</div>
+            <div v-else class="muted">
+              {{ pkgPreviewText || `无法预览此格式` }}
+              <div v-if="pkgPreviewPath" style="margin-top: 8px">
+                <a-button size="small" @click="downloadPkgFile">下载 {{ pkgPreviewPath }}</a-button>
+              </div>
+            </div>
           </div>
         </div>
         <div v-else class="pkg-preview single">
@@ -90,7 +95,12 @@
           <img v-else-if="pkgPreviewKind === 'image'" :src="pkgPreviewUrl" class="pkg-image" />
           <pre v-else-if="pkgPreviewKind === 'code'" class="pkg-code"><code :class="'lang-' + pkgPreviewLang">{{ pkgPreviewText }}</code></pre>
           <div v-else-if="fallbackContent" class="md-preview" v-html="fallbackHtml" />
-          <div v-else class="muted">无内容</div>
+          <div v-else class="muted">
+            {{ pkgPreviewText || '无内容' }}
+            <div v-if="pkgPreviewPath" style="margin-top: 8px">
+              <a-button size="small" @click="downloadPkgFile">下载文件</a-button>
+            </div>
+          </div>
         </div>
       </a-form-item>
     </a-form>
@@ -103,13 +113,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import DOMPurify from 'dompurify'
-import mammoth from 'mammoth'
-import * as XLSX from 'xlsx'
 import JSZip from 'jszip'
 import { api } from '../../api'
 import { GUIDE_KIND_CARDS, toGuideKindCards, type GuideKindCard } from '../../utils/guideKind'
 import { renderMarkdownDocument } from '../../utils/markdownDoc'
+import {
+  arrayBufferToDocxHtml,
+  arrayBufferToSheetAoA,
+  filterPackageFilesForKind,
+  sheetAoAToHtml,
+} from '../../utils/guidePackagePreview'
 
 const props = defineProps<{
   open: boolean
@@ -346,6 +359,11 @@ async function previewPackageFile(relPath: string) {
   pkgPreviewText.value = ''
   try {
     const ext = fileExt(relPath)
+    if (ext === 'doc') {
+      pkgPreviewKind.value = 'other'
+      pkgPreviewText.value = '旧版 .doc 不支持在线预览，请转换为 .docx 后上传，或下载本地查看。'
+      return
+    }
     const res = await api.get(`/org/guides/${guideId}/package-file`, {
       params: { path: relPath },
       responseType: 'arraybuffer',
@@ -368,15 +386,22 @@ async function previewPackageFile(relPath: string) {
       const blob = new Blob([buf], { type: 'application/pdf' })
       pkgPreviewUrl.value = URL.createObjectURL(blob)
     } else if (ext === 'docx') {
-      const result = await mammoth.convertToHtml({ arrayBuffer: buf })
-      pkgPreviewKind.value = 'html'
-      pkgPreviewHtml.value = DOMPurify.sanitize(result.value || '')
+      try {
+        pkgPreviewKind.value = 'html'
+        pkgPreviewHtml.value = await arrayBufferToDocxHtml(buf)
+      } catch {
+        pkgPreviewKind.value = 'other'
+        pkgPreviewText.value = 'Word 文档解析失败，可下载后本地打开。'
+      }
     } else if (ext === 'xlsx' || ext === 'xls') {
-      const wb = XLSX.read(buf, { type: 'array' })
-      const sheet = wb.Sheets[wb.SheetNames[0]]
-      const html = XLSX.utils.sheet_to_html(sheet)
-      pkgPreviewKind.value = 'table'
-      pkgPreviewHtml.value = DOMPurify.sanitize(html)
+      try {
+        const { rows } = arrayBufferToSheetAoA(buf)
+        pkgPreviewKind.value = 'table'
+        pkgPreviewHtml.value = sheetAoAToHtml(rows)
+      } catch {
+        pkgPreviewKind.value = 'other'
+        pkgPreviewText.value = '表格解析失败，可下载后本地打开。'
+      }
     } else if (ext === 'pptx') {
       const text = await extractPptxText(buf)
       pkgPreviewKind.value = 'text'
@@ -391,21 +416,47 @@ async function previewPackageFile(relPath: string) {
         const text = new TextDecoder('utf-8').decode(buf)
         if (/[\x00-\x08\x0e-\x1f]/.test(text.slice(0, 200))) {
           pkgPreviewKind.value = 'other'
+          pkgPreviewText.value = `无法预览此格式，可下载查看：${relPath}`
         } else {
           pkgPreviewKind.value = 'text'
           pkgPreviewText.value = text
         }
       } catch {
         pkgPreviewKind.value = 'other'
+        pkgPreviewText.value = `无法预览此格式，可下载查看：${relPath}`
       }
     }
   } catch (e: any) {
-    const detail = decodeAxiosDetail(e) || '预览失败'
+    const status = e?.response?.status
+    const detail =
+      decodeAxiosDetail(e) ||
+      (status === 404 ? '文件不存在或路径无效（404）' : '预览失败')
     message.error(detail)
     pkgPreviewKind.value = 'other'
     pkgPreviewText.value = detail
   } finally {
     pkgPreviewLoading.value = false
+  }
+}
+
+async function downloadPkgFile() {
+  const guideId = props.record?.id
+  if (!guideId || !pkgPreviewPath.value) return
+  try {
+    const res = await api.get(`/org/guides/${guideId}/package-file`, {
+      params: { path: pkgPreviewPath.value },
+      responseType: 'arraybuffer',
+    })
+    const name = pkgPreviewPath.value.split('/').pop() || 'file'
+    const blob = new Blob([res.data])
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e: any) {
+    message.error(decodeAxiosDetail(e) || '下载失败')
   }
 }
 
@@ -426,14 +477,20 @@ async function loadPackagePreview(guideId: number) {
   pkgSelectedKeys.value = []
   try {
     const { data } = await api.get(`/org/guides/${guideId}/package`)
-    pkgFiles.value = data.files || []
+    const kind = props.record?.kind || data.kind || ''
+    pkgFiles.value = filterPackageFilesForKind(data.files || [], kind)
     if (data.content && !fallbackContent.value) fallbackContent.value = data.content
     if (pkgFiles.value.length) {
-      const skill =
-        pkgFiles.value.find((f) => f.replace(/\\/g, '/').split('/').pop()?.toLowerCase() === 'skill.md') ||
+      const preferExt = (exts: string[]) =>
+        pkgFiles.value.find((f) => exts.includes((f.split('.').pop() || '').toLowerCase()))
+      const first =
+        preferExt(['docx', 'xlsx', 'xls']) ||
+        preferExt(['md', 'markdown']) ||
+        pkgFiles.value.find((f) => (f.split('/').pop() || '').toLowerCase() === 'template.md') ||
+        pkgFiles.value.find((f) => (f.split('/').pop() || '').toLowerCase() === 'skill.md') ||
         pkgFiles.value[0]
-      pkgSelectedKeys.value = [skill]
-      await previewPackageFile(skill)
+      pkgSelectedKeys.value = [first]
+      await previewPackageFile(first)
     } else if (fallbackContent.value) {
       showContentFallback(fallbackContent.value)
     }

@@ -28,7 +28,7 @@ nhx submit ./docs/prd-pack --name prd-pack --stage req --task prd-writing
 | `nhx login -u <user> -p <pass>` | 直接验证登录（默认 API `http://127.0.0.1:8000`） |
 | `nhx init / sync` | 拉取资产并投影 IDE |
 | `nhx check` | 运行任务绑定的 Check（按 `--channel` 过滤触发通道） |
-| `nhx sensor check` | （兼容别名）同 `nhx check` |
+| `nhx sensor check` | （兼容旧名）同 `nhx check` |
 | `nhx session mark` | 记录当前 stage/task |
 | `nhx approve request/status` | 发起 / 查询人工审批 |
 | `nhx submit` | 上传产物（单文件或目录递归） |
@@ -83,9 +83,22 @@ Check `check_type`：
 
 ```text
 .nhx/
-  config.yaml  credentials  lock.json  tasks.json
-  guides/  sensors/*.md + *.meta.json  commands/  skills/
+  config.yaml  credentials  lock.json  tasks.json  path_layout.json
+  guides/
+    <asset_id>.md              # Guide 正文 / 占位说明
+    <asset_id>/…               # content_mode=package 时的包文件（如 *.docx / *.xlsx）
+  sensors/*.md + *.meta.json   # Check 资产落盘（历史目录名）
+  commands/  skills/
 .cursor/commands/nhx-*.md
 .cursor/hooks/nhx-*.mjs + hooks.json（合并）
 .trae/skills/nhx-*/
 ```
+
+### Template 包与产物扩展名
+
+- 组织侧 Guide（`guide.template`）可为 **package** 模式，主文件可为 `.docx` / `.xlsx` / `.md` 等。
+- `nhx sync` / `init` 会把包内文件落到 `.nhx/guides/<asset_id>/`，并在任务壳附录中写入：
+  - **本任务建议文件**扩展名（跟随绑定 template 主文件，如 `docs/architecture/database-design.docx`）
+  - 「主文件参考 …（扩展名须一致）」提示
+- 门禁请与建议路径一致（例如 `arch-database-design-complete` 检查 `database-design.docx`）。
+- 组织改了 package 或绑定后：重启/热加载后端 → 项目「重新初始化」或本地 `nhx sync`（必要时 `--prune`）。

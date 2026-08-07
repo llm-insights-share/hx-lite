@@ -258,14 +258,43 @@
             <div class="pkg-preview">
               <div v-if="!pkgPreviewPath" class="muted">选择左侧文件预览</div>
               <div v-else-if="pkgPreviewLoading" class="muted">加载中…</div>
-              <div v-else-if="pkgPreviewKind === 'md'" class="md-preview" v-html="pkgPreviewHtml" />
-              <pre v-else-if="pkgPreviewKind === 'text'" class="pkg-text">{{ pkgPreviewText }}</pre>
-              <iframe v-else-if="pkgPreviewKind === 'pdf'" class="pkg-iframe" :src="pkgPreviewUrl" />
-              <div v-else-if="pkgPreviewKind === 'html'" class="md-preview" v-html="pkgPreviewHtml" />
-              <div v-else-if="pkgPreviewKind === 'table'" class="pkg-table-wrap" v-html="pkgPreviewHtml" />
-              <img v-else-if="pkgPreviewKind === 'image'" :src="pkgPreviewUrl" class="pkg-image" />
-              <pre v-else-if="pkgPreviewKind === 'code'" class="pkg-code"><code :class="'lang-' + pkgPreviewLang">{{ pkgPreviewText }}</code></pre>
-              <div v-else class="muted">{{ pkgPreviewText || `无法预览此格式，可下载查看：${pkgPreviewPath}` }}</div>
+              <template v-else>
+                <div v-if="pkgEditable && (pkgPreviewKind === 'html' || pkgPreviewKind === 'table')" class="pkg-edit-bar">
+                  <a-alert
+                    v-if="pkgPreviewKind === 'html'"
+                    type="info"
+                    show-icon
+                    message="docx 文本级编辑：保存时按段落写回，复杂排版可能丢失"
+                    style="margin-bottom: 8px"
+                  />
+                  <a-button type="primary" size="small" :loading="pkgSaving" @click="savePkgEdit">保存文件</a-button>
+                  <a-button size="small" style="margin-left: 8px" @click="downloadPkgFile">下载原文件</a-button>
+                </div>
+                <div
+                  v-if="pkgPreviewKind === 'html' && pkgEditable"
+                  ref="docxEditEl"
+                  class="md-preview pkg-editable"
+                  contenteditable="true"
+                  @input="onDocxHtmlInput"
+                />
+                <div v-else-if="pkgPreviewKind === 'md'" class="md-preview" v-html="pkgPreviewHtml" />
+                <pre v-else-if="pkgPreviewKind === 'text'" class="pkg-text">{{ pkgPreviewText }}</pre>
+                <iframe v-else-if="pkgPreviewKind === 'pdf'" class="pkg-iframe" :src="pkgPreviewUrl" />
+                <div v-else-if="pkgPreviewKind === 'html'" class="md-preview" v-html="pkgPreviewHtml" />
+                <div v-else-if="pkgPreviewKind === 'table' && pkgEditable" class="pkg-table-edit">
+                  <a-textarea v-model:value="pkgSheetTsv" :rows="16" class="pkg-tsv" />
+                  <div class="muted" style="margin-top: 6px">TSV：制表符分隔单元格，换行分隔行</div>
+                </div>
+                <div v-else-if="pkgPreviewKind === 'table'" class="pkg-table-wrap" v-html="pkgPreviewHtml" />
+                <img v-else-if="pkgPreviewKind === 'image'" :src="pkgPreviewUrl" class="pkg-image" />
+                <pre v-else-if="pkgPreviewKind === 'code'" class="pkg-code"><code :class="'lang-' + pkgPreviewLang">{{ pkgPreviewText }}</code></pre>
+                <div v-else class="muted">
+                  {{ pkgPreviewText || `无法预览此格式` }}
+                  <div v-if="pkgPreviewPath" style="margin-top: 8px">
+                    <a-button size="small" @click="downloadPkgFile">下载 {{ pkgPreviewPath }}</a-button>
+                  </div>
+                </div>
+              </template>
             </div>
           </div>
           <div v-else class="pkg-preview single">
@@ -482,12 +511,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { Modal, message } from 'ant-design-vue'
-import DOMPurify from 'dompurify'
-import mammoth from 'mammoth'
-import * as XLSX from 'xlsx'
 import JSZip from 'jszip'
+import {
+  arrayBufferToDocxHtml,
+  arrayBufferToSheetAoA,
+  fileExt as pkgFileExt,
+  filterPackageFilesForKind,
+  htmlToDocxBlob,
+  sheetAoAToHtml,
+  sheetAoAToXlsxBlob,
+} from '../../utils/guidePackagePreview'
 import { api } from '../../api'
 import GuideViewModal from '../../components/org/GuideViewModal.vue'
 import SensorViewModal from '../../components/org/SensorViewModal.vue'
@@ -563,6 +598,14 @@ const pkgPreviewHtml = ref('')
 const pkgPreviewText = ref('')
 const pkgPreviewUrl = ref('')
 const pkgPreviewLang = ref('')
+const pkgSaving = ref(false)
+const pkgSheetTsv = ref('')
+const pkgSheetName = ref('Sheet1')
+const pkgEditHtml = ref('')
+const pkgEditable = computed(
+  () => !guideReadonly.value && !!guideForm.id && !!guideForm.package_path && contentSource.value === 'view',
+)
+const docxEditEl = ref<HTMLElement | null>(null)
 
 const githubSkillOpts = computed(() =>
   githubSkills.value.map((s) => ({
@@ -1069,14 +1112,19 @@ async function loadPackagePreview(guideId: number) {
   pkgSelectedKeys.value = []
   try {
     const { data } = await api.get(`/org/guides/${guideId}/package`)
-    pkgFiles.value = data.files || []
+    pkgFiles.value = filterPackageFilesForKind(data.files || [], guideForm.kind || data.kind || '')
     if (data.content && !guideForm.content) guideForm.content = data.content
     if (pkgFiles.value.length) {
-      const skill =
-        pkgFiles.value.find((f) => f.replace(/\\/g, '/').split('/').pop()?.toLowerCase() === 'skill.md') ||
+      const preferExt = (exts: string[]) =>
+        pkgFiles.value.find((f) => exts.includes((f.split('.').pop() || '').toLowerCase()))
+      const first =
+        preferExt(['docx', 'xlsx', 'xls']) ||
+        preferExt(['md', 'markdown']) ||
+        pkgFiles.value.find((f) => (f.split('/').pop() || '').toLowerCase() === 'template.md') ||
+        pkgFiles.value.find((f) => (f.split('/').pop() || '').toLowerCase() === 'skill.md') ||
         pkgFiles.value[0]
-      pkgSelectedKeys.value = [skill]
-      await previewPackageFile(skill)
+      pkgSelectedKeys.value = [first]
+      await previewPackageFile(first)
     } else if (guideForm.content) {
       pkgPreviewKind.value = 'md'
       try {
@@ -1102,6 +1150,76 @@ async function loadPackagePreview(guideId: number) {
   }
 }
 
+function onDocxHtmlInput(ev: Event) {
+  const el = ev.target as HTMLElement
+  pkgEditHtml.value = el.innerHTML || ''
+}
+
+function sheetRowsToTsv(rows: string[][]): string {
+  return rows.map((r) => r.map((c) => String(c ?? '').replace(/\t/g, ' ')).join('\t')).join('\n')
+}
+
+function tsvToSheetRows(tsv: string): string[][] {
+  return (tsv || '')
+    .split('\n')
+    .map((line) => line.split('\t').map((c) => c))
+    .filter((r, i, arr) => !(i === arr.length - 1 && r.length === 1 && r[0] === ''))
+}
+
+async function downloadPkgFile() {
+  if (!guideForm.id || !pkgPreviewPath.value) return
+  try {
+    const res = await api.get(`/org/guides/${guideForm.id}/package-file`, {
+      params: { path: pkgPreviewPath.value },
+      responseType: 'arraybuffer',
+    })
+    const name = pkgPreviewPath.value.split('/').pop() || 'file'
+    const blob = new Blob([res.data])
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e: any) {
+    message.error(decodeAxiosDetail(e) || '下载失败')
+  }
+}
+
+async function savePkgEdit() {
+  if (!guideForm.id || !pkgPreviewPath.value) return
+  pkgSaving.value = true
+  try {
+    const ext = pkgFileExt(pkgPreviewPath.value)
+    let blob: Blob
+    if (ext === 'docx') {
+      const html = pkgEditHtml.value || pkgPreviewHtml.value || ''
+      blob = await htmlToDocxBlob(html)
+    } else if (ext === 'xlsx' || ext === 'xls') {
+      const rows = tsvToSheetRows(pkgSheetTsv.value)
+      blob = sheetAoAToXlsxBlob(pkgSheetName.value, rows)
+    } else {
+      message.warning('当前文件类型不支持在线保存')
+      return
+    }
+    const fd = new FormData()
+    fd.append('file', blob, pkgPreviewPath.value.split('/').pop() || 'file')
+    const { data } = await api.put(`/org/guides/${guideForm.id}/package-file`, fd, {
+      params: { path: pkgPreviewPath.value },
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    if (Array.isArray(data.files)) {
+      pkgFiles.value = filterPackageFilesForKind(data.files, guideForm.kind)
+    }
+    message.success('已保存到包内文件')
+    await previewPackageFile(pkgPreviewPath.value)
+  } catch (e: any) {
+    message.error(decodeAxiosDetail(e) || '保存失败')
+  } finally {
+    pkgSaving.value = false
+  }
+}
+
 function onPkgTreeSelect(keys: (string | number)[]) {
   const key = String(keys[0] || '')
   if (!key || key.startsWith('dir:')) return
@@ -1120,6 +1238,8 @@ async function previewPackageFile(relPath: string) {
   pkgPreviewPath.value = relPath
   pkgPreviewLoading.value = true
   pkgPreviewLang.value = ''
+  pkgSheetTsv.value = ''
+  pkgEditHtml.value = ''
   if (pkgPreviewUrl.value) {
     URL.revokeObjectURL(pkgPreviewUrl.value)
     pkgPreviewUrl.value = ''
@@ -1128,6 +1248,11 @@ async function previewPackageFile(relPath: string) {
   pkgPreviewText.value = ''
   try {
     const ext = fileExt(relPath)
+    if (ext === 'doc') {
+      pkgPreviewKind.value = 'other'
+      pkgPreviewText.value = '旧版 .doc 不支持在线预览，请转换为 .docx 后上传，或下载本地查看。'
+      return
+    }
     const res = await api.get(`/org/guides/${guideForm.id}/package-file`, {
       params: { path: relPath },
       responseType: 'arraybuffer',
@@ -1159,17 +1284,30 @@ async function previewPackageFile(relPath: string) {
     }
     // Word
     else if (ext === 'docx') {
-      const result = await mammoth.convertToHtml({ arrayBuffer: buf })
-      pkgPreviewKind.value = 'html'
-      pkgPreviewHtml.value = DOMPurify.sanitize(result.value || '')
+      try {
+        const html = await arrayBufferToDocxHtml(buf)
+        pkgPreviewKind.value = 'html'
+        pkgPreviewHtml.value = html
+        pkgEditHtml.value = html
+        await nextTick()
+        if (docxEditEl.value) docxEditEl.value.innerHTML = html
+      } catch {
+        pkgPreviewKind.value = 'other'
+        pkgPreviewText.value = 'Word 文档解析失败，可下载后本地打开。'
+      }
     }
     // Excel
     else if (ext === 'xlsx' || ext === 'xls') {
-      const wb = XLSX.read(buf, { type: 'array' })
-      const sheet = wb.Sheets[wb.SheetNames[0]]
-      const html = XLSX.utils.sheet_to_html(sheet)
-      pkgPreviewKind.value = 'table'
-      pkgPreviewHtml.value = DOMPurify.sanitize(html)
+      try {
+        const { name, rows } = arrayBufferToSheetAoA(buf)
+        pkgSheetName.value = name
+        pkgSheetTsv.value = sheetRowsToTsv(rows)
+        pkgPreviewKind.value = 'table'
+        pkgPreviewHtml.value = sheetAoAToHtml(rows)
+      } catch {
+        pkgPreviewKind.value = 'other'
+        pkgPreviewText.value = '表格解析失败，可下载后本地打开。'
+      }
     }
     // PowerPoint
     else if (ext === 'pptx') {
@@ -1190,16 +1328,21 @@ async function previewPackageFile(relPath: string) {
         const text = new TextDecoder('utf-8').decode(buf)
         if (/[\x00-\x08\x0e-\x1f]/.test(text.slice(0, 200))) {
           pkgPreviewKind.value = 'other'
+          pkgPreviewText.value = `无法预览此格式，可下载查看：${relPath}`
         } else {
           pkgPreviewKind.value = 'text'
           pkgPreviewText.value = text
         }
       } catch {
         pkgPreviewKind.value = 'other'
+        pkgPreviewText.value = `无法预览此格式，可下载查看：${relPath}`
       }
     }
   } catch (e: any) {
-    const detail = decodeAxiosDetail(e) || '预览失败'
+    const status = e?.response?.status
+    const detail =
+      decodeAxiosDetail(e) ||
+      (status === 404 ? '文件不存在或路径无效（404）' : '预览失败')
     message.error(detail)
     pkgPreviewKind.value = 'other'
     pkgPreviewText.value = detail
@@ -1777,6 +1920,23 @@ onMounted(async () => {
 .pkg-table-wrap :deep(th) {
   border: 1px solid #e5e7eb;
   padding: 4px 8px;
+}
+.pkg-edit-bar {
+  margin-bottom: 8px;
+}
+.pkg-editable {
+  min-height: 200px;
+  outline: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: #fff;
+}
+.pkg-editable:focus {
+  outline-color: #1677ff;
+}
+.pkg-tsv {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
 }
 .inline-fns {
   display: flex;

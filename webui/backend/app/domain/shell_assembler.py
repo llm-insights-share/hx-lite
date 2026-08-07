@@ -79,10 +79,12 @@ def assemble_appendix(
     sensors: list[str],
     other_guides: list[tuple[str, str]] | None = None,
     path_layout: dict | None = None,
+    template_primary_files: dict[str, str] | None = None,
 ) -> str:
     from app.domain.path_layout import format_path_layout_section
 
     other_guides = other_guides or []
+    template_primary_files = template_primary_files or {}
     skill_rows = "\n".join(f"| `{g}` | guide.skill | |" for g in guides) or "| — | — | — |"
     tpl_rows = "\n".join(f"| `{t}` | guide.template | |" for t in templates) or "| — | — | — |"
     other_rows = (
@@ -99,11 +101,32 @@ def assemble_appendix(
         )
     else:
         selection.append("- 未绑定 Skill 资产。")
+    deliverable_ext = "md"
     if len(templates) == 1:
-        selection.append(f"- **Template：** 使用 `{templates[0]}` 组织交付物结构。")
+        tid = templates[0]
+        primary = (template_primary_files.get(tid) or "").strip()
+        if primary:
+            ext = primary.rsplit(".", 1)[-1] if "." in primary else ""
+            if ext:
+                deliverable_ext = ext
+            ext_hint = f"（扩展名 `.{ext}` 须一致）" if ext else ""
+            selection.append(
+                f"- **Template（必须遵守）：** 交付物须按绑定模版 `{tid}` 的**格式与结构**产出；"
+                f"主文件参考 `{primary}`{ext_hint}。先阅读模版内容再落盘。"
+            )
+        else:
+            selection.append(
+                f"- **Template（必须遵守）：** 交付物须按绑定模版 `{tid}` 的**格式与结构**产出；"
+                "先阅读模版内容再落盘。"
+            )
     elif len(templates) > 1:
+        bits = []
+        for tid in templates:
+            primary = (template_primary_files.get(tid) or "").strip()
+            bits.append(f"`{tid}`" + (f"（参考 `{primary}`）" if primary else ""))
         selection.append(
-            f"- **Templates（{len(templates)}）：** 通常选用 **一种** 产出形态；不明确时询问用户。"
+            f"- **Templates（{len(templates)}，必须遵守）：** 通常选用 **一种** 产出形态 "
+            f"（{', '.join(bits)}）；交付物格式/结构须与所选模版一致；不明确时询问用户。"
         )
     if len(other_guides) == 1:
         gid, kind = other_guides[0]
@@ -113,7 +136,9 @@ def assemble_appendix(
             f"- **其它 Guides（{len(other_guides)}）：** 按 kind 适用约束/范例/脚手架等；不明确时询问用户。"
         )
 
-    path_section = format_path_layout_section(stage, task, path_layout)
+    path_section = format_path_layout_section(
+        stage, task, path_layout, deliverable_ext=deliverable_ext
+    )
 
     sections = [
         BOUND_GUIDES_MARKER,
@@ -270,9 +295,11 @@ def assemble_shell(
     guide_contents: dict[str, str] | None = None,
     other_guides: list[tuple[str, str]] | None = None,
     path_layout: dict | None = None,
+    template_primary_files: dict[str, str] | None = None,
 ) -> dict[str, str]:
     guide_contents = guide_contents or {}
     other_guides = other_guides or []
+    template_primary_files = template_primary_files or {}
     # region agent log
     _debug_log(
         "run-pre-fix",
@@ -285,12 +312,13 @@ def assemble_shell(
             "guides_len": len(guides),
             "guides_unique_len": len(set(guides)),
             "other_guides_len": len(other_guides),
+            "templates_len": len(templates),
             "guide_contents_len": len(guide_contents),
             "body_start_count": (body or "").count(GUIDE_INPUTS_START),
         },
     )
     # endregion
-    inject_ids = list(guides) + [gid for gid, _ in other_guides]
+    inject_ids = list(guides) + list(templates) + [gid for gid, _ in other_guides]
     ordered = [(gid, guide_contents.get(gid, "")) for gid in inject_ids if gid in guide_contents]
     block = build_guide_inputs_block(ordered)
     body_with_inputs = inject_guide_inputs(body, block)
@@ -302,6 +330,7 @@ def assemble_shell(
         sensors,
         other_guides=other_guides,
         path_layout=path_layout,
+        template_primary_files=template_primary_files,
     )
     return {
         "slash_name": slash_name(stage, task),

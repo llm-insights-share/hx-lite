@@ -37,4 +37,15 @@ describe("path_layout", () => {
     assert.match(md, /docs\/requirements/);
     assert.match(md, /docs\/req/);
   });
+
+  it("formats deliverable extension from template primary", () => {
+    const md = formatPathLayoutSection(
+      "arch",
+      "database-design",
+      DEFAULT_PATH_LAYOUT,
+      "docx",
+    );
+    assert.match(md, /docs\/architecture\/database-design\.docx/);
+    assert.doesNotMatch(md, /database-design\.md/);
+  });
 });

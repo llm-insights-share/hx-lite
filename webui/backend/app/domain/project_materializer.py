@@ -18,7 +18,61 @@ from app.core.models import (
     StageTask,
     TaskShellRunLog,
 )
+from app.domain.guide_package import (
+    effective_guide_fields,
+    load_package_blobs,
+    parse_package_files_json,
+)
 from app.domain.ref_skills import parse_ref_skills_json
+
+
+def _org_id_from_project(project: Project) -> str:
+    try:
+        cfg = json.loads(project.config_json or "{}")
+        if isinstance(cfg.get("org_id"), str) and cfg["org_id"]:
+            return cfg["org_id"]
+    except json.JSONDecodeError:
+        pass
+    return "default"
+
+
+def _effective_project_guide_item(
+    g: ProjectGuide,
+    org_by_aid: dict[str, Guide] | None = None,
+) -> dict[str, Any]:
+    """Flat guide dict with org package overlay when source is org."""
+    source = (getattr(g, "source", None) or "").strip()
+    og = (org_by_aid or {}).get(g.asset_id)
+    if not source:
+        source = "org" if og else "project"
+    eff = effective_guide_fields(
+        source=source,
+        row_content=g.content or "",
+        row_content_mode=getattr(g, "content_mode", None) or "markdown",
+        row_package_path=getattr(g, "package_path", None) or "",
+        row_package_files_json=getattr(g, "package_files_json", None) or "[]",
+        row_kind=g.kind or "",
+        org=og if source == "org" else None,
+    )
+    refs_raw = (
+        getattr(og, "ref_skills_json", None)
+        if source == "org" and og is not None
+        else getattr(g, "ref_skills_json", None)
+    )
+    return {
+        "asset_id": g.asset_id,
+        "name": (getattr(g, "name", None) or g.asset_id or "")[:20],
+        "kind": eff["kind"] or g.kind,
+        "stage": g.stage,
+        "task": g.task,
+        "content": eff["content"],
+        "content_mode": eff["content_mode"],
+        "package_path": eff["package_path"],
+        "package_files": eff["package_files"],
+        "primary_file": eff["primary_file"],
+        "ref_skills": parse_ref_skills_json(refs_raw),
+        "source": source,
+    }
 
 
 def _project_stage_ids(project: Project) -> list[str]:
@@ -112,18 +166,16 @@ def build_project_hx_view(session: Session, project: Project) -> dict[str, Any]:
     guides = session.exec(select(ProjectGuide).where(ProjectGuide.project_id == project.id)).all()
     sensors = session.exec(select(ProjectSensor).where(ProjectSensor.project_id == project.id)).all()
 
+    org_id = _org_id_from_project(project)
+    org_by_aid = {
+        g.asset_id: g
+        for g in session.exec(select(Guide).where(Guide.org_id == org_id)).all()
+    }
+
     guides_by_key: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
     guides_flat: list[dict[str, Any]] = []
     for g in guides:
-        item = {
-            "asset_id": g.asset_id,
-            "name": (getattr(g, "name", None) or g.asset_id or "")[:20],
-            "kind": g.kind,
-            "stage": g.stage,
-            "task": g.task,
-            "content": g.content or "",
-            "ref_skills": parse_ref_skills_json(getattr(g, "ref_skills_json", None)),
-        }
+        item = _effective_project_guide_item(g, org_by_aid)
         guides_flat.append(item)
         guides_by_key.setdefault((g.stage, g.task, g.asset_id), []).append(item)
         # also index by asset only for loose binding
@@ -378,6 +430,26 @@ def export_project_for_cli(
     # Filter out any leftover workflow guides from export payload
     guides_out = [g for g in guides_out if (g.get("kind") or "") not in ("guide.workflow", "guide.command") and not str(g.get("asset_id") or "").startswith("wf-")]
 
+    # Attach package blobs for CLI materialize (docx/xlsx templates, etc.)
+    for g in guides_out:
+        mode = (g.get("content_mode") or "").strip().lower()
+        pkg_path = (g.get("package_path") or "").strip()
+        files = g.get("package_files") if isinstance(g.get("package_files"), list) else []
+        if mode == "package" and pkg_path:
+            blobs = load_package_blobs(pkg_path, [str(x) for x in files] if files else None)
+            g["package_blobs"] = blobs
+            if not g.get("primary_file") and files:
+                from app.domain.guide_package import pick_primary_package_filename
+
+                g["primary_file"] = pick_primary_package_filename(
+                    [str(x) for x in files], g.get("kind") or ""
+                )
+        else:
+            g.setdefault("package_blobs", [])
+            g.setdefault("package_files", files if isinstance(files, list) else [])
+            g.setdefault("primary_file", g.get("primary_file") or "")
+            g.setdefault("content_mode", g.get("content_mode") or "markdown")
+
     from app.core.models import OrgSettings
     from app.domain.path_layout import parse_path_layout
 
@@ -477,6 +549,8 @@ def materialize_project_config(session: Session, project: Project, org_id: str =
                 source="org",
                 version=getattr(g, "version", None) or "1.0.0",
                 content_mode=getattr(g, "content_mode", None) or "markdown",
+                package_path=getattr(g, "package_path", None) or "",
+                package_files_json=getattr(g, "package_files_json", None) or "[]",
                 ref_skills_json=getattr(g, "ref_skills_json", None) or "[]",
             )
         )
@@ -584,6 +658,9 @@ def _guide_fields_equal(pg: ProjectGuide, g: Guide) -> bool:
         and (pg.status or "draft") == (getattr(g, "status", None) or "draft")
         and (pg.version or "1.0.0") == (getattr(g, "version", None) or "1.0.0")
         and (pg.content_mode or "markdown") == (getattr(g, "content_mode", None) or "markdown")
+        and (getattr(pg, "package_path", None) or "") == (getattr(g, "package_path", None) or "")
+        and parse_package_files_json(getattr(pg, "package_files_json", None))
+        == parse_package_files_json(getattr(g, "package_files_json", None))
         and (pg.stage or "") == (g.stage or "")
         and (pg.task or "") == (g.task or "")
         and _norm_json_list_ordered(getattr(pg, "ref_skills_json", None))
@@ -616,6 +693,8 @@ def _apply_guide_from_org(pg: ProjectGuide, g: Guide) -> None:
     pg.source = "org"
     pg.version = getattr(g, "version", None) or "1.0.0"
     pg.content_mode = getattr(g, "content_mode", None) or "markdown"
+    pg.package_path = getattr(g, "package_path", None) or ""
+    pg.package_files_json = getattr(g, "package_files_json", None) or "[]"
     pg.ref_skills_json = getattr(g, "ref_skills_json", None) or "[]"
 
 
@@ -694,6 +773,8 @@ def sync_project_from_org(session: Session, project: Project, org_id: str = "def
                     source="org",
                     version=getattr(og, "version", None) or "1.0.0",
                     content_mode=getattr(og, "content_mode", None) or "markdown",
+                    package_path=getattr(og, "package_path", None) or "",
+                    package_files_json=getattr(og, "package_files_json", None) or "[]",
                     ref_skills_json=getattr(og, "ref_skills_json", None) or "[]",
                 )
             )

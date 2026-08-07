@@ -40,6 +40,11 @@ class PathLayoutTest(unittest.TestCase):
         self.assertIn("docs/req", md)
         self.assertIn("biz-understanding.md", md)
 
+    def test_format_section_deliverable_ext(self) -> None:
+        md = format_path_layout_section("arch", "database-design", deliverable_ext="docx")
+        self.assertIn("docs/architecture/database-design.docx", md)
+        self.assertNotIn("database-design.md", md)
+
     def test_normalize_rejects_bad_stage(self) -> None:
         with self.assertRaises(ValueError):
             normalize_path_layout({"stages": {"Bad Stage": {"root": "x"}}})

@@ -104,6 +104,21 @@ nhx --help
 2. 在 **Check 资产** 勾选关卡（人工关卡如 `prd-approved`，列表中会标紫色）。
 3. 保存。项目侧需「重新初始化」或本地 `nhx sync` 才会吃到变更。
 
+### 3.2.1 Guide package（docx / xlsx 等）与产物扩展名
+
+Template 类 Guide 支持 **package** 内容模式（上传文件夹或 Word/Excel 模版），不只 markdown：
+
+| 项 | 说明 |
+|----|------|
+| 组织侧 | Guide & Check → 上传 package；主文件优先 `.docx` / `.xlsx` / `template.md` 等 |
+| 任务壳 | 绑定后附录自动提示「主文件参考 …（扩展名须一致）」；**建议文件**扩展名跟随该主文件（如 `docs/architecture/database-design.docx`） |
+| 本地 sync | `nhx sync` 将包文件落到 `.nhx/guides/<asset_id>/`，并更新 `.nhx/commands/nhx-*.md` |
+| 门禁 | `file.exists` 路径应与建议文件扩展名一致（例：`arch-database-design-complete` → `database-design.docx`） |
+
+修改 package 后会刷新绑定该 Guide 的 CommandShell；项目侧再执行「重新初始化」或 `nhx sync` 即可。
+
+典型：`arch` / `database-design` 绑定 `arch-db-design-template`（docx）时，Agent 应按 `.docx` 落盘，`nhx check --stage arch --task database-design` 校验同路径。
+
 ### 3.3 Check Type
 
 | 类型 | 含义 |
@@ -197,7 +212,7 @@ nhx --help
 | `nhx status` | 本地配置 / 会话状态 |
 | `nhx doctor` | 检查 API、token、`.nhx`、IDE 投影 |
 | `nhx check [--stage --task]` | 跑当前任务绑定的 Check |
-| `nhx sensor check …` | （兼容别名）同 `nhx check` |
+| `nhx sensor check …` | （兼容旧名）同 `nhx check` |
 | `nhx session mark --stage … --task …` | 记录会话上下文（供 hooks） |
 | `nhx approve request --stage … --task …` | 创建并提交 human-check 工单 |
 | `nhx approve status --stage … --task …` | 查询审批状态 |
@@ -240,9 +255,12 @@ nhx sync --stages arch
   config.yaml       # api_base / project_id / stages / targets
   credentials       # JWT（勿提交）
   lock.json
-  tasks.json        # stage/task → guides / sensors
+  path_layout.json  # 阶段产物根目录约定
+  tasks.json        # stage/task → guides / checks（字段名 sensors 为兼容）
   guides/
-  sensors/          # *.md + *.meta.json（含 check_type）
+    <id>.md         # Guide 正文
+    <id>/…          # package 模版文件（docx/xlsx/…）
+  sensors/          # Check 资产（*.md + *.meta.json；目录名为历史兼容）
   commands/
   skills/
 .cursor/commands/nhx-*.md
@@ -252,6 +270,7 @@ nhx sync --stages arch
 .trae/skills/nhx-*/
 ```
 
+**产物扩展名：** 若任务只绑定一个 package template，命令壳「本任务建议文件」使用该主文件扩展名（默认仍为 `.md`）。Agent 与 `file.exists` 门禁应对齐同一路径。
 ### 5.5 Cursor Hooks
 
 `init` / `adapter sync` 会合并 hooks：
@@ -305,6 +324,8 @@ nhx sync --stages arch
 | `nhx login` 连不上 | 确认后端 `:8000`，`curl http://127.0.0.1:8000/api/health` |
 | Token 失效 | 重新 `nhx login`；看 `nhx doctor` |
 | 改了组织绑定但本地无变化 | 项目「重新初始化」或 `nhx sync` |
+| package 模版本地没有 docx | 确认后端已加载最新代码后 `nhx sync`；检查 `.nhx/guides/<template-id>/` |
+| 门禁仍查 `.md` 但壳要求 `.docx` | 同步最新 Check；对齐 `nhx check` 与建议文件路径 |
 | human Check 一直 FAIL | 确认工单类型为 `human-check`、Stage/Task 完全一致、状态为 `approved` |
 | 项目 GitHub 同步报 Token 未配置 | 在组织「设置」填 Token，或设 `HX_WEBUI_GITHUB_TOKEN` |
 | IDE 无 nhx 命令 | `nhx adapter sync`；检查 `.cursor/commands/nhx-*.md` |
@@ -319,8 +340,7 @@ nhx sync --stages arch
 | [webui/README.md](../webui/README.md) | WebUI 启停、环境变量、API 概览 |
 | [packages/nhx/README.md](../packages/nhx/README.md) | nhx 包内速查 |
 | [docs/nhx-command-manual.zh-CN.md](nhx-command-manual.zh-CN.md) | nhx 命令手册（项目 HX） |
-| [docs/cli-reference.zh-CN.md](cli-reference.zh-CN.md) | 传统 `hx` CLI 速查（非 nhx） |
-| [docs/hxhub-usage.zh-CN.md](hxhub-usage.zh-CN.md) | `hxhub` / Hub 运维 |
+| [docs/guide-kinds-harness-samples.zh-CN.md](guide-kinds-harness-samples.zh-CN.md) | Guide 类型与样例（含 template package） |
 
 ---
 
@@ -334,3 +354,4 @@ nhx sync --stages arch
 - [ ] `nhx submit` 后产物出现在 WebUI  
 - [ ] `nhx approve request` → WebUI 批准 → `nhx check` PASS  
 - [ ] `nhx sync --stages arch` 叠加阶段成功  
+- [ ]（可选）docx template：`.nhx/guides/<template>/` 有包文件；任务壳建议 `.docx`；`nhx check` 按同路径 PASS  

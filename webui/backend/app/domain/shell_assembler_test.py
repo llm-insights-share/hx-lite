@@ -125,6 +125,25 @@ class ShellAssemblerGuideInputsTest(unittest.TestCase):
         self.assertIn("`guide.playbook`", assembled["appendix"])
         self.assertIn("### 来自 `team-playbook`", assembled["body"])
 
+    def test_template_primary_docx_sets_suggested_file(self) -> None:
+        assembled = assemble_shell(
+            stage="arch",
+            task="database-design",
+            description="数据库设计",
+            body=defaults.default_workflow_body("arch", "database-design", "数据库设计"),
+            guides=["database-design"],
+            templates=["arch-db-design-template"],
+            sensors=["arch-database-design-complete"],
+            guide_contents={"database-design": "## 输入\n- `<inputs>`：输入。\n"},
+            template_primary_files={
+                "arch-db-design-template": "4-数据库设计文档示例.docx",
+            },
+        )
+        self.assertIn("docs/architecture/database-design.docx", assembled["appendix"])
+        self.assertIn("4-数据库设计文档示例.docx", assembled["appendix"])
+        self.assertIn("扩展名 `.docx` 须一致", assembled["appendix"])
+        self.assertNotIn("database-design.md", assembled["appendix"])
+
 
 if __name__ == "__main__":
     unittest.main()

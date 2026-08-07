@@ -28,6 +28,13 @@ from app.core.models import (
 from app.domain.asset_submission import decide_submission, set_asset_status, submission_payload
 from app.domain.bootstrap import bootstrap_org
 from app.domain.hub_exporter import export_hub
+from app.domain.guide_package import (
+    content_disposition_inline,
+    content_fallback_for_path,
+    merge_package_file_list,
+    package_files_json_dumps,
+    write_single_package_file,
+)
 from app.domain.ref_skills import (
     normalize_ref_skills,
     parse_ref_skills_json,
@@ -39,6 +46,7 @@ from app.domain.org_task_shell import (
     assemble_from_bindings,
     delete_command_shell_if_orphan,
     refresh_command_shell,
+    refresh_shells_binding_guide,
 )
 from app.services import github as github_svc
 
@@ -1069,6 +1077,8 @@ async def upload_guide(
     session.add(row)
     session.commit()
     session.refresh(row)
+    refresh_shells_binding_guide(session, org_id, row.asset_id)
+    session.commit()
     write_org_log(
         session,
         user,
@@ -1293,16 +1303,17 @@ def get_guide_package(guide_id: int, session: SessionDep, _user: CurrentUser):
         except HTTPException:
             disk_files = []
     # Merge metadata + disk so the left tree shows the full package inventory.
-    files = sorted({*meta_files, *disk_files})
-    # If primary SKILL.md is missing everywhere but content is stored in DB, keep a virtual entry.
-    content = (row.content or "").strip()
-    if content and not any(f.rsplit("/", 1)[-1].lower() == "skill.md" for f in files):
-        files = sorted({*files, "SKILL.md"})
+    files = merge_package_file_list(
+        sorted({*meta_files, *disk_files}),
+        content=row.content or "",
+        kind=row.kind or "",
+    )
     return {
         "id": row.id,
         "asset_id": row.asset_id,
         "package_path": row.package_path or "",
         "content_mode": row.content_mode,
+        "kind": row.kind,
         "files": files,
         "content": row.content or "",
     }
@@ -1321,6 +1332,8 @@ def get_guide_package_file(
     rel = (path or "").replace("\\", "/").lstrip("./")
     if not rel or ".." in rel.split("/"):
         raise HTTPException(400, "invalid path")
+    if (row.kind or "") == "guide.template" and Path(rel).name.lower() == "skill.md":
+        raise HTTPException(404, "template 包不含 SKILL.md")
     root = None
     if (row.package_path or "").strip():
         try:
@@ -1335,22 +1348,78 @@ def get_guide_package_file(
             return Response(
                 content=data,
                 media_type=ctype or "application/octet-stream",
-                headers={"Content-Disposition": f'inline; filename="{target.name}"'},
+                headers={"Content-Disposition": content_disposition_inline(target.name)},
             )
-    # Fallback: primary SKILL.md may be missing on disk while DB content remains
-    # (also covers markdown/text guides with virtual SKILL.md and empty package_path)
-    basename = Path(rel).name.lower()
-    if basename == "skill.md" and (row.content or "").strip():
+    if content_fallback_for_path(rel, row.kind or "") and (row.content or "").strip():
         data = (row.content or "").encode("utf-8")
         return Response(
             content=data,
             media_type="text/markdown; charset=utf-8",
-            headers={"Content-Disposition": f'inline; filename="{Path(rel).name}"'},
+            headers={"Content-Disposition": content_disposition_inline(Path(rel).name)},
         )
     if root is None and not (row.package_path or "").strip():
         raise HTTPException(404, "无 package")
     raise HTTPException(404, "文件不存在于包目录（可能已丢失）")
 
+
+@router.put("/guides/{guide_id}/package-file")
+async def put_guide_package_file(
+    guide_id: int,
+    path: str,
+    session: SessionDep,
+    user: CurrentUser,
+    file: UploadFile = File(...),
+):
+    """Overwrite a single file inside a guide package (docx/xlsx/md online edit write-back)."""
+    row = session.get(Guide, guide_id)
+    if not row:
+        raise HTTPException(404)
+    pkg = (row.package_path or "").strip()
+    if not pkg or (row.content_mode or "") != "package":
+        raise HTTPException(400, "仅 package 模式且已有包路径时可写回文件")
+    rel = (path or "").replace("\\", "/").lstrip("./")
+    if not rel or ".." in rel.split("/"):
+        raise HTTPException(400, "invalid path")
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "empty file")
+    try:
+        saved = write_single_package_file(pkg, rel, data)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    # Refresh primary text content when editing a text-like primary
+    file_map = {rel: data}
+    # Also include other disk files names only for pick? pick needs bytes — use edited file only if md
+    if Path(rel).suffix.lower() in (".md", ".markdown", ".txt"):
+        try:
+            text = data.decode("utf-8")
+            row.content = text
+        except UnicodeDecodeError:
+            pass
+    else:
+        # keep existing content; optionally note primary binary
+        pass
+    row.package_files_json = package_files_json_dumps(saved)
+    row.updated_at = datetime.now(timezone.utc)
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    refresh_shells_binding_guide(session, row.org_id or "default", row.asset_id)
+    session.commit()
+    write_org_log(
+        session,
+        user,
+        "guide_package_file_put",
+        f"写回 Guide 包文件 {row.asset_id}:{rel}",
+        detail={"id": row.id, "path": rel, "bytes": len(data)},
+        org_id=row.org_id,
+    )
+    return {
+        "ok": True,
+        "path": rel,
+        "files": merge_package_file_list(saved, content=row.content or "", kind=row.kind or ""),
+        "package_path": row.package_path,
+    }
 
 @router.delete("/guides/{guide_id}")
 def delete_guide(guide_id: int, session: SessionDep, user: CurrentUser):

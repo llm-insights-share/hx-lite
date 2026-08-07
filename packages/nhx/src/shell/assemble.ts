@@ -59,8 +59,10 @@ export function assembleAppendix(opts: {
   sensorDetails?: SensorShellInfo[];
   otherGuides?: Array<{ id: string; kind: string }>;
   pathLayout?: PathLayout | null;
+  templatePrimaryFiles?: Record<string, string>;
 }): string {
   const otherGuides = opts.otherGuides || [];
+  const templatePrimaryFiles = opts.templatePrimaryFiles || {};
   const skillRows =
     opts.guides.map((g) => `| \`${g}\` | guide.skill | |`).join("\n") || "| — | — | — |";
   const tplRows =
@@ -78,12 +80,31 @@ export function assembleAppendix(opts: {
     );
   else selection.push("- No skill assets bound.");
 
-  if (opts.templates.length === 1)
-    selection.push(`- **Template:** Structure deliverable using \`${opts.templates[0]}\`.`);
-  else if (opts.templates.length > 1)
+  let deliverableExt = "md";
+  if (opts.templates.length === 1) {
+    const tid = opts.templates[0];
+    const primary = (templatePrimaryFiles[tid] || "").trim();
+    if (primary) {
+      const ext = primary.includes(".") ? primary.split(".").pop() : "";
+      if (ext) deliverableExt = ext;
+      const extHint = ext ? ` (extension \`.${ext}\` must match)` : "";
+      selection.push(
+        `- **Template (required):** Deliverable MUST follow bound template \`${tid}\` format/structure; primary file \`${primary}\`${extHint}. Read the template before writing output.`,
+      );
+    } else {
+      selection.push(
+        `- **Template (required):** Deliverable MUST follow bound template \`${tid}\` format/structure. Read the template before writing output.`,
+      );
+    }
+  } else if (opts.templates.length > 1) {
+    const bits = opts.templates.map((tid) => {
+      const primary = (templatePrimaryFiles[tid] || "").trim();
+      return primary ? `\`${tid}\` (see \`${primary}\`)` : `\`${tid}\``;
+    });
     selection.push(
-      `- **Templates (${opts.templates.length}):** Normally pick **one** output shape; ask if unclear.`,
+      `- **Templates (${opts.templates.length}, required):** Normally pick **one** output shape (${bits.join(", ")}); match that template's format/structure; ask if unclear.`,
     );
+  }
 
   if (otherGuides.length === 1)
     selection.push(
@@ -98,7 +119,12 @@ export function assembleAppendix(opts: {
     opts.sensorDetails ||
     opts.sensors.map((id) => ({ id, check_type: "", content: "", triggers: [] as string[] }));
   const quality = qualityRulesSection(details);
-  const pathSection = formatPathLayoutSection(opts.stage, opts.task, opts.pathLayout);
+  const pathSection = formatPathLayoutSection(
+    opts.stage,
+    opts.task,
+    opts.pathLayout,
+    deliverableExt,
+  );
 
   return [
     BOUND_MARKER,
@@ -164,7 +190,7 @@ export function defaultWorkflowBody(stage: string, task: string, title: string):
     "3. Produce the deliverable for this task.",
     "",
     "## Output",
-    "- Task deliverables as defined by bound templates.",
+    "- Task deliverables MUST follow bound templates' format and structure (see appendix).",
     "",
     "## Done when",
     "- Gate / checks for this stage/task are green.",
@@ -182,6 +208,7 @@ export function assembleShell(opts: {
   sensorDetails?: SensorShellInfo[];
   otherGuides?: Array<{ id: string; kind: string }>;
   pathLayout?: PathLayout | null;
+  templatePrimaryFiles?: Record<string, string>;
 }): { slash_name: string; body: string; appendix: string; full: string } {
   const slash_name = slashName(opts.stage, opts.task);
   const body = (opts.body || defaultWorkflowBody(opts.stage, opts.task, opts.title)).trim();
