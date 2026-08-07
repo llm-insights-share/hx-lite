@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "org_id": "default",
+  "exported_at": "2026-08-07T04:30:28.218098+00:00",
+  "counts": {
+    "profiles": 6,
+    "stage_tasks": 101,
+    "guides": 61,
+    "sensors": 34,
+    "command_shells": 20,
+    "org_package_files": 23,
+    "projects": 4,
+    "project_tasks": 50,
+    "project_guides": 181,
+    "project_sensors": 102,
+    "project_package_files": 0
+  }
+}

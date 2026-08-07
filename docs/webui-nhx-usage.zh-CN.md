@@ -85,9 +85,16 @@ nhx --help
 
 ### 3.1 首次引导
 
-1. **工具 → 初始配置生成**：一键 bootstrap（Profile / Stage-Task / Guide / Check / Command）。
-2. **设置**：填写组织名、GitHub 仓库 URL、Token（可选）。
-3. **GitHub 推送**：导出 Hub → 预览 Diff → 推送。
+1. **开箱种子**：应用内置 `webui/backend/seed/org-default/`。空库首次启动会自动导入组织 Catalog（Profile / Stage·Task / Guide·Check / Command，含 package），并创建演示项目（`Demo Project` / `Second Project` / `demo1` / `demo2`）。
+2. **工具 → 初始配置生成**（可选）：有种子时按种子**重置组织 Catalog**；演示项目按 slug **只补齐缺失、不覆盖**本地已改项目。无种子时回退到代码内 `defaults`。
+3. **设置**：填写组织名、GitHub 仓库 URL、Token（可选）。
+4. **GitHub 推送**：导出 Hub → 预览 Diff → 推送。
+
+维护者若要更新仓库内种子，在已配置好的环境执行：
+
+```bash
+cd webui/backend && .venv/bin/python scripts/export_org_seed.py
+```
 
 ### 3.2 配置菜单
 

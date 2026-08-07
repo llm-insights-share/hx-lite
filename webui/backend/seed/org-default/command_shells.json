@@ -1,0 +1,182 @@
+[
+  {
+    "stage": "req",
+    "task": "biz-understanding",
+    "slash_name": "hx-req-biz-understanding",
+    "description": "业务理解",
+    "body": "# /hx-req-biz-understanding — 业务理解\n\n你正在执行 **req** 阶段任务 `biz-understanding`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `biz-understanding`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载 `<slug>` 的 PRD Context Pack。\n2. 阅读章程、绑定 Guide 与 PRD 产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/requirements/`\n- **本任务建议文件：** `docs/requirements/biz-understanding.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n- **已废弃别名（勿再写入）：** `docs/req/` → 请改用 `docs/requirements/`\n- **命名路径：**\n  - `prd` → `docs/prd/PRD.md`\n  - `prototype` → `docs/prototype`\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `biz-understanding` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `biz-understanding`。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `req-biz-understanding` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage req --task biz-understanding`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "req",
+    "task": "requirements-research",
+    "slash_name": "hx-req-requirements-research",
+    "description": "需求调研",
+    "body": "# /hx-req-requirements-research — 需求调研\n\n你正在执行 **req** 阶段任务 `requirements-research`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载 `<slug>` 的 PRD Context Pack。\n2. 阅读章程、绑定 Guide 与 PRD 产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/requirements/`\n- **本任务建议文件：** `docs/requirements/requirements-research.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n- **已废弃别名（勿再写入）：** `docs/req/` → 请改用 `docs/requirements/`\n- **命名路径：**\n  - `prd` → `docs/prd/PRD.md`\n  - `prototype` → `docs/prototype`\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| `requirements-research-outline` | guide.template | |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- 未绑定 Skill 资产。\n- **Template（必须遵守）：** 交付物须按绑定模版 `requirements-research-outline` 的**格式与结构**产出；先阅读模版内容再落盘。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `req-research-complete` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage req --task requirements-research`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "req",
+    "task": "requirements-analysis",
+    "slash_name": "hx-req-requirements-analysis",
+    "description": "需求分析",
+    "body": "# /hx-req-requirements-analysis — 需求分析\n\n你正在执行 **req** 阶段任务 `requirements-analysis`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `requirements-analysis`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载 `<slug>` 的 PRD Context Pack。\n2. 阅读章程、绑定 Guide 与 PRD 产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/requirements/`\n- **本任务建议文件：** `docs/requirements/requirements-analysis.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n- **已废弃别名（勿再写入）：** `docs/req/` → 请改用 `docs/requirements/`\n- **命名路径：**\n  - `prd` → `docs/prd/PRD.md`\n  - `prototype` → `docs/prototype`\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `requirements-analysis` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `requirements-analysis`。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `req-analysis-complete` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage req --task requirements-analysis`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "req",
+    "task": "prototype-design",
+    "slash_name": "hx-req-prototype-design",
+    "description": "产品原型设计",
+    "body": "# /hx-req-prototype-design — 产品原型设计\n\n你正在执行 **req** 阶段任务 `prototype-design`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `prototype-wireframe`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载 `<slug>` 的 PRD Context Pack。\n2. 阅读章程、绑定 Guide 与 PRD 产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/requirements/`\n- **本任务建议文件：** `docs/requirements/prototype-design.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n- **已废弃别名（勿再写入）：** `docs/req/` → 请改用 `docs/requirements/`\n- **命名路径：**\n  - `prd` → `docs/prd/PRD.md`\n  - `prototype` → `docs/prototype`\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `prototype-wireframe` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| `ui-pages-template` | guide.template | |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `prototype-wireframe`。\n- **Template（必须遵守）：** 交付物须按绑定模版 `ui-pages-template` 的**格式与结构**产出；先阅读模版内容再落盘。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `org-prototype-complete` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage req --task prototype-design`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "req",
+    "task": "prd-writing",
+    "slash_name": "hx-req-prd-writing",
+    "description": "产品需求文档编写",
+    "body": "# /hx-req-prd-writing — 产品需求文档编写\n\n你正在执行 **req** 阶段任务 `prd-writing`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析输入（如 change / slug / 模块名等等）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `prd-authoring`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n### 来自 `prd-section-exemplars`\n- `<slug>`：需求标识，从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载 `<slug>` 的 PRD Context Pack。\n2. 阅读章程、绑定 Guide 与 PRD 产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/requirements/`\n- **本任务建议文件：** `docs/requirements/prd-writing.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n- **已废弃别名（勿再写入）：** `docs/req/` → 请改用 `docs/requirements/`\n- **命名路径：**\n  - `prd` → `docs/prd/PRD.md`\n  - `prototype` → `docs/prototype`\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `prd-authoring` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| `prd-template` | guide.template | |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| `prd-section-exemplars` | `guide.exemplar` | |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `prd-authoring`。\n- **Template（必须遵守）：** 交付物须按绑定模版 `prd-template` 的**格式与结构**产出；先阅读模版内容再落盘。\n- **其它 Guide（`guide.exemplar`）：** 遵循 `prd-section-exemplars`。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `prd-complete` |\n| `prd-approved` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage req --task prd-writing`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "arch",
+    "task": "subsystem-division",
+    "slash_name": "hx-arch-subsystem-division",
+    "description": "子系统划分",
+    "body": "# /hx-arch-subsystem-division — 子系统划分\n\n你正在执行 **arch** 阶段任务 `subsystem-division`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `arch_subsystem`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载架构 Context Pack（LLD 时补充模块上下文）。\n2. 阅读章程、绑定 Guide 与架构产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/architecture/`\n- **本任务建议文件：** `docs/architecture/subsystem-division.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `arch_subsystem` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `arch_subsystem`。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| — |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage arch --task subsystem-division`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "arch",
+    "task": "tech-selection",
+    "slash_name": "hx-arch-tech-selection",
+    "description": "技术选型",
+    "body": "# /hx-arch-tech-selection — 技术选型\n\n你正在执行 **arch** 阶段任务 `tech-selection`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `arch-tech-selection`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载架构 Context Pack（LLD 时补充模块上下文）。\n2. 阅读章程、绑定 Guide 与架构产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/architecture/`\n- **本任务建议文件：** `docs/architecture/tech-selection.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `arch-tech-selection` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `arch-tech-selection`。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `arch-tech-selection-complete` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage arch --task tech-selection`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "arch",
+    "task": "database-design",
+    "slash_name": "hx-arch-database-design",
+    "description": "数据库设计",
+    "body": "# /hx-arch-database-design — 数据库设计\n\n你正在执行 **arch** 阶段任务 `database-design`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `database-design`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载架构 Context Pack（LLD 时补充模块上下文）。\n2. 阅读章程、绑定 Guide 与架构产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/architecture/`\n- **本任务建议文件：** `docs/architecture/database-design.docx`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `database-design` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| `arch-db-design-template` | guide.template | |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `database-design`。\n- **Template（必须遵守）：** 交付物须按绑定模版 `arch-db-design-template` 的**格式与结构**产出；主文件参考 `4-数据库设计文档示例.docx`（扩展名 `.docx` 须一致）。先阅读模版内容再落盘。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `arch-database-design-complete` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage arch --task database-design`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "arch",
+    "task": "interface-design",
+    "slash_name": "hx-arch-interface-design",
+    "description": "接口设计",
+    "body": "# /hx-arch-interface-design — 接口设计\n\n你正在执行 **arch** 阶段任务 `interface-design`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `interface-design`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载架构 Context Pack（LLD 时补充模块上下文）。\n2. 阅读章程、绑定 Guide 与架构产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/architecture/`\n- **本任务建议文件：** `docs/architecture/interface-design.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `interface-design` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| `api-contract-template` | guide.template | |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `interface-design`。\n- **Template（必须遵守）：** 交付物须按绑定模版 `api-contract-template` 的**格式与结构**产出；先阅读模版内容再落盘。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `arch-interface-design-complete` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage arch --task interface-design`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "arch",
+    "task": "key-mechanisms",
+    "slash_name": "hx-arch-key-mechanisms",
+    "description": "关键设计机制",
+    "body": "# /hx-arch-key-mechanisms — 关键设计机制\n\n你正在执行 **arch** 阶段任务 `key-mechanisms`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `key-mechanisms`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载架构 Context Pack（LLD 时补充模块上下文）。\n2. 阅读章程、绑定 Guide 与架构产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/architecture/`\n- **本任务建议文件：** `docs/architecture/key-mechanisms.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `key-mechanisms` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `key-mechanisms`。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `arch-key-mechanisms-complete` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage arch --task key-mechanisms`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "arch",
+    "task": "internal-interface",
+    "slash_name": "hx-arch-internal-interface",
+    "description": "内部接口设计",
+    "body": "# /hx-arch-internal-interface — 内部接口设计\n\n你正在执行 **arch** 阶段任务 `internal-interface`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析输入（如 change / slug / 模块名等等）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `arch-module-boundary`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n### 来自 `module-boundary-rules`\n- `<module>`：模块或变更标识，从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载架构 Context Pack（LLD 时补充模块上下文）。\n2. 阅读章程、绑定 Guide 与架构产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/architecture/`\n- **本任务建议文件：** `docs/architecture/internal-interface.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `arch-module-boundary` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| `arch-lld-template` | guide.template | |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| `module-boundary-rules` | `guide.constraint` | |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `arch-module-boundary`。\n- **Template（必须遵守）：** 交付物须按绑定模版 `arch-lld-template` 的**格式与结构**产出；先阅读模版内容再落盘。\n- **其它 Guide（`guide.constraint`）：** 遵循 `module-boundary-rules`。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `arch-lld-complete` |\n| `arch-lld-approved` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage arch --task internal-interface`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "dev",
+    "task": "plan",
+    "slash_name": "hx-dev-plan",
+    "description": "开发计划",
+    "body": "# /hx-dev-plan — 开发计划\n\n你正在执行 **dev** 阶段任务 `plan`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析输入（如 change / slug / 模块名等等）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `change-planning`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n### 来自 `change-scaffold`\n- `<change>`：变更标识（建议 kebab-case），从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载阶段 `dev` 任务 `plan` 的 Context Pack。\n2. 阅读章程、绑定 Guide 与变更产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/dev/`\n- **本任务建议文件：** `docs/dev/plan.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `change-planning` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| `change-scaffold` | `guide.scaffold` | |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `change-planning`。\n- **其它 Guide（`guide.scaffold`）：** 遵循 `change-scaffold`。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `plan-coverage` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage dev --task plan`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "dev",
+    "task": "propose",
+    "slash_name": "hx-dev-propose",
+    "description": "change:propose",
+    "body": "# /hx-dev-propose — change:propose\n\n你正在执行 **dev** 阶段任务 `propose`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `openspec-propose`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载阶段 `dev` 任务 `propose` 的 Context Pack。\n2. 阅读章程、绑定 Guide 与变更产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/dev/`\n- **本任务建议文件：** `docs/dev/propose.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `openspec-propose` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| `proposal-template` | guide.template | |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `openspec-propose`。\n- **Template（必须遵守）：** 交付物须按绑定模版 `proposal-template` 的**格式与结构**产出；先阅读模版内容再落盘。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `requirements-complete` |\n| `spec-validate` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage dev --task propose`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "dev",
+    "task": "design",
+    "slash_name": "hx-dev-design",
+    "description": "change:design",
+    "body": "# /hx-dev-design — change:design\n\n你正在执行 **dev** 阶段任务 `design`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `change-module-design`\n- `<change>`：变更标识（目录名或会话 change），从斜杠参数或用户消息解析。\n- 可选 `<modules>`：本变更触及的模块列表；未给出时从 proposal/requirements/规格推断。\n\n### 来自 `arch-module-boundary`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n### 来自 `module-boundary-rules`\n- `<module>`：模块或变更标识，从斜杠参数或用户消息解析。\n\n### 来自 `module-scaffold`\n- `<module>`：模块名（kebab-case 或 snake_case），从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载阶段 `dev` 任务 `design` 的 Context Pack。\n2. 阅读章程、绑定 Guide 与变更产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/dev/`\n- **本任务建议文件：** `docs/dev/design.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `change-module-design` | guide.skill | |\n| `arch-module-boundary` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| `change-module-lld-template` | guide.template | |\n| `arch-lld-template` | guide.template | |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| `module-boundary-rules` | `guide.constraint` | |\n| `module-scaffold` | `guide.scaffold` | |\n\n### 如何使用绑定 Guide\n- **Skills（2）：** 按领域匹配优先；不明确时询问用户优先级。\n- **Templates（2，必须遵守）：** 通常选用 **一种** 产出形态 （`change-module-lld-template`, `arch-lld-template`）；交付物格式/结构须与所选模版一致；不明确时询问用户。\n- **其它 Guides（2）：** 按 kind 适用约束/范例/脚手架等；不明确时询问用户。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `design-hld-complete` |\n| `design-lld-complete` |\n| `change-module-design-complete` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage dev --task design`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "dev",
+    "task": "verify",
+    "slash_name": "hx-dev-verify",
+    "description": "change:verify",
+    "body": "# /hx-dev-verify — change:verify\n\n你正在执行 **dev** 阶段任务 `verify`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `openspec-verify-change`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载阶段 `dev` 任务 `verify` 的 Context Pack。\n2. 阅读章程、绑定 Guide 与变更产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/dev/`\n- **本任务建议文件：** `docs/dev/verify.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `openspec-verify-change` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| `release-readiness-checklist` | guide.template | |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `openspec-verify-change`。\n- **Template（必须遵守）：** 交付物须按绑定模版 `release-readiness-checklist` 的**格式与结构**产出；先阅读模版内容再落盘。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `spec-validate` |\n| `spec-trace` |\n| `drift` |\n| `integration-smoke` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage dev --task verify`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "dev",
+    "task": "archive",
+    "slash_name": "hx-dev-archive",
+    "description": "change:archive",
+    "body": "# /hx-dev-archive — change:archive\n\n你正在执行 **dev** 阶段任务 `archive`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `openspec-archive-change`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载阶段 `dev` 任务 `archive` 的 Context Pack。\n2. 阅读章程、绑定 Guide 与变更产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/dev/`\n- **本任务建议文件：** `docs/dev/archive.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `openspec-archive-change` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| `archive-checklist` | guide.template | |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `openspec-archive-change`。\n- **Template（必须遵守）：** 交付物须按绑定模版 `archive-checklist` 的**格式与结构**产出；先阅读模版内容再落盘。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `spec-validate` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage dev --task archive`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "test",
+    "task": "test-case-design",
+    "slash_name": "hx-test-test-case-design",
+    "description": "测试用例设计",
+    "body": "# /hx-test-test-case-design — 测试用例设计\n\n你正在执行 **test** 阶段任务 `test-case-design`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `test-case-authoring`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载阶段 `test` 任务 `test-case-design` 的 Context Pack。\n2. 阅读章程、绑定 Guide 与变更产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/test/`\n- **本任务建议文件：** `docs/test/test-case-design.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `test-case-authoring` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| `test-cases-template` | guide.template | |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `test-case-authoring`。\n- **Template（必须遵守）：** 交付物须按绑定模版 `test-cases-template` 的**格式与结构**产出；先阅读模版内容再落盘。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `test-cases-complete` |\n| `test-cases-approved` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage test --task test-case-design`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "test",
+    "task": "test-execution",
+    "slash_name": "hx-test-test-execution",
+    "description": "测试任务执行",
+    "body": "# /hx-test-test-execution — 测试任务执行\n\n你正在执行 **test** 阶段任务 `test-execution`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `test-execution`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载阶段 `test` 任务 `test-execution` 的 Context Pack。\n2. 阅读章程、绑定 Guide 与变更产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/test/`\n- **本任务建议文件：** `docs/test/test-execution.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `test-execution` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| `uat-checklist` | guide.template | |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `test-execution`。\n- **Template（必须遵守）：** 交付物须按绑定模版 `uat-checklist` 的**格式与结构**产出；先阅读模版内容再落盘。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `uat-complete` |\n| `bugs-closed` |\n| `test-report-complete` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage test --task test-execution`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "req",
+    "task": "biz-model",
+    "slash_name": "hx-req-biz-model",
+    "description": "建立业务模型 — req/biz-model",
+    "body": "# /hx-req-biz-model — 建立业务模型\n\n你正在执行 **req** 阶段任务 `biz-model`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析标识（如 change / slug / 模块名）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `biz-model-anaysis`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Sensor 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 加载 `<slug>` 的 PRD Context Pack。\n2. 阅读章程、绑定 Guide 与 PRD 产物。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/requirements/`\n- **本任务建议文件：** `docs/requirements/biz-model.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n- **已废弃别名（勿再写入）：** `docs/req/` → 请改用 `docs/requirements/`\n- **命名路径：**\n  - `prd` → `docs/prd/PRD.md`\n  - `prototype` → `docs/prototype`\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `biz-model-anaysis` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `biz-model-anaysis`。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `biz-model-complete` |\n| `biz-model-approve` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage req --task biz-model`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  },
+  {
+    "stage": "dev",
+    "task": "apply",
+    "slash_name": "hx-dev-apply",
+    "description": "change:apply — dev/apply",
+    "body": "# /hx-dev-apply — change:apply\n\n你正在执行 **dev** 阶段任务 `apply`。\n\n## 输入\n- 从斜杠命令参数或用户消息中解析输入（如 change / slug / 模块名等等）。\n\n<!-- harnessx:guide-inputs -->\n### 来自 `openspec-apply-change`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n### 来自 `code-constraint1`\n- `<inputs>`：输入，根据skill要求从斜杠参数或用户消息解析。\n\n<!-- /harnessx:guide-inputs -->\n\n## 步骤\n1. 加载本阶段/任务的 Context Pack 与约束。\n2. 遵循绑定的 Skill / Template（见附录「特别上下文」）。\n3. 产出本任务约定的交付物。\n\n## 产出\n- 按绑定模板与任务定义生成交付文档或代码变更。\n\n## 护栏\n- 已有绑定模板时，不得自行发明文档结构。\n- 不得伪造未确认的业务规则或接口。\n\n## 完成标准\n- 本阶段/任务对应的 Check 门禁通过（绿灯）。",
+    "appendix": "<!-- harnessx:bound-guides -->\n\n## 特别上下文 / 特别约束（自动注入）\n\n### 特别上下文 — 加载上下文\n1. 对每个未完成任务：加载该变更的任务包。\n2. 然后遵循下方绑定的 Skill（及 Template，如有）。\n从参数或用户消息中解析 `<change>` / `<taskId>`。\n\n### 产物目录（系统约定，优先于 Guide 正文路径）\n\n- **本阶段根目录：** `docs/dev/`\n- **本任务建议文件：** `docs/dev/apply.md`（或根目录下任务约定文件名）\n- 交付物须写入上述根目录（或下方 named 路径）；**不要**写入已废弃别名目录。\n\n### 绑定 Skills\n\n| id | kind | source |\n|----|------|--------|\n| `openspec-apply-change` | guide.skill | |\n\n### 绑定 Templates\n\n| id | kind | source |\n|----|------|--------|\n| — | — | — |\n\n### 其它 Guides\n\n| id | kind | source |\n|----|------|--------|\n| `code-constraint1` | `guide.constraint` | |\n\n### 如何使用绑定 Guide\n- **Skill：** 遵循 `openspec-apply-change`。\n- **其它 Guide（`guide.constraint`）：** 遵循 `code-constraint1`。\n\n### 特别约束 — 绑定 Checks\n\n| check |\n|--------|\n| `spec-validate` |\n| `typecheck` |\n| `lint` |\n| `unit-changed` |\n\n### 特别约束 — 门禁\n宣称完成前：执行 `nhx check --stage dev --task apply`，未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。\n",
+    "impl": "both"
+  }
+]

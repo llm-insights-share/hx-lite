@@ -68,6 +68,20 @@ def load_guide_package_content(gid: str, kind: str | None = None) -> str:
     return f"# {gid}\n\n（待补充）请在组织 Guide 资产中完善本条目的中文正文。\n"
 
 def bootstrap_org(session: Session, org_id: str = "default", org_name: str = "Default Org") -> dict:
+    from app.domain.org_seed import ensure_demo_projects, import_org_seed, seed_available
+
+    if seed_available():
+        result = import_org_seed(session, org_id=org_id, clear_org=True, include_projects=True)
+        # Apply requested org_name on top of seed settings
+        settings = session.exec(select(OrgSettings).where(OrgSettings.org_id == org_id)).first()
+        if settings and org_name:
+            settings.org_name = org_name
+            settings.updated_at = datetime.now(timezone.utc)
+            session.add(settings)
+            session.commit()
+        result["bootstrap"] = "seed"
+        return result
+
     _clear_org(session, org_id)
 
     settings = session.exec(select(OrgSettings).where(OrgSettings.org_id == org_id)).first()
@@ -212,11 +226,14 @@ def bootstrap_org(session: Session, org_id: str = "default", org_name: str = "De
             shells += 1
     session.commit()
 
+    demo = ensure_demo_projects(session, org_id=org_id)
     return {
         "org_id": org_id,
+        "bootstrap": "defaults",
         "profiles": len(defaults.PROFILE_DEFS),
         "tasks_catalog": sum(len(v) for v in defaults.STAGE_TASKS.values()),
         "guides": len(guide_ids),
         "sensors": len(sensor_ids),
         "commands": shells,
+        "demo_projects": demo,
     }

@@ -19,6 +19,19 @@ cd webui
 
 常用环境变量：`HX_WEBUI_GITHUB_TOKEN`、`HX_WEBUI_ADMIN_*`、`HX_WEBUI_DATABASE_URL`、`HX_WEBUI_BACKEND_PORT`、`HX_WEBUI_FRONTEND_PORT`。
 
+## 内置种子（组织 Catalog + 演示项目）
+
+仓库内 [`backend/seed/org-default/`](backend/seed/org-default/) 携带组织 Profile / Stage·Task / Guide（含 package）/ Check / CommandShell，以及演示项目（`demo-project`、`second-project`、`demo-app`、`demo2`）。
+
+- **空库首次启动**：自动导入组织 Catalog，并幂等创建缺失的演示项目。
+- **工具 → 初始配置生成**：优先按种子重置组织 Catalog；演示项目只补齐缺失项，不覆盖已有同 slug 项目。
+- **刷新种子**（从当前运行库导出）：
+
+```bash
+cd webui/backend
+.venv/bin/python scripts/export_org_seed.py
+```
+
 ## Guide package
 
 Template Guide 支持 **package** 模式（docx / xlsx / md 等）。上传后：

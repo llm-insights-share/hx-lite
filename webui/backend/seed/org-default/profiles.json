@@ -1,0 +1,38 @@
+[
+  {
+    "key": "lite",
+    "title": "Lite",
+    "description": "快速 hotfix：仅 dev 阶段 propose/apply/archive",
+    "stages_json": "[\"dev\"]"
+  },
+  {
+    "key": "standard",
+    "title": "Standard",
+    "description": "标准四阶段交付",
+    "stages_json": "[\"req\", \"arch\", \"dev\", \"test\"]"
+  },
+  {
+    "key": "strict",
+    "title": "Strict",
+    "description": "与 standard 同任务集，更严 gate 策略",
+    "stages_json": "[\"req\", \"arch\", \"dev\", \"test\"]"
+  },
+  {
+    "key": "enterprise",
+    "title": "Enterprise",
+    "description": "企业 SDLC：全量阶段 + 工单审批语义",
+    "stages_json": "[\"req\", \"arch\", \"dev\", \"test\"]"
+  },
+  {
+    "key": "custom1",
+    "title": "自定义模式1",
+    "description": "产品经理端到端使用场景",
+    "stages_json": "[\"req\", \"arch\", \"dev\"]"
+  },
+  {
+    "key": "simple-sdlc",
+    "title": "简单产品",
+    "description": "标准二阶段交付",
+    "stages_json": "[\"req\", \"arch\", \"dev\"]"
+  }
+]

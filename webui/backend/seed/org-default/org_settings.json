@@ -1,0 +1,8 @@
+{
+  "org_id": "default",
+  "org_name": "Default Org",
+  "github_repo": "",
+  "github_branch": "main",
+  "guide_kinds_json": "[{\"id\": \"guide.stdlib\", \"title\": \"Stdlib / 标准库\", \"desc\": \"在开发中使用组织标准库\", \"category\": \"inferential\"}]",
+  "path_layout_json": ""
+}

@@ -54,6 +54,10 @@ def seed_admin() -> None:
 async def lifespan(_app: FastAPI):
     init_db()
     seed_admin()
+    from app.domain.org_seed import ensure_org_seeded
+
+    with Session(engine) as session:
+        ensure_org_seeded(session, org_id="default")
     yield
 
 
