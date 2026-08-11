@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import yaml from "yaml";
 import type { ExportPayload, GuideExport } from "../api/client.js";
 import { ensureNhxDir, lockPath, nhxRoot } from "../config.js";
 import { pickPrimaryPackageFilename } from "../guide_package.js";
@@ -31,11 +32,55 @@ function splitGuides(gids: string[], guidesById: Map<string, GuideExport>): {
   return { skills, templates };
 }
 
+/** Split leading YAML frontmatter; body is the rest (may be empty). */
+export function splitSkillFrontmatter(content: string): {
+  data: Record<string, unknown> | null;
+  body: string;
+} {
+  const text = (content || "").replace(/^\uFEFF/, "");
+  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  if (!m) return { data: null, body: text };
+  try {
+    const data = (yaml.parse(m[1]) || {}) as Record<string, unknown>;
+    return { data, body: m[2] ?? "" };
+  } catch {
+    return { data: null, body: text };
+  }
+}
+
+/**
+ * Always emit description as a folded block scalar (`description: >`).
+ * Indent each line by 2 spaces per YAML block-scalar rules.
+ */
+export function formatDescriptionFolded(description: string): string {
+  const normalized = String(description || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/^\n+|\n+$/g, "");
+  const lines = normalized.length ? normalized.split("\n") : [""];
+  const body = lines.map((line) => `  ${line}`).join("\n");
+  return `description: >\n${body}`;
+}
+
+/**
+ * Build a single Agent Skills SKILL.md. If `content` already has frontmatter,
+ * keep its description (and other fields ignored) and use `name` as the skill id
+ * so it matches the folder name — never emit two `---` blocks.
+ * Frontmatter always uses `description: >` (folded block scalar).
+ */
+export function buildSkillMarkdown(name: string, fallbackDescription: string, content: string): string {
+  const { data, body } = splitSkillFrontmatter(content);
+  const fromContent =
+    data && data.description != null ? String(data.description).trim() : "";
+  const description = fromContent || fallbackDescription || `nhx skill ${name}`;
+  const fm = `name: ${name}\n${formatDescriptionFolded(description)}`;
+  const rest = body.replace(/^\r?\n+/, "");
+  return `---\n${fm}\n---\n\n${rest}`.replace(/\s+$/, "\n");
+}
+
 function writeSkillShell(skillsDir: string, id: string, description: string, full: string): void {
   const dir = path.join(skillsDir, id);
   fs.mkdirSync(dir, { recursive: true });
-  const front = ["---", `name: ${id}`, `description: ${description}`, "---", ""].join("\n");
-  fs.writeFileSync(path.join(dir, "SKILL.md"), front + full, "utf8");
+  fs.writeFileSync(path.join(dir, "SKILL.md"), buildSkillMarkdown(id, description, full), "utf8");
 }
 
 function writeGuidePackageBlobs(guidesDir: string, g: GuideExport): void {
@@ -149,14 +194,11 @@ export function materializeExport(
     if ((g.asset_id || "").startsWith("wf-")) continue;
     const dir = path.join(skillsDir, g.asset_id);
     fs.mkdirSync(dir, { recursive: true });
-    const front = [
-      "---",
-      `name: ${g.asset_id}`,
-      `description: nhx skill ${g.asset_id}`,
-      "---",
-      "",
-    ].join("\n");
-    fs.writeFileSync(path.join(dir, "SKILL.md"), front + (g.content || ""), "utf8");
+    fs.writeFileSync(
+      path.join(dir, "SKILL.md"),
+      buildSkillMarkdown(g.asset_id, `nhx skill ${g.asset_id}`, g.content || ""),
+      "utf8",
+    );
     skillCount++;
   }
 

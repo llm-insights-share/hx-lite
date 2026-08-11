@@ -109,11 +109,13 @@ export function buildShellUsageMarkdown(
     '',
     '## 总览：在 IDE 中怎么用',
     '',
-    '1. **前置**：`nhx login` → `nhx sync`（可选 stage）→ `nhx adapter sync`，将壳投影到 IDE。',
+    '1. **前置**：`nhx login` → `nhx sync`（可选 stage）→ `nhx adapter sync`，将壳投影到 IDE。跨项目安装加 `--global`（写入 `~/.cursor/`、`~/.trae/`）。',
     '2. **Command Shell（Cursor / Qoder 等）**：在对话中输入斜杠命令 `/{ide_slash}`，可附带参数。',
-    '   - 投影路径：`.cursor/commands/{ide_slash}.md`（以及 `.nhx/commands/`）',
+    '   - 项目：`.cursor/commands/{ide_slash}.md`（以及 `.nhx/commands/`）',
+    '   - 全局：`~/.cursor/commands/{ide_slash}.md`（`nhx adapter sync --global`）',
     '3. **Skill Shell（Cursor / Trae 等）**：启用同名 Skill；无斜杠命令的 IDE 以 Skill 为主。',
-    '   - 投影路径：`.cursor/skills/{ide_slash}/SKILL.md`（以及 `.nhx/skills/`）',
+    '   - 项目：`.cursor/skills/{ide_slash}/SKILL.md`、`.trae/skills/{ide_slash}/SKILL.md`',
+    '   - 全局：`~/.cursor/skills/{ide_slash}/SKILL.md`、`~/.trae/skills/{ide_slash}/SKILL.md`',
     '4. 每个 Task **同时**具备 Command 与 Skill 两种壳，正文一致；Skill 含自动注入附录（绑定 Guide / Check）。',
     '',
     '## 目录',
@@ -171,8 +173,8 @@ export function buildShellUsageMarkdown(
       lines.push('#### 使用说明')
       lines.push('')
       lines.push(`- **Command**：在 Cursor 等支持斜杠命令的 IDE 中输入 \`/${slash}\`，按提示补充参数后执行任务。`)
-      lines.push(`- **Skill**：在 Cursor / Trae 等中启用 Skill \`${slash}\`（路径 \`.cursor/skills/${slash}/SKILL.md\`）。`)
-      lines.push(`- **投影文件**：\`.cursor/commands/${slash}.md\``)
+      lines.push(`- **Skill**：在 Cursor / Trae 等中启用 Skill \`${slash}\`（项目 \`.cursor/skills/${slash}/SKILL.md\`；全局 \`~/.cursor/skills/${slash}/SKILL.md\`）。`)
+      lines.push(`- **投影文件**：项目 \`.cursor/commands/${slash}.md\`；全局 \`~/.cursor/commands/${slash}.md\``)
       lines.push('')
       lines.push('任务意图 / 步骤摘要：')
       lines.push('')

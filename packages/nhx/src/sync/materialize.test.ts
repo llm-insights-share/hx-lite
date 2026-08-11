@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { materializeExport } from "./materialize.js";
+import { buildSkillMarkdown, materializeExport, splitSkillFrontmatter } from "./materialize.js";
 
 describe("materializeExport package blobs", () => {
   it("writes docx package under guides/{asset_id}/ and hints docx deliverable", () => {
@@ -88,5 +88,43 @@ describe("materializeExport package blobs", () => {
     assert.match(cmd, /database-design\.docx/);
     assert.match(cmd, /4-数据库设计文档示例\.docx/);
     assert.match(cmd, /extension `\.docx` must match/);
+  });
+});
+
+describe("buildSkillMarkdown frontmatter", () => {
+  it("does not double-wrap when content already has YAML frontmatter", () => {
+    const content = [
+      "---",
+      "name: subsystem-partitioning",
+      "description: >",
+      "  DDD 子系统划分",
+      "---",
+      "",
+      "# 子系统划分分析",
+      "",
+    ].join("\n");
+    const out = buildSkillMarkdown("arch_subsystem", "nhx skill arch_subsystem", content);
+    assert.equal((out.match(/^---$/gm) || []).length, 2, `expected one FM block, got:\n${out}`);
+    assert.match(out, /^---\nname: arch_subsystem\ndescription: >\n/);
+    assert.match(out, /description: >\n  DDD 子系统划分\n---/);
+    assert.doesNotMatch(out, /nhx skill arch_subsystem/);
+    assert.match(out, /# 子系统划分分析/);
+    const { data, body } = splitSkillFrontmatter(out);
+    assert.equal(data?.name, "arch_subsystem");
+    assert.match(String(data?.description), /DDD/);
+    assert.match(body, /# 子系统划分分析/);
+  });
+
+  it("always uses description: > folded block scalar", () => {
+    const out = buildSkillMarkdown("demo", "a demo skill", "# Hello\n");
+    assert.match(
+      out,
+      /^---\nname: demo\ndescription: >\n  a demo skill\n---\n\n# Hello\n/,
+    );
+  });
+
+  it("folds multiline description under description: >", () => {
+    const out = buildSkillMarkdown("x", "line1\nline2", "body");
+    assert.match(out, /^---\nname: x\ndescription: >\n  line1\n  line2\n---\n/);
   });
 });

@@ -38,10 +38,14 @@ nhx submit ./docs/prd-pack --name prd-pack --stage req --task prd-writing
 
 导出与自定义任务均将 Check **直接挂在 Task** 上。本地 `.nhx/tasks.json` 记录绑定关系。
 
-`nhx sync` / `adapter sync` **始终**投影两种壳（同一份 body+appendix）：
+`nhx sync` / `adapter sync` **始终**投影两种壳（同一份 body+appendix）。默认写入**项目目录**；加 `-g, --global` 则写入 IDE 用户级目录（跨项目可用）：
 
-- **Command Shell** → `.nhx/commands/nhx-*.md` → `.cursor/commands/`
-- **Skill Shell** → `.nhx/skills/nhx-*/SKILL.md` → `.cursor/skills/`（及 Trae 等无 slash 的 IDE）
+| 壳 | 项目级（默认） | 全局 `--global` |
+|----|----------------|-----------------|
+| Command Shell | `.cursor/commands/` | `~/.cursor/commands/` |
+| Skill Shell | `.cursor/skills/`、`.trae/skills/` | `~/.cursor/skills/`、`~/.trae/skills/` |
+
+Cursor Hooks 始终写在项目 `.cursor/hooks/`（相对路径，不适合作全局）。范围保存在 `.nhx/config.yaml` 的 `install_scope`。
 
 ## IDE Hooks（Cursor）
 
@@ -89,9 +93,10 @@ Check `check_type`：
     <asset_id>/…               # content_mode=package 时的包文件（如 *.docx / *.xlsx）
   sensors/*.md + *.meta.json   # Check 资产落盘（历史目录名）
   commands/  skills/
-.cursor/commands/nhx-*.md
-.cursor/hooks/nhx-*.mjs + hooks.json（合并）
-.trae/skills/nhx-*/
+.cursor/commands/nhx-*.md          # --global → ~/.cursor/commands/
+.cursor/skills/*/SKILL.md         # --global → ~/.cursor/skills/
+.cursor/hooks/nhx-*.mjs + hooks.json（合并，始终项目级）
+.trae/skills/nhx-*/               # --global → ~/.trae/skills/
 ```
 
 ### Template 包与产物扩展名

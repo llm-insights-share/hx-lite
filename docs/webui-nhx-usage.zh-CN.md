@@ -213,9 +213,9 @@ Template 类 Guide 支持 **package** 内容模式（上传文件夹或 Word/Exc
 | `nhx login` | 打开浏览器登录/注册页（可 `--webui`）；成功后写回 `.nhx/credentials` |
 | `nhx login -u <user>` | 终端提示密码后登录 |
 | `nhx login -u <user> -p <pass>` | 直接验证登录（可选 `--api`） |
-| `nhx init --project <id\|slug> --stages req,dev` | 首次拉资产并投影 IDE |
-| `nhx sync [--stages …] [--prune]` | 再同步；`--stages` **叠加**关注阶段 |
-| `nhx adapter sync` | 仅按本地 `.nhx` 重投影 |
+| `nhx init --project <id\|slug> --stages req,dev [--global]` | 首次拉资产并投影 IDE；`--global` 装到用户级 Skill 目录 |
+| `nhx sync [--stages …] [--global\|--local] [--prune]` | 再同步；`--stages` **叠加**关注阶段 |
+| `nhx adapter sync [--global\|--local]` | 仅按本地 `.nhx` 重投影 |
 | `nhx status` | 本地配置 / 会话状态 |
 | `nhx doctor` | 检查 API、token、`.nhx`、IDE 投影 |
 | `nhx check [--stage --task]` | 跑当前任务绑定的 Check |
@@ -235,6 +235,7 @@ nhx login                      # 打开浏览器登录/注册
 
 # 2. 在业务仓初始化（项目 ID 见 WebUI 项目列表）
 nhx init --project 1 --stages req,dev
+# 全局安装（跨项目可用）：nhx init --project 1 --stages req,dev --global
 
 # 3. IDE 中使用 /nhx-req-prd-writing 等命令壳完成任务
 
@@ -259,7 +260,7 @@ nhx sync --stages arch
 
 ```text
 .nhx/
-  config.yaml       # api_base / project_id / stages / targets
+  config.yaml       # api_base / project_id / stages / targets / install_scope
   credentials       # JWT（勿提交）
   lock.json
   path_layout.json  # 阶段产物根目录约定
@@ -270,11 +271,14 @@ nhx sync --stages arch
   sensors/          # Check 资产（*.md + *.meta.json；目录名为历史兼容）
   commands/
   skills/
+# 项目级（默认）
 .cursor/commands/nhx-*.md
+.cursor/skills/*/SKILL.md
 .cursor/hooks/nhx-session.mjs
 .cursor/hooks/nhx-check-stop.mjs
-.cursor/hooks.json          # 合并条目，不整文件覆盖
+.cursor/hooks.json          # 合并条目，不整文件覆盖；hooks 始终项目级
 .trae/skills/nhx-*/
+# 全局（--global）：~/.cursor/commands|skills 、 ~/.trae/skills
 ```
 
 **产物扩展名：** 若任务只绑定一个 package template，命令壳「本任务建议文件」使用该主文件扩展名（默认仍为 `.md`）。Agent 与 `file.exists` 门禁应对齐同一路径。
@@ -335,7 +339,7 @@ nhx sync --stages arch
 | 门禁仍查 `.md` 但壳要求 `.docx` | 同步最新 Check；对齐 `nhx check` 与建议文件路径 |
 | human Check 一直 FAIL | 确认工单类型为 `human-check`、Stage/Task 完全一致、状态为 `approved` |
 | 项目 GitHub 同步报 Token 未配置 | 在组织「设置」填 Token，或设 `HX_WEBUI_GITHUB_TOKEN` |
-| IDE 无 nhx 命令 | `nhx adapter sync`；检查 `.cursor/commands/nhx-*.md` |
+| IDE 无 nhx 命令 | `nhx adapter sync`；项目级看 `.cursor/commands/`，全局 `--global` 看 `~/.cursor/commands/` |
 | 误伤 hx hooks | nhx 只合并 `nhx-*`；勿手改删掉 hx 原有条目 |
 
 ---

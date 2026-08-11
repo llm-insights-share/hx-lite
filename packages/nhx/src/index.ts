@@ -1,7 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import fs from "node:fs";
-import path from "node:path";
 import { Command } from "commander";
 import {
   approvalStatus,
@@ -13,7 +12,7 @@ import {
   reportTaskShellRun,
   submitTicket,
 } from "./api/client.js";
-import { syncAdapters } from "./adapter/cursor.js";
+import { countAdapterProjection, syncAdapters } from "./adapter/cursor.js";
 import {
   ensureNhxDir,
   loadConfig,
@@ -22,6 +21,7 @@ import {
   mergeStages,
   nhxRoot,
   resolveApiBase,
+  resolveInstallScope,
   saveConfig,
   saveCredentials,
   type NhxConfig,
@@ -55,6 +55,8 @@ async function doSync(opts: {
   prune?: boolean;
   targets?: string[];
   cwd?: string;
+  global?: boolean;
+  local?: boolean;
 }): Promise<void> {
   const cwd = opts.cwd || process.cwd();
   const cfg = loadConfig(cwd);
@@ -65,7 +67,10 @@ async function doSync(opts: {
   const token = requireToken(cwd);
   const stages = opts.stages?.length ? opts.stages : cfg.stages;
   const projectRef = cfg.project_id ?? cfg.project_slug!;
-  console.log(`↻ sync project=${projectRef} stages=${stages.join(",") || "(all)"} api=${api}`);
+  const install_scope = resolveInstallScope({ global: opts.global, local: opts.local, config: cfg });
+  console.log(
+    `↻ sync project=${projectRef} stages=${stages.join(",") || "(all)"} api=${api} scope=${install_scope}`,
+  );
   const payload = await exportProject(api, token, projectRef, stages);
   const stats = materializeExport(payload, { prune: opts.prune, cwd });
   const mergedStages = mergeStages(cfg.stages, payload.stages_filter || stages);
@@ -77,9 +82,10 @@ async function doSync(opts: {
     project_slug: payload.project.slug,
     stages: mergedStages,
     targets,
+    install_scope,
   };
   saveConfig(next, cwd);
-  const adapter = syncAdapters(targets, cwd);
+  const adapter = syncAdapters(targets, cwd, { scope: install_scope });
   console.log("✓ materialize", stats);
   console.log("✓ adapter", adapter);
 }
@@ -128,6 +134,7 @@ function buildProgram(): Command {
               api_base: api,
               stages: [],
               targets: ["cursor", "trae"],
+              install_scope: "project" as const,
             };
             cfg.api_base = api;
             saveConfig(cfg, cwd);
@@ -163,6 +170,7 @@ function buildProgram(): Command {
             api_base: api,
             stages: [],
             targets: ["cursor", "trae"],
+            install_scope: "project" as const,
           };
           cfg.api_base = api;
           saveConfig(cfg, cwd);
@@ -179,7 +187,9 @@ function buildProgram(): Command {
     .description("初始化 .nhx、按 stage 拉取资产并安装到 IDE")
     .requiredOption("--project <idOrSlug>", "项目 ID 或 slug")
     .requiredOption("--stages <list>", "关注的 stage，逗号分隔，如 req,dev")
-    .option("--targets <list>", "IDE 目标，逗号分隔", "cursor,trae")
+    .option("--targets <list>", "IDE 目标，逗号分隔（cursor,trae,trae-cn）", "cursor,trae")
+    .option("-g, --global", "Skill/Command 安装到 IDE 用户级目录（~/.cursor、~/.trae）")
+    .option("--local", "Skill/Command 安装到项目目录（.cursor、.trae）")
     .option("--api <url>", "覆盖 API（可选）")
     .option("--prune", "清理未包含的本地资产", false)
     .action(
@@ -189,13 +199,22 @@ function buildProgram(): Command {
         targets: string;
         api?: string;
         prune?: boolean;
+        global?: boolean;
+        local?: boolean;
       }) => {
         const cwd = process.cwd();
         const api = resolveApiBase(opts.api, cwd);
         const token = requireToken(cwd);
         const stages = opts.stages.split(",").map((s) => s.trim()).filter(Boolean);
         const targets = opts.targets.split(",").map((s) => s.trim()).filter(Boolean);
-        console.log(`↻ init project=${opts.project} stages=${stages.join(",")} api=${api}`);
+        const install_scope = resolveInstallScope({
+          global: opts.global,
+          local: opts.local,
+          config: loadConfig(cwd),
+        });
+        console.log(
+          `↻ init project=${opts.project} stages=${stages.join(",")} api=${api} scope=${install_scope}`,
+        );
         const payload = await exportProject(api, token, opts.project, stages);
         materializeExport(payload, { prune: opts.prune, cwd });
         saveConfig(
@@ -205,10 +224,11 @@ function buildProgram(): Command {
             project_slug: payload.project.slug,
             stages: payload.stages_filter || stages,
             targets,
+            install_scope,
           },
           cwd,
         );
-        const adapter = syncAdapters(targets, cwd);
+        const adapter = syncAdapters(targets, cwd, { scope: install_scope });
         console.log(
           `✓ init done — tasks=${payload.counts.tasks} guides=${payload.counts.guides} checks=${payload.counts.sensors}`,
         );
@@ -221,8 +241,16 @@ function buildProgram(): Command {
     .description("按配置重新拉取并重装 IDE（可叠加 stages）")
     .option("--stages <list>", "追加/覆盖 stage 列表")
     .option("--targets <list>", "覆盖 IDE 目标")
+    .option("-g, --global", "Skill/Command 安装到 IDE 用户级目录")
+    .option("--local", "Skill/Command 安装到项目目录")
     .option("--prune", "删除不在本次导出中的本地文件", false)
-    .action(async (opts: { stages?: string; targets?: string; prune?: boolean }) => {
+    .action(async (opts: {
+      stages?: string;
+      targets?: string;
+      prune?: boolean;
+      global?: boolean;
+      local?: boolean;
+    }) => {
       const stages = opts.stages
         ? opts.stages.split(",").map((s) => s.trim()).filter(Boolean)
         : undefined;
@@ -236,7 +264,13 @@ function buildProgram(): Command {
         // temporarily write merged so doSync uses them; doSync also merges again
         saveConfig({ ...cfg, stages: merged! });
       }
-      await doSync({ stages: merged || stages, targets, prune: opts.prune });
+      await doSync({
+        stages: merged || stages,
+        targets,
+        prune: opts.prune,
+        global: opts.global,
+        local: opts.local,
+      });
     });
 
   const adapter = program.command("adapter").description("IDE 投影");
@@ -244,12 +278,22 @@ function buildProgram(): Command {
     .command("sync")
     .description("仅根据本地 .nhx 重投影到 IDE")
     .option("--targets <list>", "覆盖目标")
-    .action((opts: { targets?: string }) => {
+    .option("-g, --global", "Skill/Command 安装到 IDE 用户级目录")
+    .option("--local", "Skill/Command 安装到项目目录")
+    .action((opts: { targets?: string; global?: boolean; local?: boolean }) => {
       const cfg = loadConfig();
       const targets = opts.targets
         ? opts.targets.split(",").map((s) => s.trim()).filter(Boolean)
         : cfg?.targets || ["cursor", "trae"];
-      const result = syncAdapters(targets);
+      const install_scope = resolveInstallScope({
+        global: opts.global,
+        local: opts.local,
+        config: cfg,
+      });
+      if (cfg) {
+        saveConfig({ ...cfg, targets, install_scope });
+      }
+      const result = syncAdapters(targets, process.cwd(), { scope: install_scope });
       console.log("✓ adapter", result);
     });
 
@@ -486,14 +530,8 @@ function buildProgram(): Command {
       const cfg = loadConfig(cwd);
       const creds = loadCredentials(cwd);
       const cmds = listLocalCommands(cwd);
-      const cursorCmds = path.join(cwd, ".cursor", "commands");
-      const nhxCursor = fs.existsSync(cursorCmds)
-        ? fs.readdirSync(cursorCmds).filter((f) => f.startsWith("nhx-")).length
-        : 0;
-      const traeSkills = path.join(cwd, ".trae", "skills");
-      const nhxTrae = fs.existsSync(traeSkills)
-        ? fs.readdirSync(traeSkills).filter((d) => d.startsWith("nhx-")).length
-        : 0;
+      const scope = cfg?.install_scope || "project";
+      const projection = countAdapterProjection(scope, cwd, undefined, cfg?.targets || ["cursor", "trae"]);
       const report = {
         api,
         health: okHealth,
@@ -501,9 +539,16 @@ function buildProgram(): Command {
         config: Boolean(cfg),
         project_id: cfg?.project_id,
         stages: cfg?.stages,
+        install_scope: scope,
         local_commands: cmds.length,
-        cursor_nhx_commands: nhxCursor,
-        trae_nhx_skills: nhxTrae,
+        cursor_nhx_commands: projection.cursor_nhx_commands,
+        cursor_nhx_skills: projection.cursor_nhx_skills,
+        trae_nhx_skills: projection.trae_nhx_skills,
+        dest: {
+          cursor_commands: projection.dest.cursorCommands,
+          cursor_skills: projection.dest.cursorSkills,
+          trae_skills: projection.dest.traeSkills,
+        },
         ok: okHealth && Boolean(creds?.access_token) && Boolean(cfg?.project_id),
       };
       console.log(JSON.stringify(report, null, 2));
