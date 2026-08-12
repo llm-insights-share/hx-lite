@@ -257,7 +257,7 @@ export function syncTrae(
   }
 
   const ide: TraeHookIde = traeDir === ".trae-cn" ? "trae-cn" : "trae";
-  const hooks = syncTraeHooks(cwd, ide, opts.home ?? os.homedir());
+  const hooks = syncTraeHooks(cwd, ide, opts.home ?? os.homedir(), scope);
 
   // NEVER touch .trae/agents.yaml / .trae-cn agents config
   return { skills, hooks, scope, dest: skillDest, traeDir };

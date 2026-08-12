@@ -16,6 +16,10 @@ export type NhxConfig = {
   targets: string[];
   /** IDE skill/command projection: project (.cursor) or user-global (~/.cursor). */
   install_scope: InstallScope;
+  /** Human approval status query interval (minutes). Default 120. */
+  approval_check_interval_minutes?: number;
+  /** Reserved for future: hourly_auto | manual_only. */
+  approval_check_mode?: string;
 };
 
 export function parseInstallScope(v: unknown): InstallScope {
@@ -79,6 +83,11 @@ export function loadConfig(cwd = process.cwd()): NhxConfig | null {
     stages: Array.isArray(doc.stages) ? doc.stages.map(String) : [],
     targets: Array.isArray(doc.targets) ? doc.targets.map(String) : ["cursor", "trae"],
     install_scope: parseInstallScope(doc.install_scope),
+    approval_check_interval_minutes:
+      doc.approval_check_interval_minutes != null
+        ? Number(doc.approval_check_interval_minutes)
+        : undefined,
+    approval_check_mode: doc.approval_check_mode ? String(doc.approval_check_mode) : undefined,
   };
 }
 
@@ -91,6 +100,8 @@ export function saveConfig(cfg: NhxConfig, cwd = process.cwd()): void {
     stages: cfg.stages,
     targets: cfg.targets,
     install_scope: parseInstallScope(cfg.install_scope),
+    approval_check_interval_minutes: cfg.approval_check_interval_minutes,
+    approval_check_mode: cfg.approval_check_mode,
   });
   fs.writeFileSync(configPath(cwd), body, "utf8");
 }

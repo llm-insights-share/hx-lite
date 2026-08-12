@@ -30,6 +30,7 @@ import {
 import { loginViaBrowser, resolveWebuiBase } from "./browser-login.js";
 import { listLocalCommands, materializeExport } from "./sync/materialize.js";
 import { runSubmit } from "./submit.js";
+import { resolveArtifactName } from "./artifacts.js";
 import { markSession, parseNhxSlash, runSensorCheck } from "./sensor/check.js";
 
 async function prompt(question: string, fallback = ""): Promise<string> {
@@ -89,7 +90,7 @@ async function doSync(opts: {
   const adapter = syncAdapters(targets, cwd, { scope: install_scope });
   console.log("✓ materialize", stats);
   console.log("✓ adapter", adapter);
-  const hint = traeHooksEnableHint(targets);
+  const hint = traeHooksEnableHint(targets, install_scope);
   if (hint) console.log(hint);
 }
 
@@ -298,7 +299,7 @@ function buildProgram(): Command {
       }
       const result = syncAdapters(targets, process.cwd(), { scope: install_scope });
       console.log("✓ adapter", result);
-      const hint = traeHooksEnableHint(targets);
+      const hint = traeHooksEnableHint(targets, install_scope);
       if (hint) console.log(hint);
     });
 
@@ -348,8 +349,15 @@ function buildProgram(): Command {
           stage: opts.stage,
           task: opts.task,
           note: opts.note,
-        });
+        }) as { renamed_files?: Array<{ from: string; to: string }> };
         console.log("✓ submitted", result);
+        const renames = result?.renamed_files || [];
+        if (renames.length) {
+          console.log(
+            "ℹ 文件名冲突已自动重命名：",
+            renames.map((r) => `${r.from} → ${r.to}`).join("；"),
+          );
+        }
       },
     );
 
@@ -359,6 +367,7 @@ function buildProgram(): Command {
     channel?: string;
     paths?: string;
     json?: boolean;
+    approvalRefresh?: boolean;
   };
 
   async function runCheckCli(opts: CheckCliOpts) {
@@ -370,6 +379,7 @@ function buildProgram(): Command {
       task: opts.task,
       channel: opts.channel || "cli",
       paths,
+      approvalRefresh: opts.approvalRefresh === true,
     });
     if (opts.json) {
       console.log(JSON.stringify(result));
@@ -395,6 +405,7 @@ function buildProgram(): Command {
         "cli",
       )
       .option("--paths <paths>", "afterFileEdit 编辑路径，逗号分隔")
+      .option("--approval-refresh", "强制实时查询人工审批状态（忽略本地冷却缓存）", false)
       .option("--json", "JSON 输出", false);
 
   checkOpts(
@@ -423,7 +434,16 @@ function buildProgram(): Command {
     .option("--task <task>")
     .option("--from-prompt <text>", "从提示词解析 /nhx-stage-task")
     .option("--ide <ide>", "上报 IDE：cursor|trae|trae-cn", "cursor")
-    .action((opts: { stage?: string; task?: string; fromPrompt?: string; ide?: string }) => {
+    .option("--no-report", "只写 session.json，不上报 WebUI")
+    .action(
+      async (opts: {
+        stage?: string;
+        task?: string;
+        fromPrompt?: string;
+        ide?: string;
+        report?: boolean;
+        noReport?: boolean;
+      }) => {
       let stage = opts.stage || "";
       let task = opts.task || "";
       let triggerMode: "command" | "skill" = opts.fromPrompt ? "command" : "skill";
@@ -442,22 +462,27 @@ function buildProgram(): Command {
       }
       markSession(stage, task);
       console.log(`✓ session ${stage}/${task}`);
+      const skipReport = opts.noReport === true || opts.report === false;
+      if (skipReport) return;
       const cfg = loadConfig();
       const creds = loadCredentials();
       if (cfg?.project_id && creds?.access_token) {
         const api = resolveApiBase(undefined, process.cwd());
-        void reportTaskShellRun(api, creds.access_token, {
-          project_id: cfg.project_id,
-          stage,
-          task_id: task,
-          trigger_mode: triggerMode,
-          ide: (opts.ide || "cursor").trim() || "cursor",
-        }).catch((err: unknown) => {
+        try {
+          await reportTaskShellRun(api, creds.access_token, {
+            project_id: cfg.project_id,
+            stage,
+            task_id: task,
+            trigger_mode: triggerMode,
+            ide: (opts.ide || "cursor").trim() || "cursor",
+          });
+        } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           console.warn(`[nhx] report task-shell run failed: ${msg}`);
-        });
+        }
       }
-    });
+    },
+    );
 
   const approve = program.command("approve").description("人工检查审批");
   approve
@@ -491,10 +516,14 @@ function buildProgram(): Command {
             `任务 ${opts.stage}/${opts.task} 尚无产物。请先 nhx submit 上传后再 approve request。`,
           );
         }
-        if (opts.artifact && !arts.some((a) => a.name === opts.artifact)) {
+        const resolved = resolveArtifactName(opts.artifact, arts);
+        if (opts.artifact && !resolved.name) {
           throw new Error(
-            `未找到产物「${opts.artifact}」（${opts.stage}/${opts.task}）。可用产物：${arts.map((a) => a.name).join(", ")}`,
+            `未找到产物「${opts.artifact}」（${opts.stage}/${opts.task}）。可用产物：${resolved.candidates.join(", ") || "（无）"}。提示：--artifact 须为 WebUI 已登记产物名（非本地文件名）；请先 nhx submit <path> --name <产物名> --stage ${opts.stage} --task ${opts.task}，或改用可用产物名。`,
           );
+        }
+        if (opts.artifact && resolved.name && resolved.match !== "exact") {
+          console.log(`ℹ 产物名已解析：${opts.artifact} → ${resolved.name} (${resolved.match})`);
         }
         const ticket = await createTicket(api, creds.access_token, {
           project_id: cfg.project_id,
@@ -502,11 +531,17 @@ function buildProgram(): Command {
           ticket_type: "human-check",
           stage: opts.stage,
           task: opts.task,
-          artifact_name: opts.artifact || "",
+          artifact_name: resolved.name || "",
           body: opts.body || `请审批任务 ${opts.stage}/${opts.task}`,
         });
-        const submitted = await submitTicket(api, creds.access_token, ticket.id);
-        console.log("✓ 已创建并提交工单", submitted.ticket_no || ticket.ticket_no, submitted.id || ticket.id);
+        const ticketId = Number(ticket?.id);
+        if (!Number.isFinite(ticketId) || ticketId <= 0) {
+          throw new Error(
+            `创建工单成功但未返回 id（响应键：${Object.keys(ticket || {}).join(",") || "空"}）。请重启 WebUI 后端后重试。`,
+          );
+        }
+        const submitted = await submitTicket(api, creds.access_token, ticketId);
+        console.log("✓ 已创建并提交工单", submitted.ticket_no || ticket.ticket_no, submitted.id || ticketId);
         console.log("  请在 WebUI「审批工单」中批准，或等待审批人处理。");
       },
     );
@@ -515,12 +550,16 @@ function buildProgram(): Command {
     .description("查询 stage/task 人工审批状态")
     .requiredOption("--stage <stage>")
     .requiredOption("--task <task>")
-    .action(async (opts: { stage: string; task: string }) => {
+    .option("--approval-refresh", "强制实时查询（当前命令默认实时查询）", false)
+    .action(async (opts: { stage: string; task: string; approvalRefresh?: boolean }) => {
       const cwd = process.cwd();
       const cfg = loadConfig(cwd);
       const creds = loadCredentials(cwd);
       if (!cfg?.project_id || !creds?.access_token) throw new Error("请先 nhx login && nhx init");
       const api = resolveApiBase(undefined, cwd);
+      if (opts.approvalRefresh) {
+        console.log("ℹ 已启用强制实时查询审批状态");
+      }
       const st = await approvalStatus(api, creds.access_token, cfg.project_id, opts.stage, opts.task);
       console.log(JSON.stringify(st, null, 2));
       if (!st.approved) process.exitCode = 1;

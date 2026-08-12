@@ -49,6 +49,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../../api'
+import { formatLocalDateTime } from '../../utils/formatTime'
 
 const data = ref<any>(null)
 const logsLoading = ref(false)
@@ -110,12 +111,7 @@ function actionLabel(action: string) {
 }
 
 function formatTime(v: string) {
-  if (!v) return '—'
-  try {
-    return new Date(v).toLocaleString()
-  } catch {
-    return v
-  }
+  return formatLocalDateTime(v)
 }
 
 function showLogDetail(record: any) {

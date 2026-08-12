@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { GENERATED_MARKER } from "../config.js";
+import type { InstallScope } from "../config.js";
 
 const NHX_HOOK_MARKER = "nhx check";
 
@@ -44,7 +45,9 @@ try {
   prompt = j.prompt || j.text || j.content || raw;
 } catch { /* plain text */ }
 
-runNhx(["session", "mark", "--from-prompt", prompt, "--ide", ${JSON.stringify(ide)}]);
+const markArgs = ["session", "mark", "--from-prompt", prompt, "--ide", ${JSON.stringify(ide)}];
+if (/Use Skill:/i.test(String(prompt))) markArgs.push("--no-report");
+runNhx(markArgs);
 
 const check = runNhx(["check", "--channel", "hook:beforeSubmit", "--json"]);
 let payload = {};
@@ -219,9 +222,12 @@ function commandGroup(command: string, extra: Record<string, unknown> = {}): Rec
   };
 }
 
-export function traeHooksEnableHint(targets: string[]): string | null {
+export function traeHooksEnableHint(targets: string[], scope: InstallScope = "project"): string | null {
   if (!targets.some((t) => t === "trae" || t === "trae-cn")) return null;
-  return "ℹ Trae hooks 已写入项目 .trae/hooks.json 与全局 ~/.trae-cn/hooks.json（或 ~/.trae/hooks.json）；请在 Trae「设置 → Hooks」中启用全局/项目 Hook（首次需在安全提示面板允许）。";
+  if (scope === "global") {
+    return "ℹ Trae hooks 已写入全局 ~/.trae-cn/hooks.json（或 ~/.trae/hooks.json）；请在 Trae「设置 → Hooks」中启用全局 Hook（首次需在安全提示面板允许）。";
+  }
+  return "ℹ Trae hooks 已写入项目 .trae/hooks.json；请在 Trae「设置 → Hooks」中启用项目 Hook（勿同时启用全局 nhx hooks，以免重复上报）。";
 }
 
 const HOOK_SCRIPTS = ["nhx-trae-prompt.mjs", "nhx-trae-stop.mjs", "nhx-trae-post-tool.mjs"] as const;
@@ -290,39 +296,65 @@ function writeHookBundle(
   fs.writeFileSync(hooksJsonPath, JSON.stringify(doc, null, 2), "utf8");
 }
 
+/** Remove nhx Trae hook groups from a hooks.json (avoid global+project double fire). */
+export function stripNhxTraeHooksAt(hooksJsonPath: string): void {
+  if (!fs.existsSync(hooksJsonPath)) return;
+  let doc: { version?: number; hooks?: Record<string, unknown[]>; _nhx?: unknown };
+  try {
+    doc = JSON.parse(fs.readFileSync(hooksJsonPath, "utf8"));
+  } catch {
+    return;
+  }
+  if (!doc.hooks || typeof doc.hooks !== "object") return;
+  for (const event of Object.keys(doc.hooks)) {
+    const list = Array.isArray(doc.hooks[event]) ? doc.hooks[event] : [];
+    const filtered = list.filter((x) => !isNhxTraeGroup(x));
+    if (filtered.length) doc.hooks[event] = filtered;
+    else delete doc.hooks[event];
+  }
+  if (doc._nhx && typeof doc._nhx === "object") {
+    const nhx = doc._nhx as { generated?: string };
+    if (String(nhx.generated || "").includes(GENERATED_MARKER)) delete doc._nhx;
+  }
+  fs.writeFileSync(hooksJsonPath, JSON.stringify(doc, null, 2), "utf8");
+}
+
 /**
  * Project: `$PROJECT/.trae/hooks.json` (Trae docs).
- * Trae-CN global: `~/.trae-cn/hooks.json` (required for Work / global skills).
+ * Global (trae-cn): `~/.trae-cn/hooks.json` when install_scope=global.
  */
 export function syncTraeHooks(
   cwd = process.cwd(),
   ide: TraeHookIde = "trae",
   home = os.homedir(),
-): { hooksJson: boolean; scripts: string[]; ide: TraeHookIde; globalDest: string } {
-  writeHookBundle(path.join(cwd, ".trae", "hooks"), path.join(cwd, ".trae", "hooks.json"), ide, (name) =>
-    `node .trae/hooks/${name}`,
-  );
-
-  if (ide === "trae-cn") {
-    writeHookBundle(
-      path.join(cwd, ".trae-cn", "hooks"),
-      path.join(cwd, ".trae-cn", "hooks.json"),
-      ide,
-      (name) => `node .trae-cn/hooks/${name}`,
-    );
-  }
-
+  scope: InstallScope = "project",
+): { hooksJson: boolean; scripts: string[]; ide: TraeHookIde; globalDest: string; scope: InstallScope } {
   const globalBase = path.join(home, ide === "trae-cn" ? ".trae-cn" : ".trae");
-  const globalHooksDir = path.join(globalBase, "hooks");
-  writeHookBundle(globalHooksDir, path.join(globalBase, "hooks.json"), ide, (name) => {
-    const abs = path.join(globalHooksDir, name);
-    return `node ${JSON.stringify(abs)}`;
-  });
+  const globalHooksJson = path.join(globalBase, "hooks.json");
+  const projectHooksJson = path.join(cwd, ".trae", "hooks.json");
+  const projectTraeCnHooksJson = path.join(cwd, ".trae-cn", "hooks.json");
+
+  if (scope === "project") {
+    writeHookBundle(path.join(cwd, ".trae", "hooks"), projectHooksJson, ide, (name) =>
+      `node .trae/hooks/${name}`,
+    );
+    stripNhxTraeHooksAt(globalHooksJson);
+    stripNhxTraeHooksAt(projectTraeCnHooksJson);
+  } else {
+    const globalHooksDir = path.join(globalBase, "hooks");
+    writeHookBundle(globalHooksDir, globalHooksJson, ide, (name) => {
+      const abs = path.join(globalHooksDir, name);
+      return `node ${JSON.stringify(abs)}`;
+    });
+    stripNhxTraeHooksAt(projectHooksJson);
+    stripNhxTraeHooksAt(projectTraeCnHooksJson);
+  }
 
   return {
     hooksJson: true,
     scripts: [...HOOK_SCRIPTS],
     ide,
-    globalDest: path.join(globalBase, "hooks.json"),
+    globalDest: globalHooksJson,
+    scope,
   };
 }

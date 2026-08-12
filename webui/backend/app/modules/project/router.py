@@ -459,13 +459,34 @@ def report_task_shell_run(
     mode = (body.trigger_mode or "command").strip().lower()
     if mode not in ("command", "skill"):
         mode = "command"
+    ide = (body.ide or "unknown").strip() or "unknown"
+    runner = (user.username or "").strip()
+    recent_cutoff = datetime.now(timezone.utc) - timedelta(seconds=45)
+    recent = session.exec(
+        select(TaskShellRunLog).where(
+            TaskShellRunLog.project_id == project_id,
+            TaskShellRunLog.stage == stage,
+            TaskShellRunLog.task_id == task_id,
+            TaskShellRunLog.runner_username == runner,
+            TaskShellRunLog.ide == ide,
+            TaskShellRunLog.run_at >= recent_cutoff,
+        )
+    ).first()
+    if recent:
+        return {
+            "ok": True,
+            "deduped": True,
+            "id": recent.id,
+            "current_stage": project.current_stage,
+            "current_task": getattr(project, "current_task", None) or "",
+        }
     row = TaskShellRunLog(
         project_id=project_id,
         stage=stage,
         task_id=task_id,
-        runner_username=(user.username or "").strip(),
+        runner_username=runner,
         trigger_mode=mode,
-        ide=(body.ide or "unknown").strip() or "unknown",
+        ide=ide,
         source="nhx",
     )
     session.add(row)
@@ -745,6 +766,9 @@ def list_operation_logs(
         out.append(
             {
                 **r.model_dump(),
+                "created_at": _as_utc(r.created_at).isoformat().replace("+00:00", "Z")
+                if _as_utc(r.created_at)
+                else r.created_at,
                 "detail": detail,
             }
         )
@@ -1964,6 +1988,53 @@ def _normalize_artifact_rel(rel: str) -> str:
     return "/".join(parts)
 
 
+def _project_used_artifact_basenames(
+    session: SessionDep,
+    project_id: int,
+    *,
+    exclude_artifact_id: int | None = None,
+) -> set[str]:
+    """Basenames from latest versions of project artifacts (optionally skip one)."""
+    used: set[str] = set()
+    arts = session.exec(select(Artifact).where(Artifact.project_id == project_id)).all()
+    for art in arts:
+        if exclude_artifact_id is not None and art.id == exclude_artifact_id:
+            continue
+        ver = session.exec(
+            select(ArtifactVersion).where(
+                ArtifactVersion.artifact_id == art.id,
+                ArtifactVersion.version == art.latest_version,
+            )
+        ).first()
+        if not ver and art.latest_version:
+            rows = session.exec(
+                select(ArtifactVersion).where(ArtifactVersion.artifact_id == art.id)
+            ).all()
+            ver = max(rows, key=lambda v: v.version or 0) if rows else None
+        if not ver:
+            continue
+        for rel in _version_files(ver):
+            base = rel.rsplit("/", 1)[-1].lower()
+            if base:
+                used.add(base)
+    return used
+
+
+def _dedupe_upload_file_map(
+    session: SessionDep,
+    project_id: int,
+    file_map: dict[str, bytes],
+    *,
+    exclude_artifact_id: int | None = None,
+) -> tuple[dict[str, bytes], list[dict[str, str]]]:
+    from app.domain.artifact_files import dedupe_file_map
+
+    used = _project_used_artifact_basenames(
+        session, project_id, exclude_artifact_id=exclude_artifact_id
+    )
+    return dedupe_file_map(file_map, used)
+
+
 def _version_root(ver: ArtifactVersion) -> Path:
     return Path(ver.storage_path)
 
@@ -2094,12 +2165,26 @@ def list_artifacts(
         memberships = session.exec(select(ProjectMember).where(ProjectMember.user_id == user.id)).all()
         pids = {m.project_id for m in memberships}
         rows = [a for a in rows if a.project_id in pids]
-    out = []
+    created_map: dict[int, datetime | None] = {}
     for a in rows:
+        vers = session.exec(select(ArtifactVersion).where(ArtifactVersion.artifact_id == a.id)).all()
+        created_candidates = [_as_utc(v.created_at) for v in vers if _as_utc(v.created_at)]
+        created_map[a.id or 0] = min(created_candidates) if created_candidates else _as_utc(a.updated_at)
+
+    rows_sorted = sorted(
+        rows,
+        key=lambda a: (created_map.get(a.id or 0) or datetime.min.replace(tzinfo=timezone.utc), a.id or 0),
+        reverse=True,
+    )
+    out = []
+    for a in rows_sorted:
         p = session.get(Project, a.project_id)
+        created_at = created_map.get(a.id or 0)
         out.append(
             {
                 **a.model_dump(),
+                "created_at": created_at.isoformat().replace("+00:00", "Z") if created_at else a.updated_at,
+                "updated_at": _as_utc(a.updated_at).isoformat().replace("+00:00", "Z") if _as_utc(a.updated_at) else a.updated_at,
                 "project_name": p.name if p else "",
                 "can_delete": _can_manage_project(session, user, a.project_id),
             }
@@ -2133,6 +2218,14 @@ async def create_artifact(
         session.add(art)
         session.commit()
         session.refresh(art)
+
+    file_map, renames = _dedupe_upload_file_map(
+        session, project_id, file_map, exclude_artifact_id=art.id
+    )
+    if len(file_map) > 1 or any("/" in k for k in file_map):
+        kind = "package"
+    else:
+        kind = "file"
 
     art.latest_version += 1
     art.stage = stage or art.stage
@@ -2172,10 +2265,15 @@ async def create_artifact(
             "task": task or art.task,
             "content_kind": kind,
             "files": saved,
+            "renamed_files": renames,
             "note": note,
         },
     )
-    return {"artifact": art.model_dump(), "version": _version_public(ver)}
+    return {
+        "artifact": art.model_dump(),
+        "version": _version_public(ver),
+        "renamed_files": renames,
+    }
 
 
 @router.delete("/artifacts/{artifact_id}")
@@ -2358,10 +2456,21 @@ def list_tickets(
     if task:
         q = q.where(Ticket.task == task)
     rows = session.exec(q).all()
+    rows_sorted = sorted(
+        rows,
+        key=lambda t: (_as_utc(t.created_at) or datetime.min.replace(tzinfo=timezone.utc), t.id or 0),
+        reverse=True,
+    )
     out = []
-    for t in rows:
+    for t in rows_sorted:
         p = session.get(Project, t.project_id)
-        out.append({**t.model_dump(), "project_name": p.name if p else ""})
+        dump = t.model_dump()
+        dump["created_at"] = (
+            _as_utc(t.created_at).isoformat().replace("+00:00", "Z")
+            if _as_utc(t.created_at)
+            else t.created_at
+        )
+        out.append({**dump, "project_name": p.name if p else ""})
     return out
 
 
@@ -2412,7 +2521,10 @@ def create_ticket(body: TicketIn, session: SessionDep, user: CurrentUser):
             "status": row.status,
         },
     )
-    return row
+    # SQLModel table instance can serialize to {} under current FastAPI stack — return plain dict.
+    return row.model_dump()
+
+
 def ticket_approval_status(
     session: SessionDep,
     user: CurrentUser,
@@ -2506,6 +2618,17 @@ def ticket_approval_status(
     }
 
 
+@router.get("/tickets/approval-status")
+def ticket_approval_status_route(
+    session: SessionDep,
+    user: CurrentUser,
+    project_id: int,
+    stage: str,
+    task: str,
+):
+    return ticket_approval_status(session, user, project_id, stage, task)
+
+
 @router.get("/tickets/{ticket_id}")
 def get_ticket(ticket_id: int, session: SessionDep, user: CurrentUser):
     row = session.get(Ticket, ticket_id)
@@ -2567,7 +2690,7 @@ def submit_ticket(ticket_id: int, session: SessionDep, user: CurrentUser):
             "status": row.status,
         },
     )
-    return row
+    return row.model_dump()
 
 
 @router.post("/tickets/{ticket_id}/approve")
@@ -2601,7 +2724,7 @@ def approve_ticket(ticket_id: int, body: TicketDecisionIn, session: SessionDep, 
             "status": row.status,
         },
     )
-    return row
+    return row.model_dump()
 
 
 @router.post("/tickets/{ticket_id}/reject")
@@ -2635,7 +2758,7 @@ def reject_ticket(ticket_id: int, body: TicketDecisionIn, session: SessionDep, u
             "status": row.status,
         },
     )
-    return row
+    return row.model_dump()
 
 
 # ---- Project GitHub sync ----

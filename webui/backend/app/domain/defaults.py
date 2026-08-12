@@ -285,7 +285,8 @@ def human_sensor_content(asset_id: str) -> str:
         "## 检查意图\n\n"
         f"人工审批（{asset_id or 'unknown'}）。\n\n"
         "触发时仅提醒「尚未批准」，不执行自动文件/脚本检查；需人工确认后再继续。"
-        "须先上传该任务产物，再创建并批准 human-check 工单。\n\n"
+        "必须按序：① `nhx submit` 上传该任务产物 → ② `nhx approve request` 创建 human-check 工单 → "
+        "③ WebUI 批准 → ④ `nhx check`。未上传产物不得建单。\n\n"
         "通过本门禁后再进入下一交付环节。\n"
     )
 

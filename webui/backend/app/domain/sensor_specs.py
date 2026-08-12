@@ -192,7 +192,8 @@ def _human(asset_id: str, title: str = "") -> dict[str, Any]:
     content = _frontmatter("human") + _intent_note(
         label,
         "触发时仅提醒「尚未批准」，不执行自动文件/脚本检查；需人工确认后再继续。"
-        "须先上传该任务产物，再创建并批准 human-check 工单。",
+        "必须按序：① `nhx submit` 上传该任务产物 → ② `nhx approve request` 创建 human-check 工单 → "
+        "③ WebUI 批准 → ④ `nhx check`。未上传产物不得建单。",
     )
     return _pack("human", "sensor.human", content, {"approval": True, "reminder_only": True}, tr, sc)
 

@@ -304,6 +304,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { api } from '../../api'
+import { formatLocalDateTime } from '../../utils/formatTime'
 
 const route = useRoute()
 const project = ref<any>(null)
@@ -416,12 +417,7 @@ function actionLabel(action: string) {
 }
 
 function formatTime(v: string) {
-  if (!v) return '—'
-  try {
-    return new Date(v).toLocaleString()
-  } catch {
-    return v
-  }
+  return formatLocalDateTime(v)
 }
 
 async function loadLogs() {

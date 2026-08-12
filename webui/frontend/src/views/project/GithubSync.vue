@@ -80,6 +80,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { api } from '../../api'
+import { formatLocalDateTime } from '../../utils/formatTime'
 
 const rows = ref<any[]>([])
 const filterProjectId = ref<number | undefined>(undefined)
@@ -116,10 +117,7 @@ const logCols = [
 ]
 
 function formatTime(v: string | null | undefined): string {
-  if (!v) return '—'
-  const d = new Date(v)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString()
+  return formatLocalDateTime(v)
 }
 
 function statusColor(status: string) {

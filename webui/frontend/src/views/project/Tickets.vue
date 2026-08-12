@@ -26,6 +26,9 @@
           <span v-if="record.stage || record.task">{{ record.stage || '—' }} / {{ record.task || '—' }}</span>
           <span v-else class="muted">—</span>
         </template>
+        <template v-else-if="column.key === 'created_at'">
+          {{ formatLocalDateTime(record.created_at) }}
+        </template>
         <template v-else-if="column.key === 'status'">
           <a-tag :color="statusColor(record.status)">{{ record.status }}</a-tag>
         </template>
@@ -236,6 +239,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { api } from '../../api'
+import { formatLocalDateTime } from '../../utils/formatTime'
 
 const rows = ref<any[]>([])
 const projects = ref<any[]>([])
@@ -310,6 +314,7 @@ const columns = [
   { title: 'Stage/Task', key: 'scope', width: 180 },
   { title: '类型', dataIndex: 'ticket_type', width: 130 },
   { title: '提交人', dataIndex: 'submitter', width: 90 },
+  { title: '创建时间', key: 'created_at', width: 170 },
   { title: '状态', key: 'status', width: 100 },
   { title: '操作', key: 'action', width: 200 },
 ]

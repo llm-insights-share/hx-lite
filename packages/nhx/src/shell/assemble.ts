@@ -17,11 +17,28 @@ function packLoadStep(stage: string, task: string): string {
   ].join("\n");
 }
 
-function gateReminder(stage: string, task: string): string {
-  return [
+function gateReminder(stage: string, task: string, sensors: string[] = []): string {
+  const lines = [
     "### 特别约束 — 门禁",
     `宣称完成前：执行 \`nhx check --stage ${stage} --task ${task}\`，未通过不得结束（本地无独立 gate 命令）。`,
-  ].join("\n");
+  ];
+  const hasHuman = sensors.some(
+    (s) =>
+      /human|manual|approv/i.test(s) ||
+      s.endsWith("-approved") ||
+      s.endsWith("-approval"),
+  );
+  if (hasHuman) {
+    lines.push(
+      "",
+      "### 特别约束 — 人工审批（必须按序）",
+      `1. 完成本地产物后**先上传**：\`nhx submit <本地路径> --name <产物名> --stage ${stage} --task ${task}\``,
+      `2. **再**创建审批工单：\`nhx approve request --stage ${stage} --task ${task} --artifact <产物名>\``,
+      "3. 在 WebUI「审批工单」批准后，再运行 `nhx check`。",
+      "禁止在未 `nhx submit` 的情况下直接 `approve request`。",
+    );
+  }
+  return lines.join("\n");
 }
 
 export type SensorShellInfo = {
@@ -167,9 +184,9 @@ export function assembleAppendix(opts: {
     "",
     "- IDE hooks：`beforeSubmit`（提醒）/ `afterFileEdit`（按 scope）/ `stop`（回合结束）。",
     "- **rules**：文本规则注入本壳与 hook 提示，由对话模型评判；本地不跑 LLM。文件存在请用 **inline** `file.exists`。",
-    "- **human** 关卡未批准时仅提醒「尚未批准」，需走审批工单；不做文件/脚本检查。",
+    "- **human** 关卡：须先 `nhx submit` 上传产物，再 `nhx approve request`；未批准时仅提醒，不做文件/脚本检查。",
     "",
-    gateReminder(opts.stage, opts.task),
+    gateReminder(opts.stage, opts.task, opts.sensors),
     "",
   ].join("\n");
 }

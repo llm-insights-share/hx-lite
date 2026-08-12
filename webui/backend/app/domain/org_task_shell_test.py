@@ -58,6 +58,8 @@ class OrgTaskShellTest(unittest.TestCase):
             self.assertIn("`prd-writing`", shell.appendix)
             self.assertIn("Templates（2", shell.appendix)
             self.assertIn("`prd-approved`", shell.appendix)
+            self.assertIn("nhx submit", shell.appendix)
+            self.assertIn("approve request", shell.appendix)
             self.assertIn("proposal-template", shell.appendix)
             self.assertIn("docs/requirements", shell.appendix)
 

@@ -42,10 +42,22 @@ type SensorMeta = {
   scope: string[];
 };
 
+type ApprovalCacheEntry = {
+  last_checked_at: string;
+  last_status: "approved" | "pending" | "none" | "error";
+  cooldown_until: string;
+  last_cutoff_at?: string | null;
+  ticket_no?: string;
+};
+
+type ApprovalCache = Record<string, ApprovalCacheEntry>;
+
 const DEFAULT_TRIGGERS = ["hook:stop", "cli", "task-shell"];
 
 const INLINE_HELP =
   "Supported: file.exists(path=...), file.min_bytes(path=..., n=...), doc.sections_complete(path=..., require=[...]), approval.prd|arch|arch-lld == true. path 支持 * /**；多匹配须全部满足";
+const DEFAULT_APPROVAL_CHECK_INTERVAL_MINUTES = 120;
+const APPROVAL_CACHE_FILE = "approval_status_cache.json";
 
 function loadLockTasks(cwd: string): TaskMeta[] {
   const p = lockPath(cwd);
@@ -329,20 +341,73 @@ function parseRequireList(raw: string | undefined): string[] {
   return [t.replace(/^["']|["']$/g, "")].filter(Boolean);
 }
 
+function approvalCachePath(cwd: string): string {
+  return path.join(nhxRoot(cwd), APPROVAL_CACHE_FILE);
+}
+
+function approvalCacheKey(projectId: number, stage: string, task: string): string {
+  return `${projectId}:${stage}:${task}`;
+}
+
+function loadApprovalCache(cwd: string): ApprovalCache {
+  const p = approvalCachePath(cwd);
+  if (!fs.existsSync(p)) return {};
+  try {
+    const data = JSON.parse(fs.readFileSync(p, "utf8")) as ApprovalCache;
+    return data && typeof data === "object" ? data : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveApprovalCache(cwd: string, cache: ApprovalCache): void {
+  fs.mkdirSync(nhxRoot(cwd), { recursive: true });
+  fs.writeFileSync(approvalCachePath(cwd), JSON.stringify(cache, null, 2), "utf8");
+}
+
+function approvalIntervalMs(cfg: ReturnType<typeof loadConfig>): number {
+  const mins = Number(cfg?.approval_check_interval_minutes ?? DEFAULT_APPROVAL_CHECK_INTERVAL_MINUTES);
+  const sane = Number.isFinite(mins) && mins > 0 ? mins : DEFAULT_APPROVAL_CHECK_INTERVAL_MINUTES;
+  return sane * 60 * 1000;
+}
+
 async function checkHuman(
   cwd: string,
   stage: string,
   task: string,
+  opts?: { forceRefresh?: boolean },
 ): Promise<{ ok: boolean; message: string }> {
   const cfg = loadConfig(cwd);
   const creds = loadCredentials(cwd);
   if (!cfg?.project_id || !creds?.access_token) {
     return { ok: false, message: "提醒：尚未批准（未登录或未配置 project，无法查询审批状态）" };
   }
+  const forceRefresh = opts?.forceRefresh === true;
+  const cache = loadApprovalCache(cwd);
+  const key = approvalCacheKey(cfg.project_id, stage, task);
+  const entry = cache[key];
+  const now = Date.now();
+  if (!forceRefresh && entry?.last_status === "pending") {
+    const cooldownUntil = Date.parse(entry.cooldown_until || "");
+    if (Number.isFinite(cooldownUntil) && cooldownUntil > now) {
+      return {
+        ok: false,
+        message: `提醒：尚未批准（工单待处理 draft/submitted，最近检查 ${entry.last_checked_at}；冷却至 ${entry.cooldown_until}）`,
+      };
+    }
+  }
   const api = resolveApiBase(undefined, cwd);
   const url = `${api}/api/tickets/approval-status?project_id=${cfg.project_id}&stage=${encodeURIComponent(stage)}&task=${encodeURIComponent(task)}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${creds.access_token}` } });
   if (!res.ok) {
+    cache[key] = {
+      last_checked_at: new Date(now).toISOString(),
+      last_status: "error",
+      cooldown_until: new Date(now + approvalIntervalMs(cfg)).toISOString(),
+      last_cutoff_at: entry?.last_cutoff_at || null,
+      ticket_no: entry?.ticket_no,
+    };
+    saveApprovalCache(cwd, cache);
     return { ok: false, message: `提醒：尚未批准（approval-status HTTP ${res.status}）` };
   }
   const data = (await res.json()) as {
@@ -350,9 +415,29 @@ async function checkHuman(
     pending: boolean;
     latest_artifact?: { name?: string } | null;
     cutoff_at?: string | null;
+    pending_tickets?: Array<{ ticket_no?: string }>;
   };
-  if (data.approved) return { ok: true, message: "人工审批已通过（覆盖当前最新产物/任务执行）" };
+  if (data.approved) {
+    cache[key] = {
+      last_checked_at: new Date(now).toISOString(),
+      last_status: "approved",
+      cooldown_until: new Date(now + approvalIntervalMs(cfg)).toISOString(),
+      last_cutoff_at: data.cutoff_at || null,
+      ticket_no: undefined,
+    };
+    saveApprovalCache(cwd, cache);
+    return { ok: true, message: "人工审批已通过（覆盖当前最新产物/任务执行）" };
+  }
   if (data.pending) {
+    const pendingTicketNo = data.pending_tickets?.[0]?.ticket_no || entry?.ticket_no;
+    cache[key] = {
+      last_checked_at: new Date(now).toISOString(),
+      last_status: "pending",
+      cooldown_until: new Date(now + approvalIntervalMs(cfg)).toISOString(),
+      last_cutoff_at: data.cutoff_at || null,
+      ticket_no: pendingTicketNo,
+    };
+    saveApprovalCache(cwd, cache);
     return { ok: false, message: "提醒：尚未批准（工单待处理 draft/submitted）" };
   }
 
@@ -364,9 +449,17 @@ async function checkHuman(
       task,
     });
     if (!arts.length) {
+      cache[key] = {
+        last_checked_at: new Date(now).toISOString(),
+        last_status: "none",
+        cooldown_until: new Date(now + approvalIntervalMs(cfg)).toISOString(),
+        last_cutoff_at: data.cutoff_at || null,
+        ticket_no: undefined,
+      };
+      saveApprovalCache(cwd, cache);
       return {
         ok: false,
-        message: `提醒：尚未批准 — 任务 ${stage}/${task} 尚无产物。请先 nhx submit 上传后再检查。`,
+        message: `提醒：尚未批准 — 任务 ${stage}/${task} 尚无产物。请先 nhx submit <本地路径> --name <产物名> --stage ${stage} --task ${task} 上传后再 approve / check。`,
       };
     }
     const latest = [...arts].sort((a, b) => {
@@ -385,12 +478,28 @@ async function checkHuman(
       body: `自动创建：任务壳执行后产物需重新审批（${stage}/${task}${artifactName ? ` / ${artifactName}` : ""}）`,
     });
     const submitted = await submitTicket(api, creds.access_token, ticket.id);
+    cache[key] = {
+      last_checked_at: new Date(now).toISOString(),
+      last_status: "pending",
+      cooldown_until: new Date(now + approvalIntervalMs(cfg)).toISOString(),
+      last_cutoff_at: data.cutoff_at || null,
+      ticket_no: submitted.ticket_no || ticket.ticket_no,
+    };
+    saveApprovalCache(cwd, cache);
     return {
       ok: false,
       message: `提醒：尚未批准 — 已自动创建并提交工单 ${submitted.ticket_no || ticket.ticket_no}，请在 WebUI 审批后再继续`,
     };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
+    cache[key] = {
+      last_checked_at: new Date(now).toISOString(),
+      last_status: "error",
+      cooldown_until: new Date(now + approvalIntervalMs(cfg)).toISOString(),
+      last_cutoff_at: data.cutoff_at || null,
+      ticket_no: entry?.ticket_no,
+    };
+    saveApprovalCache(cwd, cache);
     return {
       ok: false,
       message: `提醒：尚未批准 — 自动建单失败（${msg}）。请手动 nhx approve request --stage ${stage} --task ${task}`,
@@ -513,6 +622,7 @@ async function checkInline(
   stage: string,
   task: string,
   layout: PathLayout,
+  opts?: { approvalRefresh?: boolean },
 ): Promise<{ ok: boolean; message: string }> {
   const exprRaw = parseInlineExpr(content);
   if (!exprRaw) {
@@ -522,7 +632,7 @@ async function checkInline(
 
   const appr = expr.match(/^approval\.(prd|arch|arch-lld)$/i);
   if (appr) {
-    return checkHuman(cwd, stage, task);
+    return checkHuman(cwd, stage, task, { forceRefresh: opts?.approvalRefresh === true });
   }
 
   const fileExists = expr.match(/^file\.exists\((.+)\)$/i);
@@ -583,6 +693,8 @@ export async function runSensorCheck(opts: {
   channel?: string;
   /** Edited paths for afterFileEdit scope matching */
   paths?: string[];
+  /** Force refresh approval status, bypassing local cooldown cache. */
+  approvalRefresh?: boolean;
 }): Promise<SensorCheckResult> {
   const cwd = opts.cwd || process.cwd();
   const channel = opts.channel || "cli";
@@ -648,11 +760,13 @@ export async function runSensorCheck(opts: {
     let result: { ok: boolean; message: string; agent_prompt?: string };
     // human: reminder-only approval status — never run file/shell checks
     if (ct === "human" || ct === "manual") {
-      result = await checkHuman(cwd, stage, task);
+      result = await checkHuman(cwd, stage, task, { forceRefresh: opts.approvalRefresh === true });
     } else if (ct === "shell") {
       result = checkShell(meta.content, cwd);
     } else if (ct === "inline") {
-      result = await checkInline(cwd, meta.content, stage, task, layout);
+      result = await checkInline(cwd, meta.content, stage, task, layout, {
+        approvalRefresh: opts.approvalRefresh === true,
+      });
     } else if (ct === "rules") {
       result = checkRules(cwd, sid, meta.content, stage, layout);
     } else {
@@ -699,9 +813,13 @@ export function markSession(stage: string, task: string, cwd = process.cwd()): v
   );
 }
 
-/** Parse /nhx-<stage>-<task> from prompt text */
+/** Parse /nhx-<stage>-<task> (also Trae skill form: `nhx-stage-task` / nhx-stage-task). */
 export function parseNhxSlash(prompt: string): { stage: string; task: string } | null {
-  const m = prompt.match(/\/nhx-([a-z0-9]+)-([a-z0-9][a-z0-9\-]*)/i);
+  const text = String(prompt || "");
+  const m =
+    text.match(/\/nhx-([a-z0-9]+)-([a-z0-9][a-z0-9\-]*)/i) ||
+    text.match(/`nhx-([a-z0-9]+)-([a-z0-9][a-z0-9\-]*)`/i) ||
+    text.match(/(?:^|[\s"'([{])nhx-([a-z0-9]+)-([a-z0-9][a-z0-9\-]*)(?=$|[\s"'`)\]},.:;!?])/i);
   if (!m) return null;
   return { stage: m[1], task: m[2] };
 }

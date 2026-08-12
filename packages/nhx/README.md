@@ -11,11 +11,11 @@
 npm install -g .    # 推荐；也可用 npm link
 nhx login
 nhx init --project 1 --stages req,dev
-nhx check --stage req --task prd-writing
-nhx approve request --stage req --task prd-writing
+nhx submit ./docs/prd.md --name prd --stage req --task prd-writing
+nhx approve request --stage req --task prd-writing --artifact prd
 # 审批人在 WebUI「审批工单」批准后：
 nhx approve status --stage req --task prd-writing
-nhx submit ./docs/prd.md --name prd --stage req --task prd-writing
+nhx check --stage req --task prd-writing
 nhx submit ./docs/prd-pack --name prd-pack --stage req --task prd-writing
 ```
 
@@ -27,10 +27,10 @@ nhx submit ./docs/prd-pack --name prd-pack --stage req --task prd-writing
 | `nhx login -u <user>` | 终端提示输入密码后登录 |
 | `nhx login -u <user> -p <pass>` | 直接验证登录（默认 API `http://127.0.0.1:8000`） |
 | `nhx init / sync` | 拉取资产并投影 IDE |
-| `nhx check` | 运行任务绑定的 Check（按 `--channel` 过滤触发通道） |
+| `nhx check` | 运行任务绑定的 Check（按 `--channel` 过滤触发通道；`--approval-refresh` 可强制实时查审批） |
 | `nhx sensor check` | （兼容旧名）同 `nhx check` |
 | `nhx session mark` | 记录当前 stage/task |
-| `nhx approve request/status` | 发起 / 查询人工审批 |
+| `nhx approve request/status` | 发起 / 查询人工审批（`status --approval-refresh` 强制实时查询） |
 | `nhx submit` | 上传产物（单文件或目录递归） |
 | `nhx doctor` / `status` / `adapter sync` | 诊断与重投影 |
 
@@ -89,7 +89,17 @@ Check `check_type`：
 1. **组织 HX → Guide & Check**：新建/编辑 Check，Check Type 选 **`human`**。
 2. **组织 HX → Stage & Task**（或项目「自定义 Task」）：编辑目标 Task，在 **Check 资产** 中勾选该人工 Check。
 3. 项目侧 **重新初始化配置** 或本地 `nhx sync`。
-4. 完成后：`nhx approve request --stage … --task …` → WebUI 批准 → `nhx check` 通过。
+4. 完成后：先 `nhx submit` 上传产物 → `nhx approve request --stage … --task … --artifact …` → WebUI 批准 → `nhx check` 通过。
+
+### 人工审批冷却检查（长流程友好）
+
+- 人工审批经常跨 1-2 天，`nhx check` 对 pending 状态默认启用**本地冷却缓存**（默认 120 分钟），避免每次都重复远程确认或重复建单。
+- 冷却期内会直接提示最近检查时间与下次检查时间；不会重复提交工单。
+- 需要立即确认时可用：
+  - `nhx check --stage <stage> --task <task> --approval-refresh`
+  - `nhx approve status --stage <stage> --task <task> --approval-refresh`
+- 可在 `.nhx/config.yaml` 设置：
+  - `approval_check_interval_minutes: 120`
 
 默认资产 `prd-approved` / `arch-lld-approved` / `test-cases-approved` 的 `check_type` 已为 **`human`**。启动后端时会对已有库做一次迁移升级。
 

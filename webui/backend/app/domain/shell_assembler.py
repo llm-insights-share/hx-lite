@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import re
-import time
-from pathlib import Path
 
 from app.domain.defaults import slash_name
 
@@ -14,26 +11,6 @@ BOUND_GUIDES_MARKER = "<!-- harnessx:bound-guides -->"
 GUIDE_INPUTS_START = "<!-- harnessx:guide-inputs -->"
 GUIDE_INPUTS_END = "<!-- /harnessx:guide-inputs -->"
 INPUT_HEADINGS = ("输入", "Input", "参数")
-
-
-def _debug_log(run_id: str, hypothesis_id: str, location: str, message: str, data: dict) -> None:
-    # region agent log
-    try:
-        payload = {
-            "sessionId": "0fdc83",
-            "runId": run_id,
-            "hypothesisId": hypothesis_id,
-            "location": location,
-            "message": message,
-            "data": data,
-            "timestamp": int(time.time() * 1000),
-        }
-        Path("/Users/zhangjr/apps/LlmDemo/hx-project/hx-lite/.cursor/debug-0fdc83.log").open(
-            "a", encoding="utf-8"
-        ).write(json.dumps(payload, ensure_ascii=False) + "\n")
-    except Exception:
-        pass
-    # endregion
 
 
 def pack_load_step(stage: str, task: str) -> str:
@@ -63,12 +40,36 @@ def pack_load_step(stage: str, task: str) -> str:
     )
 
 
-def gate_reminder(stage: str, task: str) -> str:
-    return (
-        "### 特别约束 — 门禁\n"
+def gate_reminder(stage: str, task: str, sensors: list[str] | None = None) -> str:
+    lines = [
+        "### 特别约束 — 门禁",
         f"宣称完成前：执行 `nhx check --stage {stage} --task {task}`，"
-        "未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。"
-    )
+        "未通过不得结束（本地无独立 `gate` 命令，请使用 nhx check）。",
+    ]
+    sensors = sensors or []
+    try:
+        from app.domain.defaults import is_human_approval_sensor
+
+        has_human = any(is_human_approval_sensor(s) for s in sensors)
+    except Exception:  # noqa: BLE001
+        has_human = any(
+            (s or "").endswith(("-approved", "-approval")) or "human" in (s or "").lower()
+            for s in sensors
+        )
+    if has_human:
+        lines.extend(
+            [
+                "",
+                "### 特别约束 — 人工审批（必须按序）",
+                "1. 完成本地产物后**先上传**：`nhx submit <本地路径> --name <产物名> --stage "
+                f"{stage} --task {task}`",
+                "2. **再**创建审批工单：`nhx approve request --stage "
+                f"{stage} --task {task} --artifact <产物名>`",
+                "3. 在 WebUI「审批工单」批准后，再运行 `nhx check`。",
+                "禁止在未 `nhx submit` 的情况下直接 `approve request`。",
+            ]
+        )
+    return "\n".join(lines)
 
 
 def assemble_appendix(
@@ -174,7 +175,7 @@ def assemble_appendix(
         "|--------|",
         sensor_rows,
         "",
-        gate_reminder(stage, task),
+        gate_reminder(stage, task, sensors),
         "",
     ]
     return "\n".join(sections)
@@ -200,19 +201,6 @@ def build_guide_inputs_block(items: list[tuple[str, str]]) -> str:
     sections: list[str] = []
     for gid, content in items:
         sec = extract_input_section(content)
-        # region agent log
-        _debug_log(
-            "run-wording-pre-fix",
-            "H3",
-            "shell_assembler.py:build_guide_inputs_block",
-            "guide_input_section_extracted",
-            {
-                "guide_id": gid,
-                "has_section": bool(sec),
-                "first_line": (sec.splitlines()[0] if sec else ""),
-            },
-        )
-        # endregion
         if not sec:
             continue
         sections.extend([f"### 来自 `{gid}`", sec, ""])
@@ -222,19 +210,6 @@ def build_guide_inputs_block(items: list[tuple[str, str]]) -> str:
 
 
 def _replace_marker_block(text: str, replacement: str) -> str:
-    # region agent log
-    _debug_log(
-        "run-pre-fix",
-        "H1",
-        "shell_assembler.py:_replace_marker_block",
-        "marker_count_before_replace",
-        {
-            "start_count": text.count(GUIDE_INPUTS_START),
-            "end_count": text.count(GUIDE_INPUTS_END),
-            "has_replacement": bool(replacement),
-        },
-    )
-    # endregion
     pattern = re.compile(
         rf"(?s)\n?{re.escape(GUIDE_INPUTS_START)}.*?{re.escape(GUIDE_INPUTS_END)}\n?"
     )
@@ -246,19 +221,6 @@ def _replace_marker_block(text: str, replacement: str) -> str:
 
 def inject_guide_inputs(body: str, block: str) -> str:
     text = (body or "").strip() + "\n"
-    # region agent log
-    _debug_log(
-        "run-pre-fix",
-        "H2",
-        "shell_assembler.py:inject_guide_inputs",
-        "inject_entry",
-        {
-            "body_start_count": text.count(GUIDE_INPUTS_START),
-            "body_end_count": text.count(GUIDE_INPUTS_END),
-            "block_nonempty": bool(block),
-        },
-    )
-    # endregion
     text = _replace_marker_block(text, "")
     if not block:
         return text.strip()
@@ -300,24 +262,6 @@ def assemble_shell(
     guide_contents = guide_contents or {}
     other_guides = other_guides or []
     template_primary_files = template_primary_files or {}
-    # region agent log
-    _debug_log(
-        "run-pre-fix",
-        "H3",
-        "shell_assembler.py:assemble_shell",
-        "assemble_entry",
-        {
-            "stage": stage,
-            "task": task,
-            "guides_len": len(guides),
-            "guides_unique_len": len(set(guides)),
-            "other_guides_len": len(other_guides),
-            "templates_len": len(templates),
-            "guide_contents_len": len(guide_contents),
-            "body_start_count": (body or "").count(GUIDE_INPUTS_START),
-        },
-    )
-    # endregion
     inject_ids = list(guides) + list(templates) + [gid for gid, _ in other_guides]
     ordered = [(gid, guide_contents.get(gid, "")) for gid in inject_ids if gid in guide_contents]
     block = build_guide_inputs_block(ordered)

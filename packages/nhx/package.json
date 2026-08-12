@@ -5,6 +5,6 @@
   "type": "module",
   "description": "nhx — project HX delivery CLI (sync from WebUI, IDE install, artifact submit)",
   "scripts": {
-    "test": "node --import tsx --test src/sensor/check.glob.test.ts src/path_layout.test.ts src/sync/materialize.test.ts src/adapter/cursor.test.ts src/config.test.ts"
+    "test": "node --import tsx --test src/sensor/check.glob.test.ts src/sensor/check.human-cooldown.test.ts src/path_layout.test.ts src/sync/materialize.test.ts src/adapter/cursor.test.ts src/config.test.ts"
   }
 }

@@ -34,7 +34,10 @@
 
     <a-table :dataSource="rows" :columns="columns" row-key="id">
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'action'">
+        <template v-if="column.key === 'created_at'">
+          {{ formatLocalDateTime(record.created_at) }}
+        </template>
+        <template v-else-if="column.key === 'action'">
           <a-button size="small" type="link" @click="openDetail(record)">详情</a-button>
           <a-button size="small" @click="showVersions(record)">版本</a-button>
           <a-popconfirm
@@ -209,6 +212,7 @@ import { marked } from 'marked'
 import mammoth from 'mammoth'
 import * as XLSX from 'xlsx'
 import { api } from '../../api'
+import { formatLocalDateTime } from '../../utils/formatTime'
 
 const rows = ref<any[]>([])
 const projects = ref<any[]>([])
@@ -293,6 +297,7 @@ const columns = [
   { title: 'Stage', dataIndex: 'stage' },
   { title: 'Task', dataIndex: 'task' },
   { title: '最新版本', dataIndex: 'latest_version' },
+  { title: '创建时间', key: 'created_at', width: 180 },
   { title: '操作', key: 'action', width: 220 },
 ]
 
@@ -412,8 +417,14 @@ async function upload() {
         fd.append('relative_paths', rel)
       }
     }
-    await api.post('/artifacts', fd)
-    message.success('已上传')
+    const { data } = await api.post('/artifacts', fd)
+    const renames = (data?.renamed_files || []) as Array<{ from: string; to: string }>
+    if (renames.length) {
+      const tip = renames.map((r) => `${r.from} → ${r.to}`).join('；')
+      message.success(`已上传（文件名冲突已自动重命名：${tip}）`)
+    } else {
+      message.success('已上传')
+    }
     open.value = false
     await load()
   } catch (e: any) {

@@ -351,7 +351,20 @@ def list_org_operation_logs(
             detail = json.loads(r.detail_json or "{}")
         except json.JSONDecodeError:
             detail = {}
-        out.append({**r.model_dump(), "detail": detail})
+        out.append(
+            {
+                **r.model_dump(),
+                "created_at": (
+                    (r.created_at.replace(tzinfo=timezone.utc) if r.created_at and r.created_at.tzinfo is None else r.created_at)
+                    .astimezone(timezone.utc)
+                    .isoformat()
+                    .replace("+00:00", "Z")
+                    if r.created_at
+                    else r.created_at
+                ),
+                "detail": detail,
+            }
+        )
     return {"total": len(rows_sorted), "items": out}
 
 
