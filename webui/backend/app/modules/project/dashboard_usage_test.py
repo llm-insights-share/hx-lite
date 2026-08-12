@@ -1,9 +1,9 @@
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from sqlmodel import SQLModel, Session, create_engine
+from sqlmodel import SQLModel, Session, create_engine, select
 
-from app.core.models import Project, ProjectMember, TaskShellRunLog, User
+from app.core.models import Project, ProjectMember, ProjectOperationLog, TaskShellRunLog, User
 from app.core.security import hash_password
 from app.modules.project.router import (
     TaskShellRunIn,
@@ -137,6 +137,12 @@ class DashboardUsageMetricsTest(unittest.TestCase):
             session.refresh(project)
             self.assertEqual(project.current_stage, "req")
             self.assertEqual(project.current_task, "prd-writing")
+            logs = session.exec(
+                select(ProjectOperationLog).where(ProjectOperationLog.project_id == project.id)
+            ).all()
+            self.assertEqual(len(logs), 1)
+            self.assertEqual(logs[0].action, "task_shell_run")
+            self.assertIn("req/prd-writing", logs[0].summary)
 
             res2 = report_task_shell_run(
                 project.id,  # type: ignore[arg-type]
@@ -150,5 +156,10 @@ class DashboardUsageMetricsTest(unittest.TestCase):
             self.assertEqual(project.current_task, "apply")
             self.assertEqual(res2.get("current_stage"), "dev")
             self.assertEqual(res2.get("current_task"), "apply")
+            logs2 = session.exec(
+                select(ProjectOperationLog).where(ProjectOperationLog.project_id == project.id)
+            ).all()
+            self.assertEqual(len(logs2), 2)
+            self.assertTrue(any(l.action == "task_shell_run" and "dev/apply" in l.summary for l in logs2))
 if __name__ == "__main__":
     unittest.main()

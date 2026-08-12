@@ -44,7 +44,15 @@
       </a-descriptions-item>
     </a-descriptions>
 
-    <a-card title="GitHub 配置" style="margin-top: 16px" size="small">
+    <a-card class="section-card" style="margin-top: 16px" size="small">
+      <template #title>
+        <button type="button" class="card-toggle" @click="openCards.github = !openCards.github">
+          <span class="chevron" :class="{ open: openCards.github }">▾</span>
+          <span>GitHub 配置</span>
+          <span class="card-toggle-hint">{{ openCards.github ? '收起' : '展开' }}</span>
+        </button>
+      </template>
+      <div v-show="openCards.github" class="card-body">
       <p class="gh-hint">与组织 Hub 推送独立；用于本项目仓库同步。账号/Token 可与组织不同。</p>
       <a-form layout="vertical" style="max-width: 640px">
         <a-form-item label="仓库">
@@ -76,9 +84,18 @@
         </a-form-item>
         <a-button type="primary" :loading="ghSaving" @click="saveGithub">保存 GitHub 配置</a-button>
       </a-form>
+      </div>
     </a-card>
 
-    <a-card title="成员管理" style="margin-top: 16px" size="small">
+    <a-card class="section-card" style="margin-top: 16px" size="small">
+      <template #title>
+        <button type="button" class="card-toggle" @click="openCards.members = !openCards.members">
+          <span class="chevron" :class="{ open: openCards.members }">▾</span>
+          <span>成员管理</span>
+          <span class="card-toggle-hint">{{ openCards.members ? '收起' : '展开' }}</span>
+        </button>
+      </template>
+      <div v-show="openCards.members" class="card-body">
       <a-space style="margin-bottom: 12px">
         <a-select
           v-model:value="memberForm.user_id"
@@ -98,9 +115,17 @@
           </template>
         </template>
       </a-table>
+      </div>
     </a-card>
 
-    <a-card title="项目 HX 配置（来自组织 Profile）" style="margin-top: 16px" size="small">
+    <a-card class="section-card" style="margin-top: 16px" size="small">
+      <template #title>
+        <button type="button" class="card-toggle" @click="openCards.hx = !openCards.hx">
+          <span class="chevron" :class="{ open: openCards.hx }">▾</span>
+          <span>项目 HX 配置（来自组织 Profile）</span>
+          <span class="card-toggle-hint">{{ openCards.hx ? '收起' : '展开' }}</span>
+        </button>
+      </template>
       <template #extra>
         <a-space>
           <a-tag>stages={{ hx?.counts?.stages ?? 0 }}</a-tag>
@@ -110,6 +135,7 @@
         </a-space>
       </template>
 
+      <div v-show="openCards.hx" class="card-body">
       <a-empty v-if="!hx?.stages?.length" description="尚未初始化。请点击「从组织 HX 初始化配置」。" />
 
       <a-collapse v-else v-model:activeKey="activeStages">
@@ -166,14 +192,23 @@
           </div>
         </a-collapse-panel>
       </a-collapse>
+      </div>
     </a-card>
 
     <a-card
       v-if="hx?.guides?.length || hx?.sensors?.length"
-      title="组织资产库（全部 Guide / Check）"
+      class="section-card"
       style="margin-top: 16px"
       size="small"
     >
+      <template #title>
+        <button type="button" class="card-toggle" @click="openCards.assets = !openCards.assets">
+          <span class="chevron" :class="{ open: openCards.assets }">▾</span>
+          <span>组织资产库（全部 Guide / Check）</span>
+          <span class="card-toggle-hint">{{ openCards.assets ? '收起' : '展开' }}</span>
+        </button>
+      </template>
+      <div v-show="openCards.assets" class="card-body">
       <a-tabs>
         <a-tab-pane key="guides" :tab="`Guides (${hx?.guides?.length ?? 0})`">
           <a-table
@@ -220,9 +255,18 @@
           </a-table>
         </a-tab-pane>
       </a-tabs>
+      </div>
     </a-card>
 
-    <a-card title="操作日志" style="margin-top: 16px" size="small">
+    <a-card class="section-card" style="margin-top: 16px" size="small">
+      <template #title>
+        <button type="button" class="card-toggle" @click="openCards.logs = !openCards.logs">
+          <span class="chevron" :class="{ open: openCards.logs }">▾</span>
+          <span>操作日志</span>
+          <span class="card-toggle-hint">{{ openCards.logs ? '收起' : '展开' }}</span>
+        </button>
+      </template>
+      <div v-show="openCards.logs" class="card-body">
       <a-table
         :dataSource="opLogs"
         :columns="logCols"
@@ -243,6 +287,7 @@
           </template>
         </template>
       </a-table>
+      </div>
     </a-card>
 
     <a-drawer v-model:open="drawerOpen" :title="drawerTitle" width="640">
@@ -282,6 +327,13 @@ const ghForm = reactive({
 })
 const ghSaving = ref(false)
 const ghClearing = ref(false)
+const openCards = reactive({
+  github: false,
+  members: false,
+  hx: false,
+  assets: false,
+  logs: false,
+})
 const roleOpts = ['project_owner', 'approver', 'member'].map((v) => ({ value: v, label: v }))
 const userOpts = computed(() =>
   users.value.map((u) => ({ value: u.id, label: `${u.display_name || u.username} (${u.username})` })),
@@ -300,6 +352,9 @@ const ACTION_LABELS: Record<string, string> = {
   guide_create: '新建 Guide',
   guide_update: '更新 Guide',
   guide_delete: '删除 Guide',
+  guide_from_github: '从 GitHub 安装 Guide',
+  guide_from_github_batch: '批量从 GitHub 安装 Guide',
+  guide_package_file_put: '写回 Guide 包文件',
   sensor_create: '新建 Check',
   sensor_update: '更新 Check',
   sensor_delete: '删除 Check',
@@ -307,6 +362,12 @@ const ACTION_LABELS: Record<string, string> = {
   task_update: '更新 Task',
   task_delete: '删除 Task',
   github_sync: 'GitHub 同步',
+  task_shell_run: '执行任务壳',
+  artifact_submit: '提交产物',
+  ticket_create: '创建工单',
+  ticket_submit: '提交工单',
+  ticket_approve: '批准工单',
+  ticket_reject: '驳回工单',
 }
 
 const mCols = [
@@ -552,5 +613,46 @@ onMounted(load)
   font-size: 12px;
   line-height: 1.4;
   margin-bottom: 12px;
+}
+.section-card :deep(.ant-card-head) {
+  min-height: 40px;
+  padding: 0 12px;
+}
+.section-card :deep(.ant-card-body) {
+  padding: 0;
+}
+.card-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(0, 0, 0, 0.88);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.card-toggle:hover {
+  color: #1677ff;
+}
+.card-toggle-hint {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 400;
+}
+.chevron {
+  display: inline-block;
+  color: #64748b;
+  font-size: 12px;
+  transition: transform 0.2s ease;
+  transform: rotate(-90deg);
+}
+.chevron.open {
+  transform: rotate(0deg);
+}
+.card-body {
+  padding: 12px;
+  border-top: 1px solid #f0f0f0;
 }
 </style>

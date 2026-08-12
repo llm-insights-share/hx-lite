@@ -45,15 +45,25 @@ nhx submit ./docs/prd-pack --name prd-pack --stage req --task prd-writing
 | Command Shell | `.cursor/commands/` | `~/.cursor/commands/` |
 | Skill Shell | `.cursor/skills/`、`.trae/skills/` | `~/.cursor/skills/`、`~/.trae/skills/` |
 
-Cursor Hooks 始终写在项目 `.cursor/hooks/`（相对路径，不适合作全局）。范围保存在 `.nhx/config.yaml` 的 `install_scope`。
+Cursor / Trae Hooks 始终写在项目目录（相对路径，不适合作全局）：`.cursor/hooks/`、`.trae/hooks/`。范围保存在 `.nhx/config.yaml` 的 `install_scope`。
 
-## IDE Hooks（Cursor）
+## IDE Hooks（Cursor / Trae）
 
-`nhx adapter sync` / `init` 会**合并**写入（不覆盖已有 hx hooks）：
+`nhx adapter sync` / `init` 会**合并**写入（不覆盖已有用户/hx hooks）：
+
+**Cursor**（`.cursor/hooks.json`）：
 
 - `beforeSubmitPrompt` → `nhx-session.mjs`（解析 `/nhx-stage-task` + `hook:beforeSubmit` 提醒）
 - `stop` → `nhx-check-stop.mjs`（`hook:stop`；失败则 `followup_message`）
 - `afterFileEdit` → `nhx-check-after-edit.mjs`（`hook:afterFileEdit` + scope）
+
+**Trae / Trae-CN**（项目 `.trae/hooks.json`，中国版亦读取此路径）：
+
+- `UserPromptSubmit` → `nhx-trae-prompt.mjs`（解析提示词 + `session mark --ide trae|trae-cn` + beforeSubmit 提醒）
+- `Stop`（`loop_limit: 3`）→ `nhx-trae-stop.mjs`（`hook:stop`；未通过则 `decision: block`）
+- `PostToolUse`（`matcher: Skill|Edit|Write`）→ `nhx-trae-post-tool.mjs`（Skill 调用 nhx-* 时上报；Edit/Write 后 afterFileEdit 检查）
+
+首次生成后请在 Trae「设置 → Hooks」中确认启用（外部写入的 hooks.json 需在安全提示面板允许一次）。
 
 Check `check_type`：
 
@@ -96,6 +106,7 @@ Check `check_type`：
 .cursor/commands/nhx-*.md          # --global → ~/.cursor/commands/
 .cursor/skills/*/SKILL.md         # --global → ~/.cursor/skills/
 .cursor/hooks/nhx-*.mjs + hooks.json（合并，始终项目级）
+.trae/hooks/nhx-trae-*.mjs + hooks.json（合并，始终项目级；Trae-CN 同读）
 .trae/skills/nhx-*/               # --global → ~/.trae/skills/
 ```
 

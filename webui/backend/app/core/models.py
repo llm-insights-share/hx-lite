@@ -325,7 +325,7 @@ class ProjectOperationLog(SQLModel, table=True):
     project_id: int = Field(index=True)
     actor_user_id: Optional[int] = Field(default=None, index=True)
     actor_username: str = ""
-    action: str = Field(index=True)  # init_config|sync_config|member_add|...
+    action: str = Field(index=True)  # init_config|sync_config|task_shell_run|artifact_submit|...
     summary: str = ""
     detail_json: str = Field(default="{}", sa_column=Column(Text))
     created_at: datetime = Field(default_factory=utcnow)

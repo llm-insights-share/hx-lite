@@ -471,6 +471,22 @@ def report_task_shell_run(
     session.add(row)
     advance_project_cursor(session, project, stage, task_id)
     session.commit()
+    session.refresh(row)
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "task_shell_run",
+        f"执行任务壳 {stage}/{task_id}",
+        {
+            "stage": stage,
+            "task_id": task_id,
+            "trigger_mode": mode,
+            "ide": (body.ide or "unknown").strip() or "unknown",
+            "source": "nhx",
+            "run_id": row.id,
+        },
+    )
     return {
         "ok": True,
         "id": row.id,
@@ -2141,6 +2157,24 @@ async def create_artifact(
     session.commit()
     session.refresh(art)
     session.refresh(ver)
+    write_project_log(
+        session,
+        project_id,
+        user,
+        "artifact_submit",
+        f"提交产物 {name} v{ver.version}"
+        + (f"（{stage}/{task}）" if stage or task else ""),
+        {
+            "artifact_id": art.id,
+            "name": name,
+            "version": ver.version,
+            "stage": stage or art.stage,
+            "task": task or art.task,
+            "content_kind": kind,
+            "files": saved,
+            "note": note,
+        },
+    )
     return {"artifact": art.model_dump(), "version": _version_public(ver)}
 
 
@@ -2360,10 +2394,25 @@ def create_ticket(body: TicketIn, session: SessionDep, user: CurrentUser):
     session.add(row)
     session.commit()
     session.refresh(row)
+    write_project_log(
+        session,
+        body.project_id,
+        user,
+        "ticket_create",
+        f"创建工单 {row.ticket_no}（{row.ticket_type or 'ticket'}）"
+        + (f" {row.stage}/{row.task}" if row.stage or row.task else ""),
+        {
+            "ticket_id": row.id,
+            "ticket_no": row.ticket_no,
+            "ticket_type": row.ticket_type,
+            "stage": row.stage,
+            "task": row.task,
+            "artifact_name": row.artifact_name,
+            "title": row.title,
+            "status": row.status,
+        },
+    )
     return row
-
-
-@router.get("/tickets/approval-status")
 def ticket_approval_status(
     session: SessionDep,
     user: CurrentUser,
@@ -2502,6 +2551,22 @@ def submit_ticket(ticket_id: int, session: SessionDep, user: CurrentUser):
     session.add(row)
     session.commit()
     session.refresh(row)
+    write_project_log(
+        session,
+        row.project_id,
+        user,
+        "ticket_submit",
+        f"提交工单 {row.ticket_no}"
+        + (f" {row.stage}/{row.task}" if row.stage or row.task else ""),
+        {
+            "ticket_id": row.id,
+            "ticket_no": row.ticket_no,
+            "ticket_type": row.ticket_type,
+            "stage": row.stage,
+            "task": row.task,
+            "status": row.status,
+        },
+    )
     return row
 
 
@@ -2519,6 +2584,23 @@ def approve_ticket(ticket_id: int, body: TicketDecisionIn, session: SessionDep, 
     session.add(row)
     session.commit()
     session.refresh(row)
+    write_project_log(
+        session,
+        row.project_id,
+        user,
+        "ticket_approve",
+        f"批准工单 {row.ticket_no}"
+        + (f" {row.stage}/{row.task}" if row.stage or row.task else ""),
+        {
+            "ticket_id": row.id,
+            "ticket_no": row.ticket_no,
+            "ticket_type": row.ticket_type,
+            "stage": row.stage,
+            "task": row.task,
+            "note": body.note,
+            "status": row.status,
+        },
+    )
     return row
 
 
@@ -2536,6 +2618,23 @@ def reject_ticket(ticket_id: int, body: TicketDecisionIn, session: SessionDep, u
     session.add(row)
     session.commit()
     session.refresh(row)
+    write_project_log(
+        session,
+        row.project_id,
+        user,
+        "ticket_reject",
+        f"驳回工单 {row.ticket_no}"
+        + (f" {row.stage}/{row.task}" if row.stage or row.task else ""),
+        {
+            "ticket_id": row.id,
+            "ticket_no": row.ticket_no,
+            "ticket_type": row.ticket_type,
+            "stage": row.stage,
+            "task": row.task,
+            "note": body.note,
+            "status": row.status,
+        },
+    )
     return row
 
 

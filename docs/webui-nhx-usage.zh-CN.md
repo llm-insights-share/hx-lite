@@ -220,7 +220,7 @@ Template 类 Guide 支持 **package** 内容模式（上传文件夹或 Word/Exc
 | `nhx doctor` | 检查 API、token、`.nhx`、IDE 投影 |
 | `nhx check [--stage --task]` | 跑当前任务绑定的 Check |
 | `nhx sensor check …` | （兼容旧名）同 `nhx check` |
-| `nhx session mark --stage … --task …` | 记录会话上下文（供 hooks） |
+| `nhx session mark --stage … --task … [--ide cursor\|trae\|trae-cn]` | 记录会话上下文（供 hooks；默认 `--ide cursor`） |
 | `nhx approve request --stage … --task …` | 创建并提交 human-check 工单 |
 | `nhx approve status --stage … --task …` | 查询审批状态 |
 | `nhx submit <path> --name <产物名> [--stage --task]` | 上传产物到 WebUI（文件或整个目录） |
@@ -277,19 +277,34 @@ nhx sync --stages arch
 .cursor/hooks/nhx-session.mjs
 .cursor/hooks/nhx-check-stop.mjs
 .cursor/hooks.json          # 合并条目，不整文件覆盖；hooks 始终项目级
+.trae/hooks/nhx-trae-*.mjs
+.trae/hooks.json            # Trae / Trae-CN 项目级 hooks（合并，始终项目级）
 .trae/skills/nhx-*/
 # 全局（--global）：~/.cursor/commands|skills 、 ~/.trae/skills
 ```
 
 **产物扩展名：** 若任务只绑定一个 package template，命令壳「本任务建议文件」使用该主文件扩展名（默认仍为 `.md`）。Agent 与 `file.exists` 门禁应对齐同一路径。
-### 5.5 Cursor Hooks
+### 5.5 Cursor / Trae Hooks
 
-`init` / `adapter sync` 会合并 hooks：
+`init` / `adapter sync` 会合并 hooks（不覆盖已有条目）：
+
+**Cursor**（`.cursor/hooks.json`）：
 
 | Hook | 脚本 | 行为 |
 |------|------|------|
 | `beforeSubmitPrompt` | `nhx-session.mjs` | 从提示中解析 `/nhx-<stage>-<task>` 并 `session mark` |
 | `stop` | `nhx-check-stop.mjs` | 跑 `nhx check`；失败则 `followup_message` 追问 |
+| `afterFileEdit` | `nhx-check-after-edit.mjs` | 按 scope 跑 `hook:afterFileEdit` |
+
+**Trae / Trae-CN**（项目 `.trae/hooks.json`；中国版亦读取此路径）：
+
+| Hook | 脚本 | 行为 |
+|------|------|------|
+| `UserPromptSubmit` | `nhx-trae-prompt.mjs` | 解析提示词并 `session mark --ide trae\|trae-cn`；beforeSubmit 提醒注入 `additionalContext` |
+| `Stop`（`loop_limit: 3`） | `nhx-trae-stop.mjs` | `hook:stop` 未通过则 `decision: block`，让 Agent 继续修复 |
+| `PostToolUse`（`Skill\|Edit\|Write`） | `nhx-trae-post-tool.mjs` | 调用 nhx-* Skill 时上报仪表盘/操作日志；Edit/Write 后 afterFileEdit 检查 |
+
+首次请在 Trae「设置 → Hooks」中确认启用（外部写入的 hooks.json 需在安全提示面板允许一次）。
 
 `nhx check` 对 `human` 会请求：
 
@@ -341,6 +356,7 @@ nhx sync --stages arch
 | 项目 GitHub 同步报 Token 未配置 | 在组织「设置」填 Token，或设 `HX_WEBUI_GITHUB_TOKEN` |
 | IDE 无 nhx 命令 | `nhx adapter sync`；项目级看 `.cursor/commands/`，全局 `--global` 看 `~/.cursor/commands/` |
 | 误伤 hx hooks | nhx 只合并 `nhx-*`；勿手改删掉 hx 原有条目 |
+| Trae Skill 执行后仪表盘无记录 | `nhx adapter sync --targets trae`（或 `trae-cn`）；确认 `.trae/hooks.json`；在 Trae「设置 → Hooks」启用 |
 
 ---
 
@@ -361,7 +377,7 @@ nhx sync --stages arch
 - [ ] 新建/编辑 Check，`check_type=human` 显示紫色标签  
 - [ ] 创建项目并初始化；自定义 Task 可编辑绑定  
 - [ ] `nhx login` → `nhx init --project <id> --stages req`  
-- [ ] IDE 可见 `/nhx-…` 命令；`.cursor/hooks.json` 含 nhx 条目  
+- [ ] IDE 可见 `/nhx-…` 命令；`.cursor/hooks.json` 与 `.trae/hooks.json` 含 nhx 条目  
 - [ ] `nhx submit` 后产物出现在 WebUI  
 - [ ] `nhx approve request` → WebUI 批准 → `nhx check` PASS  
 - [ ] `nhx sync --stages arch` 叠加阶段成功  

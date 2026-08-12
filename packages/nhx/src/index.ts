@@ -13,6 +13,7 @@ import {
   submitTicket,
 } from "./api/client.js";
 import { countAdapterProjection, syncAdapters } from "./adapter/cursor.js";
+import { traeHooksEnableHint } from "./adapter/trae-hooks.js";
 import {
   ensureNhxDir,
   loadConfig,
@@ -88,6 +89,8 @@ async function doSync(opts: {
   const adapter = syncAdapters(targets, cwd, { scope: install_scope });
   console.log("✓ materialize", stats);
   console.log("✓ adapter", adapter);
+  const hint = traeHooksEnableHint(targets);
+  if (hint) console.log(hint);
 }
 
 function buildProgram(): Command {
@@ -295,6 +298,8 @@ function buildProgram(): Command {
       }
       const result = syncAdapters(targets, process.cwd(), { scope: install_scope });
       console.log("✓ adapter", result);
+      const hint = traeHooksEnableHint(targets);
+      if (hint) console.log(hint);
     });
 
   program
@@ -417,7 +422,8 @@ function buildProgram(): Command {
     .option("--stage <stage>")
     .option("--task <task>")
     .option("--from-prompt <text>", "从提示词解析 /nhx-stage-task")
-    .action((opts: { stage?: string; task?: string; fromPrompt?: string }) => {
+    .option("--ide <ide>", "上报 IDE：cursor|trae|trae-cn", "cursor")
+    .action((opts: { stage?: string; task?: string; fromPrompt?: string; ide?: string }) => {
       let stage = opts.stage || "";
       let task = opts.task || "";
       let triggerMode: "command" | "skill" = opts.fromPrompt ? "command" : "skill";
@@ -445,7 +451,7 @@ function buildProgram(): Command {
           stage,
           task_id: task,
           trigger_mode: triggerMode,
-          ide: "cursor",
+          ide: (opts.ide || "cursor").trim() || "cursor",
         }).catch((err: unknown) => {
           const msg = err instanceof Error ? err.message : String(err);
           console.warn(`[nhx] report task-shell run failed: ${msg}`);

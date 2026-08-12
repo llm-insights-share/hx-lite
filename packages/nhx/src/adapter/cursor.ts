@@ -4,6 +4,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { GENERATED_MARKER, nhxRoot, type InstallScope } from "../config.js";
 import { syncCursorHooks } from "./hooks.js";
+import { syncTraeHooks, type TraeHookIde } from "./trae-hooks.js";
 
 export type AdapterSyncOpts = {
   scope?: InstallScope;
@@ -208,7 +209,7 @@ export function syncCursor(
 export function syncTrae(
   cwd = process.cwd(),
   opts: AdapterSyncOpts = {},
-): { skills: number; scope: InstallScope; dest: string; traeDir: string } {
+): { skills: number; hooks?: unknown; scope: InstallScope; dest: string; traeDir: string } {
   const scope = opts.scope || "project";
   const traeDir = opts.traeDir || ".trae";
   const nhx = nhxRoot(cwd);
@@ -255,8 +256,11 @@ export function syncTrae(
     }
   }
 
+  const ide: TraeHookIde = traeDir === ".trae-cn" ? "trae-cn" : "trae";
+  const hooks = syncTraeHooks(cwd, ide, opts.home ?? os.homedir());
+
   // NEVER touch .trae/agents.yaml / .trae-cn agents config
-  return { skills, scope, dest: skillDest, traeDir };
+  return { skills, hooks, scope, dest: skillDest, traeDir };
 }
 
 export function syncAdapters(
