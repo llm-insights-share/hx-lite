@@ -3,9 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { GENERATED_MARKER, nhxRoot, type InstallScope } from "../config.js";
+import { formatDescriptionFolded, splitSkillFrontmatter } from "../sync/materialize.js";
 import { syncCursorHooks } from "./hooks.js";
 import { syncTraeHooks, type TraeHookIde } from "./trae-hooks.js";
 import { syncCodeBuddyHooks, codeBuddyDirName, codeBuddyHomeDir, type CodeBuddyIde } from "./codebuddy-hooks.js";
+import { qoderHomeDir, syncQoderHooks } from "./qoder-hooks.js";
 
 export type AdapterSyncOpts = {
   scope?: InstallScope;
@@ -13,6 +15,8 @@ export type AdapterSyncOpts = {
   home?: string;
   /** Trae product dir under base: `.trae` (intl) or `.trae-cn` (China). */
   traeDir?: ".trae" | ".trae-cn";
+  /** Env for QODER_CONFIG_DIR (tests). Default: process.env. */
+  env?: NodeJS.ProcessEnv;
 };
 
 export type IdeInstallRoots = {
@@ -22,6 +26,8 @@ export type IdeInstallRoots = {
   traeSkills: string;
   codebuddyCommands: string;
   codebuddySkills: string;
+  qoderCommands: string;
+  qoderSkills: string;
   traeDir: ".trae" | ".trae-cn";
   codeBuddyIde: CodeBuddyIde;
 };
@@ -32,10 +38,12 @@ export function ideInstallRoots(
   home = os.homedir(),
   traeDir: ".trae" | ".trae-cn" = ".trae",
   codeBuddyIde: CodeBuddyIde = "codebuddy",
+  env: NodeJS.ProcessEnv = process.env,
 ): IdeInstallRoots {
   const base = scope === "global" ? home : cwd;
   const codeBuddyBase =
     scope === "global" ? codeBuddyHomeDir(codeBuddyIde, home) : path.join(cwd, ".codebuddy");
+  const qoderBase = scope === "global" ? qoderHomeDir(home, env) : path.join(cwd, ".qoder");
   return {
     scope,
     cursorCommands: path.join(base, ".cursor", "commands"),
@@ -43,6 +51,8 @@ export function ideInstallRoots(
     traeSkills: path.join(base, traeDir, "skills"),
     codebuddyCommands: path.join(codeBuddyBase, "commands"),
     codebuddySkills: path.join(codeBuddyBase, "skills"),
+    qoderCommands: path.join(qoderBase, "commands"),
+    qoderSkills: path.join(qoderBase, "skills"),
     traeDir,
     codeBuddyIde,
   };
@@ -59,6 +69,35 @@ function hashContent(s: string): string {
 
 function header(rel: string, content: string): string {
   return `<!-- ${GENERATED_MARKER} ${rel} (hash:${hashContent(content)}) -->\n`;
+}
+
+/**
+ * Qoder commands require YAML frontmatter starting at line 1.
+ * Embed the GENERATED marker as a YAML comment so isNhxGenerated still works.
+ */
+export function qoderCommandDoc(
+  id: string,
+  body: string,
+  label: string,
+  description?: string,
+): string {
+  const desc = (description || "").trim() || `nhx task shell ${id}`;
+  const markerLine = `# ${GENERATED_MARKER} ${label} (hash:${hashContent(body)})`;
+  return `---\n${markerLine}\nname: ${id}\n${formatDescriptionFolded(desc)}\n---\n\n${body.replace(/^\r?\n+/, "")}`.replace(
+    /\s+$/,
+    "\n",
+  );
+}
+
+function descriptionFromSkillShell(skillSrc: string, id: string): string | undefined {
+  const skillFile = path.join(skillSrc, id, "SKILL.md");
+  if (!fs.existsSync(skillFile)) return undefined;
+  const { data } = splitSkillFrontmatter(fs.readFileSync(skillFile, "utf8"));
+  if (data && data.description != null) {
+    const d = String(data.description).trim();
+    if (d) return d;
+  }
+  return undefined;
 }
 
 export function isNhxGenerated(file: string): boolean {
@@ -152,6 +191,8 @@ export function countAdapterProjection(
   trae_nhx_skills: number;
   codebuddy_nhx_commands: number;
   codebuddy_nhx_skills: number;
+  qoder_nhx_commands: number;
+  qoder_nhx_skills: number;
   dest: IdeInstallRoots;
 } {
   const h = home ?? os.homedir();
@@ -202,6 +243,8 @@ export function countAdapterProjection(
     trae_nhx_skills: traeSkills,
     codebuddy_nhx_commands: codebuddyCommands,
     codebuddy_nhx_skills: codebuddySkills,
+    qoder_nhx_commands: countNhxCommandFiles(dest.qoderCommands),
+    qoder_nhx_skills: countNhxSkillDirs(dest.qoderSkills, managed),
     dest,
   };
 }
@@ -349,6 +392,51 @@ export function syncCodeBuddy(
   return { commands, skills, hooks, scope, dest: skillDest, ide };
 }
 
+export function syncQoder(
+  cwd = process.cwd(),
+  opts: AdapterSyncOpts = {},
+): { commands: number; skills: number; hooks?: unknown; scope: InstallScope; dest: string; ide: "qoder" } {
+  const scope = opts.scope || "project";
+  const env = opts.env ?? process.env;
+  const nhx = nhxRoot(cwd);
+  const cmdSrc = path.join(nhx, "commands");
+  const skillSrc = path.join(nhx, "skills");
+  const roots = ideInstallRoots(scope, cwd, opts.home ?? os.homedir(), ".trae", "codebuddy", env);
+  const cmdDest = roots.qoderCommands;
+  const skillDest = roots.qoderSkills;
+  fs.mkdirSync(cmdDest, { recursive: true });
+  fs.mkdirSync(skillDest, { recursive: true });
+
+  cleanNhxFiles(cmdDest, (n) => n.startsWith("nhx-") && n.endsWith(".md"));
+  cleanManagedSkillDirs(skillDest, listManagedSkillNames(skillSrc));
+
+  let commands = 0;
+  if (fs.existsSync(cmdSrc)) {
+    for (const f of fs.readdirSync(cmdSrc).filter((x) => x.startsWith("nhx-") && x.endsWith(".md"))) {
+      const id = f.replace(/\.md$/, "");
+      const body = fs.readFileSync(path.join(cmdSrc, f), "utf8");
+      const label = destLabel(scope, `.qoder/commands/${f}`);
+      const desc = descriptionFromSkillShell(skillSrc, id);
+      const out = qoderCommandDoc(id, body, label, desc);
+      fs.writeFileSync(path.join(cmdDest, f), out, "utf8");
+      commands++;
+    }
+  }
+
+  let skills = 0;
+  if (fs.existsSync(skillSrc)) {
+    for (const name of fs.readdirSync(skillSrc)) {
+      const src = path.join(skillSrc, name, "SKILL.md");
+      if (!fs.existsSync(src)) continue;
+      copySkillDir(path.join(skillSrc, name), path.join(skillDest, name));
+      skills++;
+    }
+  }
+
+  const hooks = syncQoderHooks(cwd, opts.home ?? os.homedir(), scope, env);
+  return { commands, skills, hooks, scope, dest: skillDest, ide: "qoder" };
+}
+
 export function syncAdapters(
   targets: string[],
   cwd = process.cwd(),
@@ -361,7 +449,8 @@ export function syncAdapters(
     else if (t === "trae-cn") out["trae-cn"] = syncTrae(cwd, { ...opts, traeDir: ".trae-cn" });
     else if (t === "codebuddy") out.codebuddy = syncCodeBuddy(cwd, { ...opts, ide: "codebuddy" });
     else if (t === "workbuddy") out.workbuddy = syncCodeBuddy(cwd, { ...opts, ide: "workbuddy" });
-    else console.warn(`⚠ unknown adapter target "${t}" (supported: cursor, trae, trae-cn, codebuddy, workbuddy)`);
+    else if (t === "qoder") out.qoder = syncQoder(cwd, opts);
+    else console.warn(`⚠ unknown adapter target "${t}" (supported: cursor, trae, trae-cn, codebuddy, workbuddy, qoder)`);
   }
   return out;
 }

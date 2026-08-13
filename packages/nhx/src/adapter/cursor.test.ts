@@ -8,6 +8,7 @@ import {
   destLabel,
   ideInstallRoots,
   isNhxGenerated,
+  qoderCommandDoc,
   syncAdapters,
 } from "./cursor.js";
 
@@ -44,17 +45,21 @@ describe("ideInstallRoots / destLabel", () => {
     assert.equal(r.traeSkills, path.join(cwd, ".trae", "skills"));
     assert.equal(r.codebuddyCommands, path.join(cwd, ".codebuddy", "commands"));
     assert.equal(r.codebuddySkills, path.join(cwd, ".codebuddy", "skills"));
+    assert.equal(r.qoderCommands, path.join(cwd, ".qoder", "commands"));
+    assert.equal(r.qoderSkills, path.join(cwd, ".qoder", "skills"));
   });
 
   it("global roots are under homedir", () => {
     const cwd = "/tmp/proj";
     const home = "/tmp/home";
-    const r = ideInstallRoots("global", cwd, home);
+    const r = ideInstallRoots("global", cwd, home, ".trae", "codebuddy", {});
     assert.equal(r.cursorSkills, path.join(home, ".cursor", "skills"));
     assert.equal(r.cursorCommands, path.join(home, ".cursor", "commands"));
     assert.equal(r.traeSkills, path.join(home, ".trae", "skills"));
     assert.equal(r.codebuddyCommands, path.join(home, ".codebuddy", "commands"));
     assert.equal(r.codebuddySkills, path.join(home, ".codebuddy", "skills"));
+    assert.equal(r.qoderCommands, path.join(home, ".qoder", "commands"));
+    assert.equal(r.qoderSkills, path.join(home, ".qoder", "skills"));
   });
 
   it("trae-cn roots use .trae-cn", () => {
@@ -245,6 +250,69 @@ describe("syncAdapters project vs global", () => {
       fs.readFileSync(path.join(home, ".workbuddy", "commands", "nhx-req-prd.md"), "utf8"),
       /~\/\.workbuddy\/commands\/nhx-req-prd\.md/,
     );
+  });
+
+  it("qoder target writes .qoder commands/skills with frontmatter marker", () => {
+    const cwd = tmp();
+    const home = tmp();
+    seedNhx(cwd);
+    // Skill shell with description used for command frontmatter
+    const shellDir = path.join(cwd, ".nhx", "skills", "nhx-req-prd");
+    fs.mkdirSync(shellDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(shellDir, "SKILL.md"),
+      "---\nname: nhx-req-prd\ndescription: >\n  产品需求文档编写\n---\n\nbody\n",
+      "utf8",
+    );
+    const out = syncAdapters(["qoder"], cwd, { scope: "project", home, env: {} });
+    const result = out.qoder as { commands: number; skills: number; ide: string };
+    assert.equal(result.ide, "qoder");
+    assert.equal(result.commands, 1);
+    assert.equal(result.skills, 2); // demo-skill + nhx-req-prd skill shell
+    const cmdFile = path.join(cwd, ".qoder", "commands", "nhx-req-prd.md");
+    assert.equal(fs.existsSync(cmdFile), true);
+    const cmd = fs.readFileSync(cmdFile, "utf8");
+    assert.equal(cmd.startsWith("---\n"), true);
+    assert.match(cmd, new RegExp(`# ${GENERATED_MARKER} \\.qoder/commands/nhx-req-prd\\.md`));
+    assert.match(cmd, /name: nhx-req-prd/);
+    assert.match(cmd, /产品需求文档编写/);
+    assert.equal(isNhxGenerated(cmdFile), true);
+    assert.equal(fs.existsSync(path.join(cwd, ".qoder", "skills", "demo-skill", "SKILL.md")), true);
+    assert.equal(fs.existsSync(path.join(cwd, ".qoder", "settings.json")), true);
+    assert.match(
+      fs.readFileSync(path.join(cwd, ".qoder", "settings.json"), "utf8"),
+      /nhx-qoder-prompt\.mjs/,
+    );
+  });
+
+  it("qoder global writes ~/.qoder and embeds ~ path in frontmatter marker", () => {
+    const cwd = tmp();
+    const home = tmp();
+    seedNhx(cwd);
+    const out = syncAdapters(["qoder"], cwd, { scope: "global", home, env: {} });
+    const result = out.qoder as { commands: number; skills: number; ide: string };
+    assert.equal(result.ide, "qoder");
+    assert.equal(result.commands, 1);
+    const cmdFile = path.join(home, ".qoder", "commands", "nhx-req-prd.md");
+    assert.equal(fs.existsSync(cmdFile), true);
+    const cmd = fs.readFileSync(cmdFile, "utf8");
+    assert.equal(cmd.startsWith("---\n"), true);
+    assert.match(cmd, /~\/\.qoder\/commands\/nhx-req-prd\.md/);
+    assert.match(cmd, /nhx task shell nhx-req-prd/);
+    assert.equal(isNhxGenerated(cmdFile), true);
+    assert.equal(fs.existsSync(path.join(home, ".qoder", "settings.json")), true);
+  });
+
+  it("qoderCommandDoc embeds GENERATED marker inside frontmatter", () => {
+    const doc = qoderCommandDoc("nhx-demo", "do stuff\n", ".qoder/commands/nhx-demo.md", "Demo cmd");
+    assert.equal(doc.startsWith("---\n"), true);
+    assert.match(doc, new RegExp(`# ${GENERATED_MARKER} \\.qoder/commands/nhx-demo\\.md \\(hash:`));
+    assert.match(doc, /name: nhx-demo/);
+    assert.match(doc, /description: >/);
+    assert.match(doc, /Demo cmd/);
+    const f = path.join(tmp(), "nhx-demo.md");
+    fs.writeFileSync(f, doc, "utf8");
+    assert.equal(isNhxGenerated(f), true);
   });
 });
 

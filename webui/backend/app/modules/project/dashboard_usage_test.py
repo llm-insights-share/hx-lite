@@ -194,6 +194,7 @@ class DashboardUsageMetricsTest(unittest.TestCase):
         self.assertEqual(normalize_ide_name("cursor"), "cursor")
         self.assertEqual(normalize_ide_name(" WorkBuddy "), "workbuddy")
         self.assertEqual(normalize_ide_name("TRAE-CN"), "trae-cn")
+        self.assertEqual(normalize_ide_name("Qoder"), "qoder")
         self.assertEqual(normalize_ide_name("other-ide"), "unknown")
 if __name__ == "__main__":
     unittest.main()

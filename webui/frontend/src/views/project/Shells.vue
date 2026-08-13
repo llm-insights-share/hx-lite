@@ -64,11 +64,11 @@
 
       <a-tabs v-model:activeKey="detailTab">
         <a-tab-pane key="command" tab="Command Shell">
-          <div class="path-hint">安装后按目标 IDE 投影为斜杠命令（Cursor: `.cursor/commands/`；CodeBuddy/WorkBuddy 项目级: `.codebuddy/commands/`；全局 `~/.cursor/commands/`、`~/.codebuddy/commands/`、`~/.workbuddy/commands/`）</div>
+          <div class="path-hint">安装后按目标 IDE 投影为斜杠命令（Cursor: `.cursor/commands/`；CodeBuddy/WorkBuddy 项目级: `.codebuddy/commands/`；Qoder: `.qoder/commands/`；全局 `~/.cursor/commands/`、`~/.codebuddy/commands/`、`~/.workbuddy/commands/`、`~/.qoder/commands/`）</div>
           <div class="md-preview" v-html="commandPreviewHtml" />
         </a-tab-pane>
         <a-tab-pane key="skill" tab="Skill Shell">
-          <div class="path-hint">安装后按目标 IDE 投影为 Skill（项目 `.cursor/skills/`、`.trae/skills/`、`.codebuddy/skills/`；全局 `nhx --global`）</div>
+          <div class="path-hint">安装后按目标 IDE 投影为 Skill（项目 `.cursor/skills/`、`.trae/skills/`、`.codebuddy/skills/`、`.qoder/skills/`；全局 `nhx --global`）</div>
           <div class="md-preview" v-html="skillPreviewHtml" />
         </a-tab-pane>
       </a-tabs>

@@ -109,15 +109,16 @@ export function buildShellUsageMarkdown(
     '',
     '## 总览：在 IDE 中怎么用',
     '',
-    '1. **前置**：`nhx login` → `nhx sync`（可选 stage）→ `nhx adapter sync`，将壳投影到 IDE。跨项目安装加 `--global`（写入 `~/.cursor/`、`~/.trae/`、`~/.codebuddy/`、`~/.workbuddy/`）。',
+    '1. **前置**：`nhx login` → `nhx sync`（可选 stage）→ `nhx adapter sync`，将壳投影到 IDE。跨项目安装加 `--global`（写入 `~/.cursor/`、`~/.trae/`、`~/.codebuddy/`、`~/.workbuddy/`、`~/.qoder/`）。',
     '2. **Command Shell（Cursor / CodeBuddy / WorkBuddy / Qoder 等）**：在对话中输入斜杠命令 `/{ide_slash}`，可附带参数。',
-    '   - 项目：`.cursor/commands/{ide_slash}.md`（以及 `.nhx/commands/`）',
-    '   - 全局：`~/.cursor/commands/{ide_slash}.md`（`nhx adapter sync --global`）',
-    '3. **Skill Shell（Cursor / Trae 等）**：启用同名 Skill；无斜杠命令的 IDE 以 Skill 为主。',
-    '   - 项目：`.cursor/skills/{ide_slash}/SKILL.md`、`.trae/skills/{ide_slash}/SKILL.md`',
-    '   - 全局：`~/.cursor/skills/{ide_slash}/SKILL.md`、`~/.trae/skills/{ide_slash}/SKILL.md`',
+    '   - 项目：`.cursor/commands/{ide_slash}.md`、`.qoder/commands/{ide_slash}.md`（以及 `.nhx/commands/`）',
+    '   - 全局：`~/.cursor/commands/{ide_slash}.md`、`~/.qoder/commands/{ide_slash}.md`（`nhx adapter sync --global`）',
+    '3. **Skill Shell（Cursor / Trae / Qoder 等）**：启用同名 Skill；无斜杠命令的 IDE 以 Skill 为主。',
+    '   - 项目：`.cursor/skills/{ide_slash}/SKILL.md`、`.trae/skills/{ide_slash}/SKILL.md`、`.qoder/skills/{ide_slash}/SKILL.md`',
+    '   - 全局：`~/.cursor/skills/{ide_slash}/SKILL.md`、`~/.trae/skills/{ide_slash}/SKILL.md`、`~/.qoder/skills/{ide_slash}/SKILL.md`',
     '4. **CodeBuddy / WorkBuddy**：项目级投影到 `.codebuddy/commands`、`.codebuddy/skills` 与 `.codebuddy/settings.json`；全局分别为 `~/.codebuddy/` 与 `~/.workbuddy/`。',
-    '5. 每个 Task **同时**具备 Command 与 Skill 两种壳，正文一致；Skill 含自动注入附录（绑定 Guide / Check）。',
+    '5. **Qoder**：项目级投影到 `.qoder/commands`、`.qoder/skills` 与 `.qoder/settings.json`；全局 `~/.qoder/`（或 `$QODER_CONFIG_DIR`）。',
+    '6. 每个 Task **同时**具备 Command 与 Skill 两种壳，正文一致；Skill 含自动注入附录（绑定 Guide / Check）。',
     '',
     '## 目录',
     '',
@@ -173,10 +174,10 @@ export function buildShellUsageMarkdown(
 
       lines.push('#### 使用说明')
       lines.push('')
-      lines.push(`- **Command**：在 Cursor / CodeBuddy / WorkBuddy 等支持斜杠命令的 IDE 中输入 \`/${slash}\`，按提示补充参数后执行任务。`)
-      lines.push(`- **Skill**：在 Cursor / Trae / CodeBuddy / WorkBuddy 等中启用 Skill \`${slash}\`。`)
-      lines.push(`- **投影文件**：Cursor 项目 \`.cursor/commands/${slash}.md\`，CodeBuddy/WorkBuddy 项目 \`.codebuddy/commands/${slash}.md\``)
-      lines.push(`- **Skill 文件**：Cursor 项目 \`.cursor/skills/${slash}/SKILL.md\`，Trae 项目 \`.trae/skills/${slash}/SKILL.md\`，CodeBuddy/WorkBuddy 项目 \`.codebuddy/skills/${slash}/SKILL.md\``)
+      lines.push(`- **Command**：在 Cursor / CodeBuddy / WorkBuddy / Qoder 等支持斜杠命令的 IDE 中输入 \`/${slash}\`，按提示补充参数后执行任务。`)
+      lines.push(`- **Skill**：在 Cursor / Trae / CodeBuddy / WorkBuddy / Qoder 等中启用 Skill \`${slash}\`。`)
+      lines.push(`- **投影文件**：Cursor 项目 \`.cursor/commands/${slash}.md\`，CodeBuddy/WorkBuddy 项目 \`.codebuddy/commands/${slash}.md\`，Qoder 项目 \`.qoder/commands/${slash}.md\``)
+      lines.push(`- **Skill 文件**：Cursor 项目 \`.cursor/skills/${slash}/SKILL.md\`，Trae 项目 \`.trae/skills/${slash}/SKILL.md\`，CodeBuddy/WorkBuddy 项目 \`.codebuddy/skills/${slash}/SKILL.md\`，Qoder 项目 \`.qoder/skills/${slash}/SKILL.md\``)
       lines.push('')
       lines.push('任务意图 / 步骤摘要：')
       lines.push('')

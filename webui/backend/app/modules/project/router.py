@@ -361,6 +361,7 @@ IDE_NORMALIZE_MAP = {
     "trae-cn": "trae-cn",
     "codebuddy": "codebuddy",
     "workbuddy": "workbuddy",
+    "qoder": "qoder",
     "unknown": "unknown",
 }
 

@@ -79,6 +79,30 @@ cd webui
 
 ---
 
+## 支持的 IDE（nhx adapter）
+
+`nhx` 通过 `--targets` 将 Command / Skill 壳投影到各 IDE。默认 `cursor,trae`；其余需显式指定。
+
+| `--targets` | IDE | Command | Skill | Hooks 配置 | 项目级目录 | 全局目录（`--global`） |
+|-------------|-----|---------|-------|------------|------------|------------------------|
+| `cursor` | Cursor | ✓ | ✓ | `.cursor/hooks.json` | `.cursor/` | `~/.cursor/` |
+| `trae` | Trae（国际版） | —（投影为 Skill） | ✓ | `.trae/hooks.json` | `.trae/` | `~/.trae/` |
+| `trae-cn` | Trae（中国版） | —（投影为 Skill） | ✓ | `.trae/hooks.json` | `.trae-cn/`（skills） | `~/.trae-cn/` |
+| `codebuddy` | CodeBuddy | ✓ | ✓ | `.codebuddy/settings.json` | `.codebuddy/` | `~/.codebuddy/` |
+| `workbuddy` | WorkBuddy | ✓ | ✓ | `.codebuddy/settings.json`（项目） | `.codebuddy/` | `~/.workbuddy/` |
+| `qoder` | Qoder | ✓ | ✓ | `.qoder/settings.json` | `.qoder/` | `~/.qoder/`（或 `$QODER_CONFIG_DIR`） |
+
+示例：
+
+```bash
+nhx adapter sync --targets cursor,trae,qoder
+nhx init --project 1 --stages req --targets cursor,trae,codebuddy,workbuddy,qoder
+```
+
+更细的投影路径与 Hook 事件见 [nhx CLI 手册](./packages/nhx/README.md)。
+
+---
+
 ## 设计理念
 
 - **组织中心化**：组织统一维护交付资产，项目侧只做初始化和增量同步

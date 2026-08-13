@@ -15,6 +15,7 @@ import {
 import { countAdapterProjection, syncAdapters } from "./adapter/cursor.js";
 import { traeHooksEnableHint } from "./adapter/trae-hooks.js";
 import { codeBuddyHooksEnableHint } from "./adapter/codebuddy-hooks.js";
+import { qoderHooksEnableHint } from "./adapter/qoder-hooks.js";
 import {
   ensureNhxDir,
   loadConfig,
@@ -95,6 +96,8 @@ async function doSync(opts: {
   if (hint) console.log(hint);
   const codeBuddyHint = codeBuddyHooksEnableHint(targets, install_scope);
   if (codeBuddyHint) console.log(codeBuddyHint);
+  const qoderHint = qoderHooksEnableHint(targets, install_scope);
+  if (qoderHint) console.log(qoderHint);
 }
 
 function buildProgram(): Command {
@@ -196,7 +199,7 @@ function buildProgram(): Command {
     .requiredOption("--stages <list>", "关注的 stage，逗号分隔，如 req,dev")
     .option(
       "--targets <list>",
-      "IDE 目标，逗号分隔（cursor,trae,trae-cn,codebuddy,workbuddy）",
+      "IDE 目标，逗号分隔（cursor,trae,trae-cn,codebuddy,workbuddy,qoder）",
       "cursor,trae",
     )
     .option("-g, --global", "Skill/Command 安装到 IDE 用户级目录（~/.cursor、~/.trae）")
@@ -310,6 +313,8 @@ function buildProgram(): Command {
       if (hint) console.log(hint);
       const codeBuddyHint = codeBuddyHooksEnableHint(targets, install_scope);
       if (codeBuddyHint) console.log(codeBuddyHint);
+      const qoderHint = qoderHooksEnableHint(targets, install_scope);
+      if (qoderHint) console.log(qoderHint);
     });
 
   program
@@ -442,7 +447,7 @@ function buildProgram(): Command {
     .option("--stage <stage>")
     .option("--task <task>")
     .option("--from-prompt <text>", "从提示词解析 /nhx-stage-task")
-    .option("--ide <ide>", "上报 IDE：cursor|trae|trae-cn|codebuddy|workbuddy", "cursor")
+    .option("--ide <ide>", "上报 IDE：cursor|trae|trae-cn|codebuddy|workbuddy|qoder", "cursor")
     .option("--no-report", "只写 session.json，不上报 WebUI")
     .action(
       async (opts: {
@@ -605,12 +610,16 @@ function buildProgram(): Command {
         trae_nhx_skills: projection.trae_nhx_skills,
         codebuddy_nhx_commands: projection.codebuddy_nhx_commands,
         codebuddy_nhx_skills: projection.codebuddy_nhx_skills,
+        qoder_nhx_commands: projection.qoder_nhx_commands,
+        qoder_nhx_skills: projection.qoder_nhx_skills,
         dest: {
           cursor_commands: projection.dest.cursorCommands,
           cursor_skills: projection.dest.cursorSkills,
           trae_skills: projection.dest.traeSkills,
           codebuddy_commands: projection.dest.codebuddyCommands,
           codebuddy_skills: projection.dest.codebuddySkills,
+          qoder_commands: projection.dest.qoderCommands,
+          qoder_skills: projection.dest.qoderSkills,
         },
         ok: okHealth && Boolean(creds?.access_token) && Boolean(cfg?.project_id),
       };

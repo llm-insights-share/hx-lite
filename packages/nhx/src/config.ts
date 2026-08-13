@@ -13,9 +13,9 @@ export type NhxConfig = {
   project_id?: number;
   project_slug?: string;
   stages: string[];
-  /** IDE targets: cursor, trae, trae-cn, codebuddy, workbuddy. */
+  /** IDE targets: cursor, trae, trae-cn, codebuddy, workbuddy, qoder. */
   targets: string[];
-  /** IDE skill/command projection: project (.cursor/.codebuddy) or user-global (~/.cursor/~/.codebuddy/~/.workbuddy). */
+  /** IDE skill/command projection: project (.cursor/.codebuddy/.qoder) or user-global (~/.cursor/~/.codebuddy/~/.workbuddy/~/.qoder). */
   install_scope: InstallScope;
   /** Human approval status query interval (minutes). Default 120. */
   approval_check_interval_minutes?: number;
