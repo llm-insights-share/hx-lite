@@ -20,12 +20,23 @@ after(() => {
 describe("qoderHomeDir", () => {
   it("defaults to ~/.qoder", () => {
     const home = "/tmp/home";
-    assert.equal(qoderHomeDir(home, {}), path.join(home, ".qoder"));
+    assert.equal(qoderHomeDir("qoder", home, {}), path.join(home, ".qoder"));
   });
 
-  it("respects QODER_CONFIG_DIR", () => {
+  it("respects QODER_CONFIG_DIR for qoder only", () => {
     const override = tmp();
-    assert.equal(qoderHomeDir("/tmp/home", { QODER_CONFIG_DIR: override }), path.resolve(override));
+    assert.equal(
+      qoderHomeDir("qoder", "/tmp/home", { QODER_CONFIG_DIR: override }),
+      path.resolve(override),
+    );
+    assert.equal(
+      qoderHomeDir("qoderwork", "/tmp/home", { QODER_CONFIG_DIR: override }),
+      path.join("/tmp/home", ".qoderwork"),
+    );
+  });
+
+  it("qoderwork always uses ~/.qoderwork", () => {
+    assert.equal(qoderHomeDir("qoderwork", "/tmp/home", {}), path.join("/tmp/home", ".qoderwork"));
   });
 });
 
@@ -33,7 +44,7 @@ describe("qoder hooks sync", () => {
   it("writes project settings and scripts", () => {
     const cwd = tmp();
     const home = tmp();
-    const out = syncQoderHooks(cwd, home, "project", {});
+    const out = syncQoderHooks(cwd, "qoder", home, "project", {});
     assert.equal(out.settingsJson, true);
     assert.equal(out.ide, "qoder");
     assert.equal(fs.existsSync(path.join(cwd, ".qoder", "settings.json")), true);
@@ -65,24 +76,26 @@ describe("qoder hooks sync", () => {
       ),
       "utf8",
     );
-    syncQoderHooks(cwd, home, "project", {});
-    syncQoderHooks(cwd, home, "project", {});
+    syncQoderHooks(cwd, "qoderwork", home, "project", {});
+    syncQoderHooks(cwd, "qoderwork", home, "project", {});
     const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
     assert.equal(settings.hooks.UserPromptSubmit.length, 2);
     assert.equal(settings.hooks.UserPromptSubmit[0].hooks[0].command, "echo user-hook");
     assert.equal(settings.hooks.Stop.length, 1);
     assert.equal(settings.hooks.PostToolUse.length, 1);
+    const prompt = fs.readFileSync(path.join(cwd, ".qoder", "hooks", "nhx-qoder-prompt.mjs"), "utf8");
+    assert.match(prompt, /"--ide", "qoderwork"/);
   });
 
   it("global scope writes global settings and strips project nhx hooks", () => {
     const cwd = tmp();
     const home = tmp();
-    syncQoderHooks(cwd, home, "project", {});
+    syncQoderHooks(cwd, "qoder", home, "project", {});
     assert.match(
       fs.readFileSync(path.join(cwd, ".qoder", "settings.json"), "utf8"),
       /nhx-qoder-prompt/,
     );
-    syncQoderHooks(cwd, home, "global", {});
+    syncQoderHooks(cwd, "qoder", home, "global", {});
     const globalSettings = path.join(home, ".qoder", "settings.json");
     assert.equal(fs.existsSync(globalSettings), true);
     assert.match(fs.readFileSync(globalSettings, "utf8"), /nhx-qoder-prompt/);
@@ -112,21 +125,98 @@ describe("qoder hooks sync", () => {
       ),
       "utf8",
     );
-    syncQoderHooks(cwd, home, "project", {});
+    syncQoderHooks(cwd, "qoder", home, "project", {});
     const local = JSON.parse(fs.readFileSync(localPath, "utf8"));
     const events = Object.values(local.hooks || {}).flat() as unknown[];
     assert.equal(events.some((g) => JSON.stringify(g).includes("nhx-qoder")), false);
     assert.equal(local._nhx, undefined);
   });
 
-  it("global uses QODER_CONFIG_DIR when set", () => {
+  it("global uses QODER_CONFIG_DIR when set for qoder", () => {
     const cwd = tmp();
     const home = tmp();
     const configDir = tmp();
-    const out = syncQoderHooks(cwd, home, "global", { QODER_CONFIG_DIR: configDir });
+    const out = syncQoderHooks(cwd, "qoder", home, "global", { QODER_CONFIG_DIR: configDir });
     assert.equal(out.globalDest, path.join(path.resolve(configDir), "settings.json"));
     assert.equal(fs.existsSync(path.join(configDir, "settings.json")), true);
     assert.equal(fs.existsSync(path.join(configDir, "hooks", "nhx-qoder-prompt.mjs")), true);
     assert.equal(fs.existsSync(path.join(home, ".qoder", "settings.json")), false);
+  });
+
+  it("qoderwork global writes ~/.qoderwork and does not create ~/.qoder", () => {
+    const cwd = tmp();
+    const home = tmp();
+    const out = syncQoderHooks(cwd, "qoderwork", home, "global", {});
+    assert.match(out.globalDest, /\.qoderwork[/\\]settings\.json$/);
+    assert.equal(fs.existsSync(path.join(home, ".qoderwork", "settings.json")), true);
+    assert.equal(fs.existsSync(path.join(home, ".qoderwork", "hooks", "nhx-qoder-prompt.mjs")), true);
+    assert.equal(fs.existsSync(path.join(home, ".qoder", "settings.json")), false);
+    const prompt = fs.readFileSync(
+      path.join(home, ".qoderwork", "hooks", "nhx-qoder-prompt.mjs"),
+      "utf8",
+    );
+    assert.match(prompt, /"--ide", "qoderwork"/);
+  });
+
+  it("qoder and qoderwork global keep separate settings", () => {
+    const cwd = tmp();
+    const home = tmp();
+    syncQoderHooks(cwd, "qoder", home, "global", {});
+    syncQoderHooks(cwd, "qoderwork", home, "global", {});
+    const q = JSON.parse(fs.readFileSync(path.join(home, ".qoder", "settings.json"), "utf8"));
+    const qw = JSON.parse(fs.readFileSync(path.join(home, ".qoderwork", "settings.json"), "utf8"));
+    assert.equal(q._nhx.ide, "qoder");
+    assert.equal(qw._nhx.ide, "qoderwork");
+    assert.ok(Array.isArray(q.hooks.UserPromptSubmit) && q.hooks.UserPromptSubmit.length >= 1);
+    assert.ok(Array.isArray(qw.hooks.UserPromptSubmit) && qw.hooks.UserPromptSubmit.length >= 1);
+  });
+
+  it("qoderwork sync strips legacy qoderwork hooks from ~/.qoder only", () => {
+    const cwd = tmp();
+    const home = tmp();
+    const legacyPath = path.join(home, ".qoder", "settings.json");
+    fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
+    fs.writeFileSync(
+      legacyPath,
+      JSON.stringify(
+        {
+          hooks: {
+            UserPromptSubmit: [
+              { hooks: [{ type: "command", command: "node ~/.qoder/hooks/nhx-qoder-prompt.mjs" }] },
+            ],
+          },
+          _nhx: { generated: "GENERATED by nhx adapter", ide: "qoderwork" },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    syncQoderHooks(cwd, "qoderwork", home, "global", {});
+    const legacy = JSON.parse(fs.readFileSync(legacyPath, "utf8"));
+    const events = Object.values(legacy.hooks || {}).flat() as unknown[];
+    assert.equal(events.some((g) => JSON.stringify(g).includes("nhx-qoder")), false);
+    assert.equal(legacy._nhx, undefined);
+
+    // qoder-owned global settings must not be stripped by qoderwork sync
+    const qPath = path.join(home, ".qoder", "settings.json");
+    fs.writeFileSync(
+      qPath,
+      JSON.stringify(
+        {
+          hooks: {
+            Stop: [{ hooks: [{ type: "command", command: "node ~/.qoder/hooks/nhx-qoder-stop.mjs" }] }],
+          },
+          _nhx: { generated: "GENERATED by nhx adapter", ide: "qoder" },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    syncQoderHooks(cwd, "qoderwork", home, "global", {});
+    const kept = JSON.parse(fs.readFileSync(qPath, "utf8"));
+    assert.equal(kept._nhx.ide, "qoder");
+    assert.equal(kept.hooks.Stop.length, 1);
   });
 });

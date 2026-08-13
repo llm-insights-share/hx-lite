@@ -50,7 +50,7 @@
                   <a-radio-button value="edit">编辑</a-radio-button>
                   <a-radio-button value="preview">预览</a-radio-button>
                 </a-radio-group>
-                <span class="path-hint">Hub `commands/{{ current.slash_name }}.md` · 同步后投影到各 IDE（Cursor: `.cursor/commands/`；CodeBuddy/WorkBuddy 项目级: `.codebuddy/commands/`；Qoder: `.qoder/commands/`；全局 `~/.cursor/commands/`、`~/.codebuddy/commands/`、`~/.workbuddy/commands/`、`~/.qoder/commands/`，`nhx … --global`）</span>
+                <span class="path-hint">Hub `commands/{{ current.slash_name }}.md` · 同步后投影到各 IDE（Cursor: `.cursor/commands/`；CodeBuddy/WorkBuddy 项目级: `.codebuddy/commands/`；Qoder/QoderWork 项目级: `.qoder/commands/`；全局 `~/.cursor/commands/`、`~/.codebuddy/commands/`、`~/.workbuddy/commands/`、`~/.qoder/commands/`、`~/.qoderwork/commands/`，`nhx … --global`）</span>
               </div>
               <template v-if="commandMode === 'edit'">
                 <a-form layout="vertical">
@@ -74,7 +74,7 @@
                   <a-radio-button value="edit">编辑</a-radio-button>
                   <a-radio-button value="preview">预览</a-radio-button>
                 </a-radio-group>
-                <span class="path-hint">Hub `skill-shells/{{ current.slash_name }}/SKILL.md` · 同步后投影到各 IDE（项目 `.cursor/skills/`、`.trae/skills/`、`.codebuddy/skills/`、`.qoder/skills/`；全局 `~/.cursor/skills/`、`~/.trae/skills/`、`~/.codebuddy/skills/`、`~/.workbuddy/skills/`、`~/.qoder/skills/`，`nhx … --global`）</span>
+                <span class="path-hint">Hub `skill-shells/{{ current.slash_name }}/SKILL.md` · 同步后投影到各 IDE（项目 `.cursor/skills/`、`.trae/skills/`、`.codebuddy/skills/`、`.qoder/skills/`；全局 `~/.cursor/skills/`、`~/.trae/skills/`、`~/.codebuddy/skills/`、`~/.workbuddy/skills/`、`~/.qoder/skills/`、`~/.qoderwork/skills/`，`nhx … --global`）</span>
               </div>
               <template v-if="skillMode === 'edit'">
                 <a-form layout="vertical">

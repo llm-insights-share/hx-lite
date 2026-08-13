@@ -158,6 +158,7 @@ const SKIP_DIR_NAMES = new Set([
   ".cursor",
   ".trae",
   ".qoder",
+  ".qoderwork",
 ]);
 
 /** Directory to start walking: segments before first glob segment; empty → cwd. */

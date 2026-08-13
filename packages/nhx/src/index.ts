@@ -199,7 +199,7 @@ function buildProgram(): Command {
     .requiredOption("--stages <list>", "关注的 stage，逗号分隔，如 req,dev")
     .option(
       "--targets <list>",
-      "IDE 目标，逗号分隔（cursor,trae,trae-cn,codebuddy,workbuddy,qoder）",
+      "IDE 目标，逗号分隔（cursor,trae,trae-cn,codebuddy,workbuddy,qoder,qoderwork）",
       "cursor,trae",
     )
     .option("-g, --global", "Skill/Command 安装到 IDE 用户级目录（~/.cursor、~/.trae）")
@@ -447,7 +447,7 @@ function buildProgram(): Command {
     .option("--stage <stage>")
     .option("--task <task>")
     .option("--from-prompt <text>", "从提示词解析 /nhx-stage-task")
-    .option("--ide <ide>", "上报 IDE：cursor|trae|trae-cn|codebuddy|workbuddy|qoder", "cursor")
+    .option("--ide <ide>", "上报 IDE：cursor|trae|trae-cn|codebuddy|workbuddy|qoder|qoderwork", "cursor")
     .option("--no-report", "只写 session.json，不上报 WebUI")
     .action(
       async (opts: {

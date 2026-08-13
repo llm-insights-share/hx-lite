@@ -362,6 +362,7 @@ IDE_NORMALIZE_MAP = {
     "codebuddy": "codebuddy",
     "workbuddy": "workbuddy",
     "qoder": "qoder",
+    "qoderwork": "qoderwork",
     "unknown": "unknown",
 }
 

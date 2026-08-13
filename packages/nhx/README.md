@@ -1,6 +1,6 @@
 # nhx — 项目 HX 交付 CLI
 
-独立于 `hx` / `hxhub`：从 WebUI 按 stage 同步资产，投影到 Cursor / Trae / CodeBuddy / WorkBuddy / Qoder，任务**直接绑定 Check**（无 Suite 层），并用 IDE hooks 做检查；支持人工审批工单。
+独立于 `hx` / `hxhub`：从 WebUI 按 stage 同步资产，投影到 Cursor / Trae / CodeBuddy / WorkBuddy / Qoder / QoderWork，任务**直接绑定 Check**（无 Suite 层），并用 IDE hooks 做检查；支持人工审批工单。
 
 **完整使用手册（WebUI + nhx）：** [docs/webui-nhx-usage.zh-CN.md](../../docs/webui-nhx-usage.zh-CN.md)
 
@@ -16,10 +16,11 @@
 | `codebuddy` | CodeBuddy | ✓ `.codebuddy/commands/` | ✓ `.codebuddy/skills/` | `.codebuddy/settings.json` | `.codebuddy/` | `~/.codebuddy/` |
 | `workbuddy` | WorkBuddy | ✓（项目同 CodeBuddy） | ✓（项目同 CodeBuddy） | 项目 `.codebuddy/settings.json` | `.codebuddy/` | `~/.workbuddy/` |
 | `qoder` | Qoder | ✓ `.qoder/commands/` | ✓ `.qoder/skills/` | `.qoder/settings.json` | `.qoder/` | `~/.qoder/`（或 `$QODER_CONFIG_DIR`） |
+| `qoderwork` | QoderWork | ✓（项目同 Qoder） | ✓（项目同 Qoder） | 项目 `.qoder/settings.json` | `.qoder/` | `~/.qoderwork/` |
 
 ```bash
-nhx adapter sync --targets cursor,trae,qoder
-nhx session mark --from-prompt "/nhx-req-prd" --ide qoder
+nhx adapter sync --targets cursor,trae,qoder,qoderwork
+nhx session mark --from-prompt "/nhx-req-prd" --ide qoderwork
 ```
 
 ## 快速开始
@@ -60,12 +61,12 @@ nhx submit ./docs/prd-pack --name prd-pack --stage req --task prd-writing
 
 | 壳 | 项目级（默认） | 全局 `--global` |
 |----|----------------|-----------------|
-| Command Shell | `.cursor/commands/`、`.codebuddy/commands/`、`.qoder/commands/` | `~/.cursor/commands/`、`~/.codebuddy/commands/`、`~/.workbuddy/commands/`、`~/.qoder/commands/` |
-| Skill Shell | `.cursor/skills/`、`.trae/skills/`、`.codebuddy/skills/`、`.qoder/skills/` | `~/.cursor/skills/`、`~/.trae/skills/`、`~/.codebuddy/skills/`、`~/.workbuddy/skills/`、`~/.qoder/skills/` |
+| Command Shell | `.cursor/commands/`、`.codebuddy/commands/`、`.qoder/commands/` | `~/.cursor/commands/`、`~/.codebuddy/commands/`、`~/.workbuddy/commands/`、`~/.qoder/commands/`、`~/.qoderwork/commands/` |
+| Skill Shell | `.cursor/skills/`、`.trae/skills/`、`.codebuddy/skills/`、`.qoder/skills/` | `~/.cursor/skills/`、`~/.trae/skills/`、`~/.codebuddy/skills/`、`~/.workbuddy/skills/`、`~/.qoder/skills/`、`~/.qoderwork/skills/` |
 
-Cursor / Trae Hooks 默认写在项目目录；CodeBuddy / WorkBuddy 项目级 Hooks 写入 `.codebuddy/settings.json`（全局分别为 `~/.codebuddy/settings.json` 与 `~/.workbuddy/settings.json`）；Qoder Hooks 写入 `.qoder/settings.json`（全局 `~/.qoder/settings.json`，或 `$QODER_CONFIG_DIR`）。范围保存在 `.nhx/config.yaml` 的 `install_scope`。
+Cursor / Trae Hooks 默认写在项目目录；CodeBuddy / WorkBuddy 项目级 Hooks 写入 `.codebuddy/settings.json`（全局分别为 `~/.codebuddy/settings.json` 与 `~/.workbuddy/settings.json`）；Qoder / QoderWork 项目级 Hooks 写入 `.qoder/settings.json`（全局分别为 `~/.qoder/settings.json` 或 `$QODER_CONFIG_DIR`，与 `~/.qoderwork/settings.json`）。范围保存在 `.nhx/config.yaml` 的 `install_scope`。
 
-## IDE Hooks（Cursor / Trae / CodeBuddy / WorkBuddy / Qoder）
+## IDE Hooks（Cursor / Trae / CodeBuddy / WorkBuddy / Qoder / QoderWork）
 
 `nhx adapter sync` / `init` 会**合并**写入（不覆盖已有用户/hx hooks）：
 
@@ -87,13 +88,13 @@ Cursor / Trae Hooks 默认写在项目目录；CodeBuddy / WorkBuddy 项目级 H
 - `Stop` → `nhx-codebuddy-stop.mjs`（`hook:stop`；未通过则 `decision: block`）
 - `PostToolUse`（`matcher: Skill|Edit|Write`）→ `nhx-codebuddy-post-tool.mjs`（Skill 调用 nhx-* 时上报；Edit/Write 后 afterFileEdit 检查）
 
-**Qoder**（`.qoder/settings.json`）：
+**Qoder / QoderWork**（项目 `.qoder/settings.json`；全局分别为 `~/.qoder/` 与 `~/.qoderwork/`）：
 
-- `UserPromptSubmit` → `nhx-qoder-prompt.mjs`（解析提示词 + `session mark --ide qoder` + beforeSubmit 提醒）
+- `UserPromptSubmit` → `nhx-qoder-prompt.mjs`（解析提示词 + `session mark --ide qoder|qoderwork` + beforeSubmit 提醒）
 - `Stop` → `nhx-qoder-stop.mjs`（`hook:stop`；未通过则 `decision: block`）
 - `PostToolUse`（`matcher: Skill|Edit|Write`）→ `nhx-qoder-post-tool.mjs`（Skill 调用 nhx-* 时上报；Edit/Write 后 afterFileEdit 检查）
 
-首次生成后请在 Trae「设置 → Hooks」中确认启用（外部写入的 hooks.json 需在安全提示面板允许一次）；CodeBuddy/WorkBuddy/Qoder 请在 IDE 设置中启用对应 `settings.json` 中的 Hook。
+首次生成后请在 Trae「设置 → Hooks」中确认启用（外部写入的 hooks.json 需在安全提示面板允许一次）；CodeBuddy/WorkBuddy/Qoder/QoderWork 请在 IDE 设置中启用对应 `settings.json` 中的 Hook。
 
 Check `check_type`：
 
@@ -151,9 +152,9 @@ Check `check_type`：
 .codebuddy/commands/nhx-*.md      # --global → ~/.codebuddy/commands/（WorkBuddy → ~/.workbuddy/commands/）
 .codebuddy/skills/*/SKILL.md      # --global → ~/.codebuddy/skills/（WorkBuddy → ~/.workbuddy/skills/）
 .codebuddy/hooks/nhx-codebuddy-*.mjs + settings.json（合并；全局 WorkBuddy → ~/.workbuddy/）
-.qoder/commands/nhx-*.md          # --global → ~/.qoder/commands/（或 $QODER_CONFIG_DIR）
-.qoder/skills/*/SKILL.md          # --global → ~/.qoder/skills/
-.qoder/hooks/nhx-qoder-*.mjs + settings.json（合并）
+.qoder/commands/nhx-*.md          # --global → ~/.qoder/commands/（或 $QODER_CONFIG_DIR）；QoderWork → ~/.qoderwork/commands/
+.qoder/skills/*/SKILL.md          # --global → ~/.qoder/skills/（QoderWork → ~/.qoderwork/skills/）
+.qoder/hooks/nhx-qoder-*.mjs + settings.json（合并；全局 QoderWork → ~/.qoderwork/）
 ```
 
 ### Template 包与产物扩展名

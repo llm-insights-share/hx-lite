@@ -5,11 +5,23 @@ import { GENERATED_MARKER, type InstallScope } from "../config.js";
 
 const NHX_HOOK_MARKER = "nhx check";
 
-/** User config dir: `$QODER_CONFIG_DIR` or `~/.qoder`. */
+export type QoderIde = "qoder" | "qoderwork";
+
+/** Project always `.qoder`; QoderWork user-global is `.qoderwork`. */
+export function qoderDirName(ide: QoderIde, scope: InstallScope): string {
+  return scope === "global" && ide === "qoderwork" ? ".qoderwork" : ".qoder";
+}
+
+/**
+ * User config dir for the given IDE.
+ * `qoder` respects `$QODER_CONFIG_DIR`; `qoderwork` is always `~/.qoderwork`.
+ */
 export function qoderHomeDir(
+  ide: QoderIde = "qoder",
   home = os.homedir(),
   env: NodeJS.ProcessEnv = process.env,
 ): string {
+  if (ide === "qoderwork") return path.join(home, ".qoderwork");
   const override = (env.QODER_CONFIG_DIR || "").trim();
   if (override) return path.resolve(override);
   return path.join(home, ".qoder");
@@ -19,11 +31,16 @@ export function qoderHooksEnableHint(
   targets: string[],
   scope: InstallScope = "project",
 ): string | null {
-  if (!targets.includes("qoder")) return null;
+  const hasQ = targets.includes("qoder");
+  const hasQw = targets.includes("qoderwork");
+  if (!hasQ && !hasQw) return null;
   if (scope === "global") {
-    return "ℹ Qoder hooks 已写入全局 ~/.qoder/settings.json（或 $QODER_CONFIG_DIR/settings.json）；请在 IDE 设置中启用全局 Hook。";
+    const paths: string[] = [];
+    if (hasQ) paths.push("~/.qoder/settings.json（或 $QODER_CONFIG_DIR）");
+    if (hasQw) paths.push("~/.qoderwork/settings.json");
+    return `ℹ Qoder/QoderWork hooks 已写入全局 ${paths.join(" / ")}；请在 IDE 设置中启用全局 Hook。`;
   }
-  return "ℹ Qoder hooks 已写入项目 .qoder/settings.json；请在 IDE 设置中启用项目 Hook（勿与全局 nhx hooks 重复启用）。";
+  return "ℹ Qoder/QoderWork hooks 已写入项目 .qoder/settings.json；请在 IDE 设置中启用项目 Hook（勿与全局 nhx hooks 重复启用）。";
 }
 
 function runNhxHelper(): string {
@@ -47,7 +64,7 @@ function readStdinHelper(): string {
 }`;
 }
 
-function promptHookScript(): string {
+function promptHookScript(ide: QoderIde): string {
   return `#!/usr/bin/env node
 // ${GENERATED_MARKER} nhx-qoder-prompt
 import { spawnSync } from "node:child_process";
@@ -63,7 +80,7 @@ try {
   prompt = j.prompt || j.text || j.content || raw;
 } catch { /* plain text */ }
 
-const markArgs = ["session", "mark", "--from-prompt", prompt, "--ide", "qoder"];
+const markArgs = ["session", "mark", "--from-prompt", prompt, "--ide", ${JSON.stringify(ide)}];
 if (/Use Skill:/i.test(String(prompt))) markArgs.push("--no-report");
 runNhx(markArgs);
 
@@ -134,7 +151,7 @@ process.exit(0);
 `;
 }
 
-function postToolHookScript(): string {
+function postToolHookScript(ide: QoderIde): string {
   return `#!/usr/bin/env node
 // ${GENERATED_MARKER} nhx-qoder-post-tool
 import { spawnSync } from "node:child_process";
@@ -163,7 +180,7 @@ if (tool === "skill") {
   const m = name.match(/nhx-[a-z0-9]+-[a-z0-9][a-z0-9\\-]*/i);
   if (m) {
     const prompt = m[0].startsWith("/") ? m[0] : "/" + m[0];
-    runNhx(["session", "mark", "--from-prompt", prompt, "--ide", "qoder"]);
+    runNhx(["session", "mark", "--from-prompt", prompt, "--ide", ${JSON.stringify(ide)}]);
   }
   process.stdout.write(JSON.stringify({}));
   process.exit(0);
@@ -250,12 +267,13 @@ const HOOK_SCRIPTS = [
 function writeHookBundle(
   hooksDir: string,
   settingsPath: string,
+  ide: QoderIde,
   commandFor: (script: string) => string,
 ): void {
   fs.mkdirSync(hooksDir, { recursive: true });
-  fs.writeFileSync(path.join(hooksDir, "nhx-qoder-prompt.mjs"), promptHookScript(), "utf8");
+  fs.writeFileSync(path.join(hooksDir, "nhx-qoder-prompt.mjs"), promptHookScript(ide), "utf8");
   fs.writeFileSync(path.join(hooksDir, "nhx-qoder-stop.mjs"), stopHookScript(), "utf8");
-  fs.writeFileSync(path.join(hooksDir, "nhx-qoder-post-tool.mjs"), postToolHookScript(), "utf8");
+  fs.writeFileSync(path.join(hooksDir, "nhx-qoder-post-tool.mjs"), postToolHookScript(ide), "utf8");
 
   let doc: { hooks?: Record<string, unknown[]>; _nhx?: unknown } = { hooks: {} };
   if (fs.existsSync(settingsPath)) {
@@ -284,19 +302,23 @@ function writeHookBundle(
   doc._nhx = {
     generated: GENERATED_MARKER,
     marker: NHX_HOOK_MARKER,
-    ide: "qoder",
+    ide,
     note: "nhx merges Qoder hooks (UserPromptSubmit/Stop/PostToolUse); user hooks preserved",
   };
   fs.writeFileSync(settingsPath, JSON.stringify(doc, null, 2), "utf8");
 }
 
-export function stripNhxQoderHooksAt(settingsPath: string): void {
+export function stripNhxQoderHooksAt(settingsPath: string, expectIde?: QoderIde): void {
   if (!fs.existsSync(settingsPath)) return;
   let doc: { hooks?: Record<string, unknown[]>; _nhx?: unknown };
   try {
     doc = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
   } catch {
     return;
+  }
+  if (expectIde) {
+    const nhx = doc._nhx && typeof doc._nhx === "object" ? (doc._nhx as { ide?: string }) : null;
+    if (nhx?.ide !== expectIde) return;
   }
   if (!doc.hooks || typeof doc.hooks !== "object") return;
   for (const event of Object.keys(doc.hooks)) {
@@ -314,30 +336,33 @@ export function stripNhxQoderHooksAt(settingsPath: string): void {
 
 export function syncQoderHooks(
   cwd = process.cwd(),
+  ide: QoderIde = "qoder",
   home = os.homedir(),
   scope: InstallScope = "project",
   env: NodeJS.ProcessEnv = process.env,
 ): {
   settingsJson: boolean;
   scripts: string[];
-  ide: "qoder";
+  ide: QoderIde;
   globalDest: string;
   scope: InstallScope;
 } {
-  const globalBase = qoderHomeDir(home, env);
+  const globalBase = qoderHomeDir(ide, home, env);
   const globalSettings = path.join(globalBase, "settings.json");
   const projectSettings = path.join(cwd, ".qoder", "settings.json");
   const projectLocalSettings = path.join(cwd, ".qoder", "settings.local.json");
+  // Legacy: qoderwork --global may have written into ~/.qoder; strip only if _nhx.ide is qoderwork.
+  const legacyQoderSettings = path.join(home, ".qoder", "settings.json");
 
   if (scope === "project") {
-    writeHookBundle(path.join(cwd, ".qoder", "hooks"), projectSettings, (name) =>
+    writeHookBundle(path.join(cwd, ".qoder", "hooks"), projectSettings, ide, (name) =>
       `node .qoder/hooks/${name}`,
     );
     stripNhxQoderHooksAt(globalSettings);
     stripNhxQoderHooksAt(projectLocalSettings);
   } else {
     const globalHooksDir = path.join(globalBase, "hooks");
-    writeHookBundle(globalHooksDir, globalSettings, (name) => {
+    writeHookBundle(globalHooksDir, globalSettings, ide, (name) => {
       const abs = path.join(globalHooksDir, name);
       return `node ${JSON.stringify(abs)}`;
     });
@@ -345,10 +370,14 @@ export function syncQoderHooks(
     stripNhxQoderHooksAt(projectLocalSettings);
   }
 
+  if (ide === "qoderwork") {
+    stripNhxQoderHooksAt(legacyQoderSettings, "qoderwork");
+  }
+
   return {
     settingsJson: true,
     scripts: [...HOOK_SCRIPTS],
-    ide: "qoder",
+    ide,
     globalDest: globalSettings,
     scope,
   };

@@ -91,12 +91,13 @@ cd webui
 | `codebuddy` | CodeBuddy | ✓ | ✓ | `.codebuddy/settings.json` | `.codebuddy/` | `~/.codebuddy/` |
 | `workbuddy` | WorkBuddy | ✓ | ✓ | `.codebuddy/settings.json`（项目） | `.codebuddy/` | `~/.workbuddy/` |
 | `qoder` | Qoder | ✓ | ✓ | `.qoder/settings.json` | `.qoder/` | `~/.qoder/`（或 `$QODER_CONFIG_DIR`） |
+| `qoderwork` | QoderWork | ✓ | ✓ | `.qoder/settings.json`（项目） | `.qoder/` | `~/.qoderwork/` |
 
 示例：
 
 ```bash
-nhx adapter sync --targets cursor,trae,qoder
-nhx init --project 1 --stages req --targets cursor,trae,codebuddy,workbuddy,qoder
+nhx adapter sync --targets cursor,trae,qoder,qoderwork
+nhx init --project 1 --stages req --targets cursor,trae,codebuddy,workbuddy,qoder,qoderwork
 ```
 
 更细的投影路径与 Hook 事件见 [nhx CLI 手册](./packages/nhx/README.md)。

@@ -52,7 +52,7 @@ describe("ideInstallRoots / destLabel", () => {
   it("global roots are under homedir", () => {
     const cwd = "/tmp/proj";
     const home = "/tmp/home";
-    const r = ideInstallRoots("global", cwd, home, ".trae", "codebuddy", {});
+    const r = ideInstallRoots("global", cwd, home, ".trae", "codebuddy", "qoder", {});
     assert.equal(r.cursorSkills, path.join(home, ".cursor", "skills"));
     assert.equal(r.cursorCommands, path.join(home, ".cursor", "commands"));
     assert.equal(r.traeSkills, path.join(home, ".trae", "skills"));
@@ -85,6 +85,18 @@ describe("ideInstallRoots / destLabel", () => {
     const p = ideInstallRoots("project", cwd, home, ".trae", "workbuddy");
     assert.equal(p.codebuddyCommands, path.join(cwd, ".codebuddy", "commands"));
     assert.equal(p.codebuddySkills, path.join(cwd, ".codebuddy", "skills"));
+  });
+
+  it("qoderwork global roots use .qoderwork; project stays .qoder", () => {
+    const cwd = "/tmp/proj";
+    const home = "/tmp/home";
+    const g = ideInstallRoots("global", cwd, home, ".trae", "codebuddy", "qoderwork", {});
+    assert.equal(g.qoderCommands, path.join(home, ".qoderwork", "commands"));
+    assert.equal(g.qoderSkills, path.join(home, ".qoderwork", "skills"));
+    assert.equal(g.qoderIde, "qoderwork");
+    const p = ideInstallRoots("project", cwd, home, ".trae", "codebuddy", "qoderwork", {});
+    assert.equal(p.qoderCommands, path.join(cwd, ".qoder", "commands"));
+    assert.equal(p.qoderSkills, path.join(cwd, ".qoder", "skills"));
   });
 
   it("destLabel prefixes ~ for global", () => {
@@ -301,6 +313,37 @@ describe("syncAdapters project vs global", () => {
     assert.match(cmd, /nhx task shell nhx-req-prd/);
     assert.equal(isNhxGenerated(cmdFile), true);
     assert.equal(fs.existsSync(path.join(home, ".qoder", "settings.json")), true);
+  });
+
+  it("qoderwork project writes .qoder with qoderwork ide marker", () => {
+    const cwd = tmp();
+    const home = tmp();
+    seedNhx(cwd);
+    const out = syncAdapters(["qoderwork"], cwd, { scope: "project", home, env: {} });
+    const result = out.qoderwork as { commands: number; skills: number; ide: string };
+    assert.equal(result.ide, "qoderwork");
+    assert.equal(result.commands, 1);
+    assert.equal(fs.existsSync(path.join(cwd, ".qoder", "commands", "nhx-req-prd.md")), true);
+    const prompt = fs.readFileSync(path.join(cwd, ".qoder", "hooks", "nhx-qoder-prompt.mjs"), "utf8");
+    assert.match(prompt, /"--ide", "qoderwork"/);
+  });
+
+  it("qoderwork global writes ~/.qoderwork and embeds .qoderwork path in frontmatter", () => {
+    const cwd = tmp();
+    const home = tmp();
+    seedNhx(cwd);
+    const out = syncAdapters(["qoderwork"], cwd, { scope: "global", home, env: {} });
+    const result = out.qoderwork as { commands: number; skills: number; ide: string };
+    assert.equal(result.ide, "qoderwork");
+    assert.equal(result.commands, 1);
+    assert.equal(fs.existsSync(path.join(home, ".qoderwork", "commands", "nhx-req-prd.md")), true);
+    assert.equal(fs.existsSync(path.join(home, ".qoderwork", "skills", "demo-skill", "SKILL.md")), true);
+    assert.equal(fs.existsSync(path.join(home, ".qoderwork", "settings.json")), true);
+    assert.equal(fs.existsSync(path.join(home, ".qoder", "settings.json")), false);
+    const cmd = fs.readFileSync(path.join(home, ".qoderwork", "commands", "nhx-req-prd.md"), "utf8");
+    assert.equal(cmd.startsWith("---\n"), true);
+    assert.match(cmd, /~\/\.qoderwork\/commands\/nhx-req-prd\.md/);
+    assert.equal(isNhxGenerated(path.join(home, ".qoderwork", "commands", "nhx-req-prd.md")), true);
   });
 
   it("qoderCommandDoc embeds GENERATED marker inside frontmatter", () => {
