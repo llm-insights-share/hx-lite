@@ -355,6 +355,23 @@ class TaskShellRunIn(BaseModel):
     ide: str = "unknown"
 
 
+IDE_NORMALIZE_MAP = {
+    "cursor": "cursor",
+    "trae": "trae",
+    "trae-cn": "trae-cn",
+    "codebuddy": "codebuddy",
+    "workbuddy": "workbuddy",
+    "unknown": "unknown",
+}
+
+
+def normalize_ide_name(ide: str) -> str:
+    raw = (ide or "").strip().lower()
+    if not raw:
+        return "unknown"
+    return IDE_NORMALIZE_MAP.get(raw, "unknown")
+
+
 # ---- Users (for member picker) ----
 
 
@@ -459,7 +476,7 @@ def report_task_shell_run(
     mode = (body.trigger_mode or "command").strip().lower()
     if mode not in ("command", "skill"):
         mode = "command"
-    ide = (body.ide or "unknown").strip() or "unknown"
+    ide = normalize_ide_name(body.ide or "unknown")
     runner = (user.username or "").strip()
     recent_cutoff = datetime.now(timezone.utc) - timedelta(seconds=45)
     recent = session.exec(
@@ -503,7 +520,7 @@ def report_task_shell_run(
             "stage": stage,
             "task_id": task_id,
             "trigger_mode": mode,
-            "ide": (body.ide or "unknown").strip() or "unknown",
+            "ide": ide,
             "source": "nhx",
             "run_id": row.id,
         },

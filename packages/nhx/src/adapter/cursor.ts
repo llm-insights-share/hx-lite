@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { GENERATED_MARKER, nhxRoot, type InstallScope } from "../config.js";
 import { syncCursorHooks } from "./hooks.js";
 import { syncTraeHooks, type TraeHookIde } from "./trae-hooks.js";
+import { syncCodeBuddyHooks, codeBuddyDirName, codeBuddyHomeDir, type CodeBuddyIde } from "./codebuddy-hooks.js";
 
 export type AdapterSyncOpts = {
   scope?: InstallScope;
@@ -19,7 +20,10 @@ export type IdeInstallRoots = {
   cursorCommands: string;
   cursorSkills: string;
   traeSkills: string;
+  codebuddyCommands: string;
+  codebuddySkills: string;
   traeDir: ".trae" | ".trae-cn";
+  codeBuddyIde: CodeBuddyIde;
 };
 
 export function ideInstallRoots(
@@ -27,14 +31,20 @@ export function ideInstallRoots(
   cwd = process.cwd(),
   home = os.homedir(),
   traeDir: ".trae" | ".trae-cn" = ".trae",
+  codeBuddyIde: CodeBuddyIde = "codebuddy",
 ): IdeInstallRoots {
   const base = scope === "global" ? home : cwd;
+  const codeBuddyBase =
+    scope === "global" ? codeBuddyHomeDir(codeBuddyIde, home) : path.join(cwd, ".codebuddy");
   return {
     scope,
     cursorCommands: path.join(base, ".cursor", "commands"),
     cursorSkills: path.join(base, ".cursor", "skills"),
     traeSkills: path.join(base, traeDir, "skills"),
+    codebuddyCommands: path.join(codeBuddyBase, "commands"),
+    codebuddySkills: path.join(codeBuddyBase, "skills"),
     traeDir,
+    codeBuddyIde,
   };
 }
 
@@ -69,6 +79,17 @@ function cleanNhxFiles(dir: string, pred: (name: string) => boolean): void {
       continue;
     }
     if (pred(name) && isNhxGenerated(full)) fs.unlinkSync(full);
+  }
+}
+
+/** Copy a whole skill dir so companion files (references/, scripts/ …) reach the IDE. */
+function copySkillDir(srcDir: string, destDir: string): void {
+  fs.mkdirSync(destDir, { recursive: true });
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    const src = path.join(srcDir, entry.name);
+    const dest = path.join(destDir, entry.name);
+    if (entry.isDirectory()) copySkillDir(src, dest);
+    else if (entry.isFile()) fs.copyFileSync(src, dest);
   }
 }
 
@@ -129,13 +150,19 @@ export function countAdapterProjection(
   cursor_nhx_commands: number;
   cursor_nhx_skills: number;
   trae_nhx_skills: number;
+  codebuddy_nhx_commands: number;
+  codebuddy_nhx_skills: number;
   dest: IdeInstallRoots;
 } {
   const h = home ?? os.homedir();
   const hasTrae = targets.includes("trae");
   const hasTraeCn = targets.includes("trae-cn");
+  const hasCodebuddy = targets.includes("codebuddy");
+  const hasWorkbuddy = targets.includes("workbuddy");
   const primaryTrae: ".trae" | ".trae-cn" = hasTraeCn && !hasTrae ? ".trae-cn" : ".trae";
-  const dest = ideInstallRoots(scope, cwd, h, primaryTrae);
+  const primaryCodeBuddy: CodeBuddyIde =
+    hasWorkbuddy && !hasCodebuddy ? "workbuddy" : "codebuddy";
+  const dest = ideInstallRoots(scope, cwd, h, primaryTrae, primaryCodeBuddy);
   const nhx = nhxRoot(cwd);
   const managed = listManagedSkillNames(path.join(nhx, "skills"), path.join(nhx, "commands"));
   let traeSkills = 0;
@@ -148,11 +175,33 @@ export function countAdapterProjection(
   if (!hasTrae && !hasTraeCn) {
     traeSkills = countNhxSkillDirs(dest.traeSkills, managed);
   }
+  let codebuddyCommands = 0;
+  let codebuddySkills = 0;
+  if (hasCodebuddy || hasWorkbuddy) {
+    const seenCmd = new Set<string>();
+    const seenSkill = new Set<string>();
+    for (const ide of (["codebuddy", "workbuddy"] as const).filter((t) => targets.includes(t))) {
+      const roots = ideInstallRoots(scope, cwd, h, primaryTrae, ide);
+      if (!seenCmd.has(roots.codebuddyCommands)) {
+        seenCmd.add(roots.codebuddyCommands);
+        codebuddyCommands += countNhxCommandFiles(roots.codebuddyCommands);
+      }
+      if (!seenSkill.has(roots.codebuddySkills)) {
+        seenSkill.add(roots.codebuddySkills);
+        codebuddySkills += countNhxSkillDirs(roots.codebuddySkills, managed);
+      }
+    }
+  } else {
+    codebuddyCommands = countNhxCommandFiles(dest.codebuddyCommands);
+    codebuddySkills = countNhxSkillDirs(dest.codebuddySkills, managed);
+  }
   return {
     scope,
     cursor_nhx_commands: countNhxCommandFiles(dest.cursorCommands),
     cursor_nhx_skills: countNhxSkillDirs(dest.cursorSkills, managed),
     trae_nhx_skills: traeSkills,
+    codebuddy_nhx_commands: codebuddyCommands,
+    codebuddy_nhx_skills: codebuddySkills,
     dest,
   };
 }
@@ -191,11 +240,8 @@ export function syncCursor(
     for (const name of fs.readdirSync(skillSrc)) {
       const src = path.join(skillSrc, name, "SKILL.md");
       if (!fs.existsSync(src)) continue;
-      const body = fs.readFileSync(src, "utf8");
-      const destDir = path.join(skillDest, name);
-      fs.mkdirSync(destDir, { recursive: true });
-      // Skills: no GENERATED HTML comment — body is the SKILL.md as-is
-      fs.writeFileSync(path.join(destDir, "SKILL.md"), body, "utf8");
+      // Skills: no GENERATED HTML comment — SKILL.md is copied as-is
+      copySkillDir(path.join(skillSrc, name), path.join(skillDest, name));
       skills++;
     }
   }
@@ -248,10 +294,7 @@ export function syncTrae(
     for (const name of fs.readdirSync(skillSrc)) {
       const src = path.join(skillSrc, name, "SKILL.md");
       if (!fs.existsSync(src)) continue;
-      const body = fs.readFileSync(src, "utf8");
-      const destDir = path.join(skillDest, name);
-      fs.mkdirSync(destDir, { recursive: true });
-      fs.writeFileSync(path.join(destDir, "SKILL.md"), body, "utf8");
+      copySkillDir(path.join(skillSrc, name), path.join(skillDest, name));
       skills++;
     }
   }
@@ -261,6 +304,49 @@ export function syncTrae(
 
   // NEVER touch .trae/agents.yaml / .trae-cn agents config
   return { skills, hooks, scope, dest: skillDest, traeDir };
+}
+
+export function syncCodeBuddy(
+  cwd = process.cwd(),
+  opts: AdapterSyncOpts & { ide?: CodeBuddyIde } = {},
+): { commands: number; skills: number; hooks?: unknown; scope: InstallScope; dest: string; ide: CodeBuddyIde } {
+  const scope = opts.scope || "project";
+  const ide = opts.ide || "codebuddy";
+  const nhx = nhxRoot(cwd);
+  const cmdSrc = path.join(nhx, "commands");
+  const skillSrc = path.join(nhx, "skills");
+  const roots = ideInstallRoots(scope, cwd, opts.home ?? os.homedir(), ".trae", ide);
+  const cmdDest = roots.codebuddyCommands;
+  const skillDest = roots.codebuddySkills;
+  fs.mkdirSync(cmdDest, { recursive: true });
+  fs.mkdirSync(skillDest, { recursive: true });
+
+  cleanNhxFiles(cmdDest, (n) => n.startsWith("nhx-") && n.endsWith(".md"));
+  cleanManagedSkillDirs(skillDest, listManagedSkillNames(skillSrc));
+
+  let commands = 0;
+  if (fs.existsSync(cmdSrc)) {
+    for (const f of fs.readdirSync(cmdSrc).filter((x) => x.startsWith("nhx-") && x.endsWith(".md"))) {
+      const body = fs.readFileSync(path.join(cmdSrc, f), "utf8");
+      const label = destLabel(scope, `${codeBuddyDirName(ide, scope)}/commands/${f}`);
+      const out = header(label, body) + body;
+      fs.writeFileSync(path.join(cmdDest, f), out, "utf8");
+      commands++;
+    }
+  }
+
+  let skills = 0;
+  if (fs.existsSync(skillSrc)) {
+    for (const name of fs.readdirSync(skillSrc)) {
+      const src = path.join(skillSrc, name, "SKILL.md");
+      if (!fs.existsSync(src)) continue;
+      copySkillDir(path.join(skillSrc, name), path.join(skillDest, name));
+      skills++;
+    }
+  }
+
+  const hooks = syncCodeBuddyHooks(cwd, ide, opts.home ?? os.homedir(), scope);
+  return { commands, skills, hooks, scope, dest: skillDest, ide };
 }
 
 export function syncAdapters(
@@ -273,7 +359,9 @@ export function syncAdapters(
     if (t === "cursor") out.cursor = syncCursor(cwd, opts);
     else if (t === "trae") out.trae = syncTrae(cwd, { ...opts, traeDir: ".trae" });
     else if (t === "trae-cn") out["trae-cn"] = syncTrae(cwd, { ...opts, traeDir: ".trae-cn" });
-    else console.warn(`⚠ unknown adapter target "${t}" (supported: cursor, trae, trae-cn)`);
+    else if (t === "codebuddy") out.codebuddy = syncCodeBuddy(cwd, { ...opts, ide: "codebuddy" });
+    else if (t === "workbuddy") out.workbuddy = syncCodeBuddy(cwd, { ...opts, ide: "workbuddy" });
+    else console.warn(`⚠ unknown adapter target "${t}" (supported: cursor, trae, trae-cn, codebuddy, workbuddy)`);
   }
   return out;
 }

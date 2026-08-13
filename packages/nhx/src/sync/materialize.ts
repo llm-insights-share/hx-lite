@@ -83,18 +83,62 @@ function writeSkillShell(skillsDir: string, id: string, description: string, ful
   fs.writeFileSync(path.join(dir, "SKILL.md"), buildSkillMarkdown(id, description, full), "utf8");
 }
 
+function safeRelPath(raw: string): string {
+  const rel = (raw || "").replace(/\\/g, "/").replace(/^\.\//, "");
+  if (!rel || rel.split("/").includes("..")) return "";
+  return rel;
+}
+
+/**
+ * Skill packages are usually stored under one wrapper folder named after the original
+ * skill dir (`business-concept-modeler/SKILL.md`, `business-concept-modeler/references/…`).
+ * Return that shared root so it can be stripped, keeping `references/x.md` resolvable
+ * relative to SKILL.md.
+ */
+export function commonPackageRoot(paths: string[]): string {
+  const segs = paths.map((p) => safeRelPath(p)).filter(Boolean).map((p) => p.split("/"));
+  if (!segs.length || segs.some((s) => s.length < 2)) return "";
+  const first = segs[0][0];
+  return segs.every((s) => s[0] === first) ? first : "";
+}
+
 function writeGuidePackageBlobs(guidesDir: string, g: GuideExport): void {
   const blobs = g.package_blobs || [];
   if (!blobs.length) return;
   const pkgDir = path.join(guidesDir, g.asset_id);
   fs.mkdirSync(pkgDir, { recursive: true });
   for (const blob of blobs) {
-    const rel = (blob.path || "").replace(/\\/g, "/").replace(/^\.\//, "");
-    if (!rel || rel.split("/").includes("..")) continue;
+    const rel = safeRelPath(blob.path || "");
+    if (!rel) continue;
     const dest = path.join(pkgDir, rel);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.writeFileSync(dest, Buffer.from(blob.content_base64 || "", "base64"));
   }
+}
+
+/**
+ * Copy a skill package's companion files (references/, scripts/, assets/ …) next to SKILL.md.
+ * SKILL.md itself is skipped — it is regenerated from `content` with normalized frontmatter.
+ */
+function writeSkillPackageAssets(skillDir: string, g: GuideExport): number {
+  const blobs = g.package_blobs || [];
+  if (!blobs.length) return 0;
+  const root = commonPackageRoot(blobs.map((b) => b.path || ""));
+  let written = 0;
+  for (const blob of blobs) {
+    let rel = safeRelPath(blob.path || "");
+    if (!rel) continue;
+    if (root) {
+      if (rel === root) continue;
+      if (rel.startsWith(`${root}/`)) rel = rel.slice(root.length + 1);
+    }
+    if (!rel || rel.toLowerCase() === "skill.md") continue;
+    const dest = path.join(skillDir, rel);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, Buffer.from(blob.content_base64 || "", "base64"));
+    written++;
+  }
+  return written;
 }
 
 function templatePrimaryFilesForTask(
@@ -193,12 +237,14 @@ export function materializeExport(
     if (g.kind === "guide.template") continue;
     if ((g.asset_id || "").startsWith("wf-")) continue;
     const dir = path.join(skillsDir, g.asset_id);
+    fs.rmSync(dir, { recursive: true, force: true });
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(
       path.join(dir, "SKILL.md"),
       buildSkillMarkdown(g.asset_id, `nhx skill ${g.asset_id}`, g.content || ""),
       "utf8",
     );
+    writeSkillPackageAssets(dir, g);
     skillCount++;
   }
 

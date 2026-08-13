@@ -6,6 +6,7 @@ from sqlmodel import SQLModel, Session, create_engine, select
 from app.core.models import Project, ProjectMember, ProjectOperationLog, TaskShellRunLog, User
 from app.core.security import hash_password
 from app.modules.project.router import (
+    normalize_ide_name,
     TaskShellRunIn,
     _usage_series_30d,
     project_dashboard,
@@ -161,5 +162,38 @@ class DashboardUsageMetricsTest(unittest.TestCase):
             ).all()
             self.assertEqual(len(logs2), 2)
             self.assertTrue(any(l.action == "task_shell_run" and "dev/apply" in l.summary for l in logs2))
+
+    def test_report_task_shell_run_normalizes_ide(self) -> None:
+        with Session(self.engine) as session:
+            user = User(
+                username="u2",
+                email="u2@localhost",
+                hashed_password=hash_password("pw"),
+                roles="member",
+            )
+            project = Project(name="P2", slug="p2")
+            session.add(user)
+            session.add(project)
+            session.commit()
+            session.refresh(user)
+            session.refresh(project)
+            session.add(ProjectMember(project_id=project.id, user_id=user.id, role="member"))  # type: ignore[arg-type]
+            session.commit()
+
+            report_task_shell_run(
+                project.id,  # type: ignore[arg-type]
+                TaskShellRunIn(stage="req", task_id="prd-writing", trigger_mode="command", ide="CodeBuddy"),
+                session,
+                user,
+            )
+            row = session.exec(select(TaskShellRunLog).where(TaskShellRunLog.project_id == project.id)).first()
+            assert row is not None
+            self.assertEqual(row.ide, "codebuddy")
+
+    def test_normalize_ide_name(self) -> None:
+        self.assertEqual(normalize_ide_name("cursor"), "cursor")
+        self.assertEqual(normalize_ide_name(" WorkBuddy "), "workbuddy")
+        self.assertEqual(normalize_ide_name("TRAE-CN"), "trae-cn")
+        self.assertEqual(normalize_ide_name("other-ide"), "unknown")
 if __name__ == "__main__":
     unittest.main()

@@ -42,6 +42,8 @@ describe("ideInstallRoots / destLabel", () => {
     assert.equal(r.cursorSkills, path.join(cwd, ".cursor", "skills"));
     assert.equal(r.cursorCommands, path.join(cwd, ".cursor", "commands"));
     assert.equal(r.traeSkills, path.join(cwd, ".trae", "skills"));
+    assert.equal(r.codebuddyCommands, path.join(cwd, ".codebuddy", "commands"));
+    assert.equal(r.codebuddySkills, path.join(cwd, ".codebuddy", "skills"));
   });
 
   it("global roots are under homedir", () => {
@@ -51,6 +53,8 @@ describe("ideInstallRoots / destLabel", () => {
     assert.equal(r.cursorSkills, path.join(home, ".cursor", "skills"));
     assert.equal(r.cursorCommands, path.join(home, ".cursor", "commands"));
     assert.equal(r.traeSkills, path.join(home, ".trae", "skills"));
+    assert.equal(r.codebuddyCommands, path.join(home, ".codebuddy", "commands"));
+    assert.equal(r.codebuddySkills, path.join(home, ".codebuddy", "skills"));
   });
 
   it("trae-cn roots use .trae-cn", () => {
@@ -64,6 +68,18 @@ describe("ideInstallRoots / destLabel", () => {
       ideInstallRoots("project", cwd, home, ".trae-cn").traeSkills,
       path.join(cwd, ".trae-cn", "skills"),
     );
+  });
+
+  it("workbuddy global roots use .workbuddy; project stays .codebuddy", () => {
+    const cwd = "/tmp/proj";
+    const home = "/tmp/home";
+    const g = ideInstallRoots("global", cwd, home, ".trae", "workbuddy");
+    assert.equal(g.codebuddyCommands, path.join(home, ".workbuddy", "commands"));
+    assert.equal(g.codebuddySkills, path.join(home, ".workbuddy", "skills"));
+    assert.equal(g.codeBuddyIde, "workbuddy");
+    const p = ideInstallRoots("project", cwd, home, ".trae", "workbuddy");
+    assert.equal(p.codebuddyCommands, path.join(cwd, ".codebuddy", "commands"));
+    assert.equal(p.codebuddySkills, path.join(cwd, ".codebuddy", "skills"));
   });
 
   it("destLabel prefixes ~ for global", () => {
@@ -175,6 +191,59 @@ describe("syncAdapters project vs global", () => {
     assert.match(
       fs.readFileSync(path.join(home, ".trae-cn", "hooks.json"), "utf8"),
       /nhx-trae-prompt\.mjs/,
+    );
+  });
+
+  it("codebuddy target writes .codebuddy commands/skills and hooks", () => {
+    const cwd = tmp();
+    const home = tmp();
+    seedNhx(cwd);
+    const out = syncAdapters(["codebuddy"], cwd, { scope: "project", home });
+    const result = out.codebuddy as { commands: number; skills: number; ide: string };
+    assert.equal(result.ide, "codebuddy");
+    assert.equal(result.commands, 1);
+    assert.equal(result.skills, 1);
+    assert.equal(fs.existsSync(path.join(cwd, ".codebuddy", "commands", "nhx-req-prd.md")), true);
+    assert.equal(fs.existsSync(path.join(cwd, ".codebuddy", "skills", "demo-skill", "SKILL.md")), true);
+    assert.equal(fs.existsSync(path.join(cwd, ".codebuddy", "settings.json")), true);
+    assert.match(
+      fs.readFileSync(path.join(cwd, ".codebuddy", "settings.json"), "utf8"),
+      /nhx-codebuddy-prompt\.mjs/,
+    );
+  });
+
+  it("workbuddy target writes .codebuddy assets with workbuddy ide marker", () => {
+    const cwd = tmp();
+    const home = tmp();
+    seedNhx(cwd);
+    const out = syncAdapters(["workbuddy"], cwd, { scope: "project", home });
+    const result = out.workbuddy as { commands: number; skills: number; ide: string };
+    assert.equal(result.ide, "workbuddy");
+    assert.equal(result.commands, 1);
+    assert.equal(result.skills, 1);
+    const prompt = fs.readFileSync(
+      path.join(cwd, ".codebuddy", "hooks", "nhx-codebuddy-prompt.mjs"),
+      "utf8",
+    );
+    assert.match(prompt, /"--ide", "workbuddy"/);
+  });
+
+  it("workbuddy global writes ~/.workbuddy commands/skills and hooks", () => {
+    const cwd = tmp();
+    const home = tmp();
+    seedNhx(cwd);
+    const out = syncAdapters(["workbuddy"], cwd, { scope: "global", home });
+    const result = out.workbuddy as { commands: number; skills: number; ide: string; dest: string };
+    assert.equal(result.ide, "workbuddy");
+    assert.equal(result.commands, 1);
+    assert.equal(result.skills, 1);
+    assert.equal(fs.existsSync(path.join(home, ".workbuddy", "commands", "nhx-req-prd.md")), true);
+    assert.equal(fs.existsSync(path.join(home, ".workbuddy", "skills", "demo-skill", "SKILL.md")), true);
+    assert.equal(fs.existsSync(path.join(home, ".workbuddy", "settings.json")), true);
+    assert.equal(fs.existsSync(path.join(home, ".codebuddy", "settings.json")), false);
+    assert.match(
+      fs.readFileSync(path.join(home, ".workbuddy", "commands", "nhx-req-prd.md"), "utf8"),
+      /~\/\.workbuddy\/commands\/nhx-req-prd\.md/,
     );
   });
 });

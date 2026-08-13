@@ -14,6 +14,7 @@ import {
 } from "./api/client.js";
 import { countAdapterProjection, syncAdapters } from "./adapter/cursor.js";
 import { traeHooksEnableHint } from "./adapter/trae-hooks.js";
+import { codeBuddyHooksEnableHint } from "./adapter/codebuddy-hooks.js";
 import {
   ensureNhxDir,
   loadConfig,
@@ -92,6 +93,8 @@ async function doSync(opts: {
   console.log("✓ adapter", adapter);
   const hint = traeHooksEnableHint(targets, install_scope);
   if (hint) console.log(hint);
+  const codeBuddyHint = codeBuddyHooksEnableHint(targets, install_scope);
+  if (codeBuddyHint) console.log(codeBuddyHint);
 }
 
 function buildProgram(): Command {
@@ -191,7 +194,11 @@ function buildProgram(): Command {
     .description("初始化 .nhx、按 stage 拉取资产并安装到 IDE")
     .requiredOption("--project <idOrSlug>", "项目 ID 或 slug")
     .requiredOption("--stages <list>", "关注的 stage，逗号分隔，如 req,dev")
-    .option("--targets <list>", "IDE 目标，逗号分隔（cursor,trae,trae-cn）", "cursor,trae")
+    .option(
+      "--targets <list>",
+      "IDE 目标，逗号分隔（cursor,trae,trae-cn,codebuddy,workbuddy）",
+      "cursor,trae",
+    )
     .option("-g, --global", "Skill/Command 安装到 IDE 用户级目录（~/.cursor、~/.trae）")
     .option("--local", "Skill/Command 安装到项目目录（.cursor、.trae）")
     .option("--api <url>", "覆盖 API（可选）")
@@ -301,6 +308,8 @@ function buildProgram(): Command {
       console.log("✓ adapter", result);
       const hint = traeHooksEnableHint(targets, install_scope);
       if (hint) console.log(hint);
+      const codeBuddyHint = codeBuddyHooksEnableHint(targets, install_scope);
+      if (codeBuddyHint) console.log(codeBuddyHint);
     });
 
   program
@@ -433,7 +442,7 @@ function buildProgram(): Command {
     .option("--stage <stage>")
     .option("--task <task>")
     .option("--from-prompt <text>", "从提示词解析 /nhx-stage-task")
-    .option("--ide <ide>", "上报 IDE：cursor|trae|trae-cn", "cursor")
+    .option("--ide <ide>", "上报 IDE：cursor|trae|trae-cn|codebuddy|workbuddy", "cursor")
     .option("--no-report", "只写 session.json，不上报 WebUI")
     .action(
       async (opts: {
@@ -576,7 +585,12 @@ function buildProgram(): Command {
       const creds = loadCredentials(cwd);
       const cmds = listLocalCommands(cwd);
       const scope = cfg?.install_scope || "project";
-      const projection = countAdapterProjection(scope, cwd, undefined, cfg?.targets || ["cursor", "trae"]);
+      const projection = countAdapterProjection(
+        scope,
+        cwd,
+        undefined,
+        cfg?.targets || ["cursor", "trae"],
+      );
       const report = {
         api,
         health: okHealth,
@@ -589,10 +603,14 @@ function buildProgram(): Command {
         cursor_nhx_commands: projection.cursor_nhx_commands,
         cursor_nhx_skills: projection.cursor_nhx_skills,
         trae_nhx_skills: projection.trae_nhx_skills,
+        codebuddy_nhx_commands: projection.codebuddy_nhx_commands,
+        codebuddy_nhx_skills: projection.codebuddy_nhx_skills,
         dest: {
           cursor_commands: projection.dest.cursorCommands,
           cursor_skills: projection.dest.cursorSkills,
           trae_skills: projection.dest.traeSkills,
+          codebuddy_commands: projection.dest.codebuddyCommands,
+          codebuddy_skills: projection.dest.codebuddySkills,
         },
         ok: okHealth && Boolean(creds?.access_token) && Boolean(cfg?.project_id),
       };
